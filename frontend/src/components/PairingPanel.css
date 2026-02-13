@@ -1,0 +1,703 @@
+/* ─── Pairing Panel Container ─── */
+.pairing-panel {
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border: 1px solid #c7d2fe;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 20px;
+  animation: fadeIn 0.3s ease;
+}
+
+/* ─── Tabs ─── */
+.pairing-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 12px;
+}
+
+.pairing-tabs button {
+  padding: 8px 16px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.pairing-tabs button:hover {
+  background: #e0e7ff;
+  color: #4338ca;
+}
+
+.pairing-tabs button.active {
+  background: #6366f1;
+  color: white;
+  border-color: #6366f1;
+}
+
+/* ─── Tab Content ─── */
+.pairing-tab-content {
+  min-height: 80px;
+}
+
+.pairing-empty {
+  text-align: center;
+  padding: 32px 20px;
+  color: #94a3b8;
+  font-size: 14px;
+}
+
+/* ─── Controls Row ─── */
+.pairing-controls {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.pairing-controls .filter-group input[type="number"] {
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: inherit;
+  color: #1e293b;
+  background: white;
+  outline: none;
+  min-height: 38px;
+  width: 80px;
+}
+
+.pairing-controls .filter-group input[type="number"]:focus {
+  border-color: #818cf8;
+  box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.15);
+}
+
+.btn-refresh {
+  padding: 8px 16px;
+  background: white;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.2s;
+  min-height: 38px;
+}
+
+.btn-refresh:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+
+/* ─── Pairing Cards Grid ─── */
+.pairing-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 12px;
+}
+
+.pairing-card {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-left: 3px solid #818cf8;
+  border-radius: 10px;
+  padding: 16px;
+  transition: box-shadow 0.2s;
+}
+
+.pairing-card:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.pairing-card.draft {
+  border-left-color: #818cf8;
+}
+
+.pairing-card.locked {
+  border-left-color: #f59e0b;
+}
+
+.pairing-card.executed {
+  border-left-color: #22c55e;
+  opacity: 0.75;
+}
+
+/* Card Header */
+.pairing-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.pairing-card-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: #1e293b;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pairing-pnl {
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.pairing-pnl.profit {
+  color: #16a34a;
+}
+
+.pairing-pnl.loss {
+  color: #dc2626;
+}
+
+/* Card Details */
+.pairing-card-details {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: #475569;
+}
+
+.pairing-card-details .label {
+  color: #94a3b8;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+/* Lot Chips */
+.pairing-card-lots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.lot-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  background: #f1f5f9;
+  border-radius: 4px;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 11px;
+  color: #64748b;
+}
+
+/* Card Actions */
+.pairing-card-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-top: 12px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.btn-simulate {
+  padding: 6px 14px;
+  background: white;
+  border: 1px solid #818cf8;
+  border-radius: 6px;
+  color: #6366f1;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-simulate:hover:not(:disabled) {
+  background: #eef2ff;
+}
+
+.btn-simulate:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-create-from-suggestion {
+  padding: 6px 14px;
+  background: #6366f1;
+  border: none;
+  border-radius: 6px;
+  color: white;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-create-from-suggestion:hover:not(:disabled) {
+  background: #4f46e5;
+}
+
+.btn-create-from-suggestion:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-lock {
+  padding: 6px 14px;
+  background: #f59e0b;
+  border: none;
+  border-radius: 6px;
+  color: white;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-lock:hover:not(:disabled) {
+  background: #d97706;
+}
+
+.btn-lock:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-unlock {
+  padding: 6px 14px;
+  background: white;
+  border: 1px solid #f59e0b;
+  border-radius: 6px;
+  color: #d97706;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-unlock:hover:not(:disabled) {
+  background: #fffbeb;
+}
+
+.btn-unlock:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-execute {
+  padding: 6px 14px;
+  background: #16a34a;
+  border: none;
+  border-radius: 6px;
+  color: white;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-execute:hover:not(:disabled) {
+  background: #15803d;
+}
+
+.btn-execute:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-delete {
+  padding: 6px 14px;
+  background: white;
+  border: 1px solid #fca5a5;
+  border-radius: 6px;
+  color: #dc2626;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-delete:hover:not(:disabled) {
+  background: #fef2f2;
+}
+
+.btn-delete:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.executed-label {
+  font-size: 12px;
+  color: #22c55e;
+  font-weight: 600;
+}
+
+/* ─── Manual Tab ─── */
+.manual-preview {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.manual-preview .summary-card {
+  padding: 12px 16px;
+}
+
+.manual-preview .summary-card .summary-value {
+  font-size: 16px;
+}
+
+.summary-profit .summary-value {
+  color: #16a34a !important;
+}
+
+.summary-loss .summary-value {
+  color: #dc2626 !important;
+}
+
+.selected-lots-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+.selected-lots-table th {
+  padding: 8px 12px;
+  text-align: left;
+  font-weight: 600;
+  color: #64748b;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.selected-lots-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #334155;
+}
+
+.btn-remove-lot {
+  padding: 2px 8px;
+  background: none;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  color: #94a3b8;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-remove-lot:hover {
+  border-color: #fca5a5;
+  color: #dc2626;
+  background: #fef2f2;
+}
+
+.manual-actions {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.btn-create-pairing {
+  padding: 10px 22px;
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-create-pairing:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35);
+}
+
+.btn-create-pairing:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ─── Pairing Message Banner ─── */
+.pairing-message {
+  padding: 10px 16px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  font-weight: 500;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  animation: fadeIn 0.3s ease;
+}
+
+.pairing-success {
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+}
+
+.pairing-error {
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.pairing-message button {
+  background: none;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+  color: inherit;
+  padding: 0 4px;
+  opacity: 0.5;
+  line-height: 1;
+}
+
+.pairing-message button:hover {
+  opacity: 1;
+}
+
+/* ─── Simulation Overlay ─── */
+.simulation-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease;
+}
+
+.simulation-preview {
+  background: white;
+  border-radius: 16px;
+  padding: 28px;
+  max-width: 720px;
+  width: 90%;
+  max-height: 85vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+}
+
+.simulation-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.simulation-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.btn-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.btn-close:hover {
+  color: #475569;
+}
+
+/* Simulation Grid */
+.simulation-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.sim-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sim-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.sim-value {
+  font-size: 17px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.sim-profit .sim-value {
+  color: #16a34a;
+}
+
+.sim-loss .sim-value {
+  color: #dc2626;
+}
+
+.simulation-preview h4 {
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 0 0 12px 0;
+}
+
+/* Affected Lots Table */
+.affected-lots-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin-bottom: 20px;
+}
+
+.affected-lots-table th {
+  padding: 8px 12px;
+  text-align: left;
+  font-weight: 600;
+  color: #64748b;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.affected-lots-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #334155;
+}
+
+/* Remaining Portfolio */
+.simulation-remaining {
+  display: flex;
+  gap: 24px;
+  padding: 12px 16px;
+  background: #f8fafc;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #475569;
+  margin-bottom: 20px;
+}
+
+.simulation-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.btn-close-sim {
+  padding: 10px 24px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-close-sim:hover {
+  background: #e2e8f0;
+}
+
+/* ─── Planned Binance Order Card (aggregiert) ─── */
+.planned-order-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 16px;
+  background: white;
+}
+
+.planned-order-card.order-exceeds-max {
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.client-order-id-row {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid #f1f5f9;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.client-order-id-row .order-id {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+/* Warning Banner */
+.sim-warning {
+  padding: 10px 16px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  color: #991b1b;
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 12px;
+}
+
+/* Order Params Summary */
+.order-params-summary {
+  display: flex;
+  gap: 24px;
+  padding: 12px 16px;
+  background: #f8fafc;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #475569;
+  margin-bottom: 20px;
+}
+
+/* ─── Responsive ─── */
+@media (max-width: 768px) {
+  .pairing-panel {
+    padding: 16px;
+  }
+
+  .pairing-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .simulation-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .manual-preview {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .simulation-remaining {
+    flex-direction: column;
+    gap: 8px;
+  }
+}

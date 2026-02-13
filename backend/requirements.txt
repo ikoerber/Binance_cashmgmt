@@ -1,0 +1,35 @@
+# FastAPI Framework
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+pydantic>=2.10.0
+pydantic-settings>=2.7.0
+
+# Database
+sqlalchemy>=2.0.36
+alembic>=1.14.0
+psycopg2-binary>=2.9.10
+
+# Binance API
+python-binance>=1.0.34
+
+# HTTP Requests (für Twelve Data API)
+requests>=2.31.0
+
+# Utilities
+python-dotenv>=1.0.1
+python-dateutil>=2.9.0
+python-multipart>=0.0.18
+
+# Testing
+pytest>=8.3.0
+pytest-cov>=6.0.0
+pytest-asyncio>=0.24.0
+httpx>=0.28.0
+
+# Code Quality
+ruff>=0.8.0
+black>=24.10.0
+mypy>=1.13.0
+
+# Redis (für später - Worker)
+redis>=5.2.0

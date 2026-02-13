@@ -1,0 +1,353 @@
+"""Pairing API Endpoints"""
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.orm import Session
+from decimal import Decimal
+from typing import Optional, List
+from pydantic import BaseModel
+
+from app.db.database import get_db
+from app.services.pairing_service import (
+    get_pairing_suggestions,
+    simulate_pairing_execution,
+    create_pairing,
+    get_pairing_by_id,
+    list_pairings,
+    lock_pairing,
+    unlock_pairing,
+    execute_pairing,
+    delete_pairing,
+)
+from app.services.order_service import OrderService
+from app.services.binance import BinanceService
+from app.api.dependencies import get_binance_service
+
+router = APIRouter(prefix="/api/pairing", tags=["pairing"])
+
+
+def _get_order_service(binance: BinanceService = Depends(get_binance_service)) -> OrderService:
+    """Dependency: Order Service für Pairing-Execution"""
+    return OrderService(binance)
+
+
+# ============================================================================
+# Request/Response Models
+# ============================================================================
+
+
+class PairingItemCreate(BaseModel):
+    lot_id: str
+    qty_btc: float
+
+
+class PairingCreateRequest(BaseModel):
+    items: List[PairingItemCreate]
+    threshold_pct: float
+
+
+@router.get("/{user_id}/suggestions")
+def get_suggestions(
+    user_id: str,
+    market_price: float,
+    threshold_pct: float = Query(0.05, description="Threshold in % (z.B. 0.05 für 5%)"),
+    db: Session = Depends(get_db)
+):
+    """
+    Holt Pairing-Vorschläge
+
+    Args:
+        user_id: User ID
+        market_price: Aktueller BTC/EUR Marktpreis
+        threshold_pct: Zielmarge (Default: 5%)
+        db: Database Session (injected)
+
+    Returns:
+        Liste von Pairing-Vorschlägen
+    """
+    try:
+        market_price_decimal = Decimal(str(market_price))
+        threshold_decimal = Decimal(str(threshold_pct))
+
+        suggestions = get_pairing_suggestions(
+            db,
+            user_id,
+            market_price_decimal,
+            threshold_decimal
+        )
+
+        return {
+            "suggestions": suggestions,
+            "count": len(suggestions),
+            "market_price": str(market_price_decimal),
+            "threshold_pct": str(threshold_decimal),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{user_id}/simulate/{pairing_id}")
+def simulate(
+    user_id: str,
+    pairing_id: str,
+    market_price: float,
+    fee_pct: float = Query(0.001, description="Trading Fee (z.B. 0.001 fuer 0.1%)"),
+    fee_buffer_pct: float = Query(0.002, description="Fee-Buffer fuer Zielpreis (z.B. 0.002 fuer 0.2%)"),
+    db: Session = Depends(get_db)
+):
+    """
+    Simuliert Pairing-Ausfuehrung inkl. geplanter Binance-Order-Parameter
+
+    Args:
+        user_id: User ID
+        pairing_id: Pairing ID (von Suggestion)
+        market_price: Aktueller Marktpreis
+        fee_pct: Trading Fee (Default: 0.1%)
+        fee_buffer_pct: Fee-Buffer fuer Zielpreis (Default: 0.2%)
+        db: Database Session (injected)
+
+    Returns:
+        Simulation-Details inkl. planned_orders
+    """
+    try:
+        market_price_decimal = Decimal(str(market_price))
+        fee_pct_decimal = Decimal(str(fee_pct))
+        fee_buffer_decimal = Decimal(str(fee_buffer_pct))
+
+        simulation = simulate_pairing_execution(
+            db,
+            user_id,
+            pairing_id,
+            market_price_decimal,
+            fee_pct_decimal,
+            fee_buffer_decimal,
+        )
+
+        return simulation
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# Pairing Persistence Endpoints
+# ============================================================================
+
+
+@router.post("/{user_id}/create")
+def create_pairing_endpoint(
+    user_id: str,
+    request: PairingCreateRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Erstellt und persistiert ein Pairing
+
+    Args:
+        user_id: User ID
+        request: Pairing creation request with items and threshold
+        db: Database Session (injected)
+
+    Returns:
+        Created pairing
+    """
+    try:
+        items = [{"lot_id": item.lot_id, "qty_btc": Decimal(str(item.qty_btc))} for item in request.items]
+        threshold = Decimal(str(request.threshold_pct))
+
+        pairing = create_pairing(db, user_id, items, threshold)
+
+        return {
+            "status": "created",
+            "pairing": pairing
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{user_id}/list")
+def list_pairings_endpoint(
+    user_id: str,
+    status: Optional[str] = Query(None, description="Filter by status (DRAFT, LOCKED, EXECUTED)"),
+    db: Session = Depends(get_db)
+):
+    """
+    Listet alle Pairings für User
+
+    Args:
+        user_id: User ID
+        status: Optional status filter
+        db: Database Session (injected)
+
+    Returns:
+        List of pairings
+    """
+    try:
+        pairings = list_pairings(db, user_id, status)
+
+        return {
+            "pairings": pairings,
+            "count": len(pairings),
+            "filter": {"status": status}
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{user_id}/{pairing_id}")
+def get_pairing_endpoint(
+    user_id: str,
+    pairing_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Holt ein einzelnes Pairing
+
+    Args:
+        user_id: User ID
+        pairing_id: Pairing ID
+        db: Database Session (injected)
+
+    Returns:
+        Pairing details
+    """
+    try:
+        pairing = get_pairing_by_id(db, user_id, pairing_id)
+
+        if not pairing:
+            raise HTTPException(status_code=404, detail=f"Pairing {pairing_id} not found")
+
+        from app.services.pairing_service import _pairing_to_dict
+        return _pairing_to_dict(pairing, Decimal("0"))
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{user_id}/{pairing_id}/lock")
+def lock_pairing_endpoint(
+    user_id: str,
+    pairing_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Sperrt Pairing für Execution (DRAFT → LOCKED)
+
+    Args:
+        user_id: User ID
+        pairing_id: Pairing ID
+        db: Database Session (injected)
+
+    Returns:
+        Updated pairing
+    """
+    try:
+        pairing = lock_pairing(db, user_id, pairing_id)
+
+        return {
+            "status": "locked",
+            "pairing": pairing
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{user_id}/{pairing_id}/unlock")
+def unlock_pairing_endpoint(
+    user_id: str,
+    pairing_id: str,
+    db: Session = Depends(get_db)
+):
+    """Entsperrt Pairing (LOCKED → DRAFT)"""
+    try:
+        pairing = unlock_pairing(db, user_id, pairing_id)
+        return {
+            "status": "unlocked",
+            "pairing": pairing
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{user_id}/{pairing_id}/execute")
+def execute_pairing_endpoint(
+    user_id: str,
+    pairing_id: str,
+    market_price: float = Query(..., description="Aktueller BTC/EUR Marktpreis"),
+    fee_buffer_pct: float = Query(0.002, description="Fee-Buffer fuer Zielpreis (z.B. 0.002 fuer 0.2%)"),
+    db: Session = Depends(get_db),
+    order_service: OrderService = Depends(_get_order_service),
+):
+    """
+    Fuehrt Pairing aus: Erstellt Sell-Orders auf Binance fuer alle Lots im Pairing.
+
+    Ablauf:
+    1. Pairing locken (falls noch DRAFT)
+    2. Pro Lot: TAKE_PROFIT_LIMIT Sell Order auf Binance platzieren
+    3. Bei Erfolg: Pairing als EXECUTED markieren
+    4. Bei Fehler: Alle bereits platzierten Orders stornieren (Rollback)
+
+    Args:
+        user_id: User ID
+        pairing_id: Pairing ID
+        market_price: Aktueller BTC/EUR Marktpreis (fuer Sell Price Berechnung)
+        fee_buffer_pct: Fee-Buffer fuer Zielpreis (Default: 0.2%)
+        db: Database Session (injected)
+        order_service: Order Service (injected)
+
+    Returns:
+        Erstellte Orders + Pairing Status
+    """
+    try:
+        market_price_decimal = Decimal(str(market_price))
+        fee_buffer_decimal = Decimal(str(fee_buffer_pct))
+
+        result = order_service.create_limit_sell_for_pairing(
+            db,
+            user_id,
+            pairing_id,
+            market_price_decimal,
+            fee_buffer_decimal,
+        )
+
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/{user_id}/{pairing_id}")
+def delete_pairing_endpoint(
+    user_id: str,
+    pairing_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Löscht ein Pairing (nur DRAFT Status)
+
+    Args:
+        user_id: User ID
+        pairing_id: Pairing ID
+        db: Database Session (injected)
+
+    Returns:
+        Deletion confirmation
+    """
+    try:
+        delete_pairing(db, user_id, pairing_id)
+
+        return {
+            "status": "deleted",
+            "pairing_id": pairing_id
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

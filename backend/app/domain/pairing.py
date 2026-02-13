@@ -1,0 +1,234 @@
+"""
+Pairing Logic - Virtuelles Bündeln von Lots
+
+Gewinner- und Verlierer-Lots kombinieren für Netto-Zielmarge.
+"""
+from datetime import datetime
+from decimal import Decimal
+from typing import List, Tuple
+import uuid
+
+from .models import (
+    TradeLot,
+    Pairing,
+    PairingItem,
+    PairingStatus,
+    PairingSimulation,
+    utcnow,
+)
+
+
+def suggest_pairings(
+    lots: List[TradeLot],
+    market_price: Decimal,
+    threshold_pct: Decimal = Decimal("0.05")
+) -> List[Pairing]:
+    """
+    Schlägt Pairings vor (Heuristik v1)
+
+    Algorithmus:
+    1. Sortiere Lots nach P&L%: Gewinner absteigend, Verlierer aufsteigend
+    2. Baue Pairings iterativ:
+       - Nimm einen Gewinner
+       - Addiere Verlierer bis Schwelle erreicht
+       - Wenn nicht erreichbar, nächster Gewinner
+    3. Return: Pairing-Vorschläge
+
+    Args:
+        lots: Liste offener TradeLots
+        market_price: Aktueller Marktpreis
+        threshold_pct: Zielmarge (z.B. 0.05 für 5%)
+
+    Returns:
+        Liste von Pairing-Vorschlägen
+    """
+    if not lots:
+        return []
+
+    # 1. Lots nach P&L% sortieren
+    # Gewinner (positive P&L%) absteigend
+    winners = [
+        lot for lot in lots
+        if lot.unrealized_pnl_pct(market_price) > 0
+    ]
+    winners.sort(key=lambda l: l.unrealized_pnl_pct(market_price), reverse=True)
+
+    # Verlierer (negative P&L%) aufsteigend (negativste zuerst)
+    losers = [
+        lot for lot in lots
+        if lot.unrealized_pnl_pct(market_price) <= 0
+    ]
+    losers.sort(key=lambda l: l.unrealized_pnl_pct(market_price))
+
+    if not winners:
+        # Keine Gewinner → keine Pairings möglich
+        return []
+
+    # 2. Pairings bauen
+    pairings = []
+    used_winners = set()
+    used_losers = set()
+
+    for winner in winners:
+        if winner.id in used_winners:
+            continue
+
+        # Pairing starten mit diesem Gewinner
+        items = [
+            PairingItem(
+                lot_id=winner.id,
+                qty_btc=winner.qty_btc_open,
+                cost_eur=winner.break_even * winner.qty_btc_open
+            )
+        ]
+
+        current_cost = items[0].cost_eur
+        current_value = market_price * items[0].qty_btc
+        current_pnl = current_value - current_cost
+
+        # Verlierer hinzufügen, bis Threshold erreicht
+        for loser in losers:
+            if loser.id in used_losers:
+                continue
+
+            # Simuliere: Was passiert wenn wir diesen Loser hinzufügen?
+            loser_cost = loser.break_even * loser.qty_btc_open
+            loser_value = market_price * loser.qty_btc_open
+
+            new_cost = current_cost + loser_cost
+            new_value = current_value + loser_value
+            new_pnl = new_value - new_cost
+            new_pnl_pct = new_pnl / new_cost if new_cost > 0 else Decimal("0")
+
+            # Wenn immer noch über Threshold, hinzufügen
+            if new_pnl_pct >= threshold_pct:
+                items.append(
+                    PairingItem(
+                        lot_id=loser.id,
+                        qty_btc=loser.qty_btc_open,
+                        cost_eur=loser_cost
+                    )
+                )
+                current_cost = new_cost
+                current_value = new_value
+                current_pnl = new_pnl
+                used_losers.add(loser.id)
+
+        # Nur Pairing erstellen, wenn >= Threshold
+        final_pnl_pct = current_pnl / current_cost if current_cost > 0 else Decimal("0")
+        if final_pnl_pct >= threshold_pct:
+            pairing = Pairing(
+                id=f"pairing_{uuid.uuid4().hex[:8]}",
+                items=items,
+                threshold_pct=threshold_pct,
+                status=PairingStatus.DRAFT,
+                created_at=utcnow(),
+            )
+            pairings.append(pairing)
+            used_winners.add(winner.id)
+
+    return pairings
+
+
+def simulate_pairing(
+    pairing: Pairing,
+    market_price: Decimal,
+    all_lots: List[TradeLot],
+    fee_pct: Decimal = Decimal("0.001")  # 0.1% Default
+) -> PairingSimulation:
+    """
+    Simuliert einen Pairing-Verkauf
+
+    Berechnet deterministisch was passieren würde.
+
+    Args:
+        pairing: Pairing-Objekt
+        market_price: Aktueller Marktpreis
+        all_lots: Alle Lots (für Portfolio-Berechnung)
+        fee_pct: Trading Fee (z.B. 0.001 für 0.1%)
+
+    Returns:
+        PairingSimulation mit allen Details
+    """
+    # Total BTC zu verkaufen
+    total_btc = pairing.net_qty_btc()
+
+    # Erwarteter Erlös (vor Fee)
+    gross_proceeds = total_btc * market_price
+
+    # Fee
+    estimated_fee = gross_proceeds * fee_pct
+
+    # Netto-Erlös
+    net_proceeds = gross_proceeds - estimated_fee
+
+    # Kosten
+    total_cost = pairing.net_cost()
+
+    # Realisierte P&L
+    realized_pnl = net_proceeds - total_cost
+
+    # Affected Lots (welche Lots werden geschlossen/teilweise geschlossen)
+    affected_lots_info = []
+    for item in pairing.items:
+        # Finde Lot
+        lot = next((l for l in all_lots if l.id == item.lot_id), None)
+        if lot:
+            # Wird das Lot vollständig geschlossen?
+            is_full = item.qty_btc == lot.qty_btc_open
+
+            affected_lots_info.append({
+                "lot_id": lot.id,
+                "qty_btc_to_sell": str(item.qty_btc),
+                "qty_btc_remaining": str(lot.qty_btc_open - item.qty_btc),
+                "is_full_close": is_full,
+                "current_status": lot.status.value,
+                "new_status": "CLOSED" if is_full else "PARTIAL_CLOSED",
+            })
+
+    # Verbleibende Portfolio-Bestände nach Pairing
+    total_portfolio_btc = sum(lot.qty_btc_open for lot in all_lots)
+    total_portfolio_cost = sum(lot.break_even * lot.qty_btc_open for lot in all_lots)
+
+    remaining_btc = total_portfolio_btc - total_btc
+    remaining_cost = total_portfolio_cost - total_cost
+
+    return PairingSimulation(
+        pairing=pairing,
+        market_price=market_price,
+        total_btc_to_sell=total_btc,
+        expected_proceeds_eur=net_proceeds,
+        expected_costs_eur=total_cost,
+        expected_realized_pnl_eur=realized_pnl,
+        affected_lots=affected_lots_info,
+        remaining_portfolio_btc=remaining_btc,
+        remaining_portfolio_cost_eur=remaining_cost,
+        estimated_fee_eur=estimated_fee,
+        fee_pct=fee_pct,
+    )
+
+
+def optimize_pairing_partial(
+    winner: TradeLot,
+    losers: List[TradeLot],
+    market_price: Decimal,
+    threshold_pct: Decimal
+) -> Pairing | None:
+    """
+    Optimiert Pairing durch partielle Lot-Nutzung
+
+    Experimentell: Versucht minimale Verlierer-Menge zu finden.
+    (Optional für v1.1+)
+
+    Args:
+        winner: Gewinner-Lot
+        losers: Verfügbare Verlierer-Lots
+        market_price: Marktpreis
+        threshold_pct: Zielmarge
+
+    Returns:
+        Optimiertes Pairing oder None
+    """
+    # TODO: Implementierung für v1.1+
+    # Könnte Binary Search oder Greedy-Algorithmus verwenden
+    raise NotImplementedError("Partial pairing optimization not yet implemented")

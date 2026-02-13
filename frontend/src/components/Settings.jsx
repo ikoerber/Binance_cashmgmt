@@ -1,0 +1,132 @@
+import { useState, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { getSettings, updateSettings } from '../api/client';
+import './Settings.css';
+
+const Settings = ({ userId = 'user_123' }) => {
+  const queryClient = useQueryClient();
+  const [message, setMessage] = useState(null);
+  const [maxOrderValueEur, setMaxOrderValueEur] = useState('');
+  const [macroSignalInterval, setMacroSignalInterval] = useState('15');
+
+  const showMessage = (type, text) => {
+    setMessage({ type, text });
+    setTimeout(() => setMessage(null), 5000);
+  };
+
+  const { data: settings, isLoading } = useQuery({
+    queryKey: ['settings', userId],
+    queryFn: () => getSettings(userId),
+  });
+
+  useEffect(() => {
+    if (settings) {
+      setMaxOrderValueEur(settings.max_order_value_eur);
+      setMacroSignalInterval(settings.macro_signal_interval || '15');
+    }
+  }, [settings]);
+
+  const saveMutation = useMutation({
+    mutationFn: (values) => updateSettings(userId, values),
+    onSuccess: () => {
+      showMessage('success', 'Settings gespeichert.');
+      queryClient.invalidateQueries({ queryKey: ['settings', userId] });
+    },
+    onError: (error) => {
+      showMessage('error', error.response?.data?.detail || error.message);
+    },
+  });
+
+  const handleSave = () => {
+    const value = parseFloat(maxOrderValueEur);
+    if (isNaN(value) || value <= 0) {
+      showMessage('error', 'Bitte einen gueltigen Wert > 0 eingeben.');
+      return;
+    }
+    saveMutation.mutate({
+      max_order_value_eur: value,
+      macro_signal_interval: macroSignalInterval,
+    });
+  };
+
+  if (isLoading) {
+    return <div className="settings"><div className="settings-loading">Lade Settings...</div></div>;
+  }
+
+  return (
+    <div className="settings">
+      <div className="settings-header">
+        <h2>Settings</h2>
+        <p>Konfigurierbare Parameter fuer Order-Erstellung und Trading.</p>
+      </div>
+
+      {message && (
+        <div className={`settings-message settings-${message.type}`}>
+          {message.text}
+          <button className="settings-message-close" onClick={() => setMessage(null)}>&times;</button>
+        </div>
+      )}
+
+      <div className="settings-section">
+        <h3>Order-Limits</h3>
+
+        <div className="settings-field">
+          <label className="settings-label">Maximaler Order-Wert</label>
+          <div className="settings-input-group">
+            <input
+              type="number"
+              value={maxOrderValueEur}
+              onChange={(e) => setMaxOrderValueEur(e.target.value)}
+              min="0"
+              step="100"
+            />
+            <span className="settings-unit">EUR</span>
+          </div>
+          <div className="settings-hint">
+            Einzelne Orders werden abgelehnt wenn der Gegenwert (BTC * Preis) diesen Betrag ueberschreitet.
+          </div>
+        </div>
+      </div>
+
+      <div className="settings-section">
+        <h3>Makro-Signal</h3>
+
+        <div className="settings-field">
+          <label className="settings-label">Signal-Intervall</label>
+          <div className="settings-interval-group">
+            {[
+              { value: '1', label: '1 Min', desc: 'Schnell, mehr Rauschen' },
+              { value: '5', label: '5 Min', desc: 'Ausgewogen' },
+              { value: '15', label: '15 Min', desc: 'Stabiler, weniger Signale' },
+            ].map(({ value, label }) => (
+              <button
+                key={value}
+                className={`interval-btn ${macroSignalInterval === value ? 'interval-active' : ''}`}
+                onClick={() => setMacroSignalInterval(value)}
+                type="button"
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className="settings-hint">
+            Kuerzere Intervalle zeigen schnellere Bewegungen, haben aber angepasste (kleinere) Schwellenwerte.
+            Schwellenwerte skalieren mit sqrt(Intervall) - z.B. sind 1-Min-Schwellen ~26% der 15-Min-Werte.
+          </div>
+        </div>
+      </div>
+
+      <div className="settings-actions">
+        <button
+          className="btn-settings-save"
+          onClick={handleSave}
+          disabled={saveMutation.isPending}
+        >
+          {saveMutation.isPending ? 'Speichern...' : 'Speichern'}
+        </button>
+      </div>
+    </div>
+  );
+};
+
+export default Settings;
