@@ -14,13 +14,15 @@ BTC/EUR Cashflow-Management & Automation App für Binance Spot Trading. Ledger-b
 - Append-only Ledger mit allen Event-Typen
 - Portfolio Break-even (WAC) + Dashboard mit 8 KPI-Kacheln
 - TradeLots (1 Fill = 1 Lot) + FIFO Sell Allocation
-- Trade-Cockpit mit Filtern, Sortierung, Live-P&L, Sell-Order-Indikatoren
+- Trade-Cockpit mit Filtern, Sortierung, Live-P&L, Sell-Order-Indikatoren, Erholungspreis-KPI
 - Binance Sync (Fills Import, inkrementell)
 - Order-Erstellung (TAKE_PROFIT_LIMIT Sell pro Lot) + Order-Tracking
 - Pairing: Backend-Heuristik + Frontend-UI (Vorschläge, manuell, Simulation, Lifecycle)
 - Reconciliation-Service + Reconciliation-UI (3 Sektionen: Orders, Balances, Fills)
 - Settings-Seite (max_order_value_eur konfigurierbar)
 - Live BTC/EUR Preis via Binance API
+- Makro-Signal Dashboard (4 Faktoren, konfigurierbar, Richtungsempfehlung)
+- CSV Import (Binance Spot Order History)
 
 **Offen (Iteration 4-5):**
 - Auto-Order Automation (Trigger-basiert)
@@ -54,7 +56,8 @@ cashmgnt/
 │   │   │   ├── models.py             # Dataclasses: LedgerEvent, TradeLot, Pairing, PortfolioState
 │   │   │   ├── portfolio.py           # compute_portfolio_from_ledger() - zentrale Berechnung
 │   │   │   ├── lots.py                # create_trade_lot_from_buy_fill(), allocate_sell_fifo()
-│   │   │   └── pairing.py            # suggest_pairings(), simulate_pairing()
+│   │   │   ├── pairing.py            # suggest_pairings(), simulate_pairing()
+│   │   │   └── macro_signal.py        # Makro-Faktoren Analyse + Richtungsempfehlung
 │   │   ├── services/                  # DB-Integration, Binance API
 │   │   │   ├── binance.py            # Binance API Client
 │   │   │   ├── sync_service.py       # Fills importieren
@@ -63,7 +66,9 @@ cashmgnt/
 │   │   │   ├── order_tracking_service.py # Order State Lifecycle
 │   │   │   ├── pairing_service.py    # Pairing-Persistenz + Lifecycle
 │   │   │   ├── portfolio_service.py  # Portfolio-State aus Ledger
-│   │   │   └── reconciliation_service.py
+│   │   │   ├── reconciliation_service.py
+│   │   │   ├── csv_import_service.py  # Binance CSV Import
+│   │   │   └── macro_data_service.py  # Makro-Daten (Klines, Fear&Greed, etc.)
 │   │   ├── db/
 │   │   │   ├── database.py           # SQLAlchemy Session
 │   │   │   └── models.py             # ORM: LedgerEventDB, TradeLotDB, PairingDB, OrderDB, UserSettingsDB
@@ -75,8 +80,9 @@ cashmgnt/
 │   │       ├── cashflow.py           # External Cashflows
 │   │       ├── sync.py               # Binance Sync
 │   │       ├── reconciliation.py     # POST /api/reconciliation/...
-│   │       └── settings.py           # GET/PUT /api/settings/{user_id}
-│   ├── tests/                         # 11 Testdateien
+│   │       ├── settings.py           # GET/PUT /api/settings/{user_id}
+│   │       └── macro.py             # GET /api/macro/...
+│   ├── tests/                         # 12 Testdateien
 │   │   └── conftest.py               # TEST_BINANCE_API_KEY + Testnet
 │   ├── alembic/                       # DB-Migrationen
 │   ├── requirements.txt
@@ -92,11 +98,13 @@ cashmgnt/
     │   │   ├── PairingPanel.jsx       # 3-Tab Panel: Vorschläge | Manuell | Bestehende + Simulation
     │   │   ├── Reconciliation.jsx     # 3 Sektionen: Orders, Balances, Fills + Diskrepanzen
     │   │   ├── Settings.jsx           # Konfigurierbare Parameter (max_order_value_eur)
+    │   │   ├── MacroSignal.jsx        # Makro-Signal Dashboard (4 Faktoren, Richtungsempfehlung)
     │   │   ├── LotsTable.css
     │   │   ├── PairingPanel.css
     │   │   ├── Dashboard.css
     │   │   ├── Reconciliation.css
-    │   │   └── Settings.css
+    │   │   ├── Settings.css
+    │   │   └── MacroSignal.css
     │   └── hooks/useLivePrice.js      # Binance Ticker Polling (10s)
     ├── package.json
     └── vite.config.js
@@ -194,6 +202,10 @@ API Routes (thin)  →  Services (DB + Binance)  →  Domain (pure, no I/O)
 
 **LotsTable.jsx** - Hauptkomponente für Trade-Management:
 - Tabelle mit 11 Spalten (Checkbox, Order Nr, Datum, Menge, Kosten, Break-even, Sell Order, P&L, Status)
+- Summary-Cards: Kosten offener Positionen, Menge Offen, Erholungspreis (bei negativem Depoterfolg)
+- Erholungspreis-KPI: Proportionaler Verkaufspreis bei dem alle Lots gemeinsam das Depot-Minus ausgleichen
+  - Formel: `P = (total_qty × marktpreis + |deficit|) / (total_qty × (1 - fee_rate))`
+  - Wird nur angezeigt wenn Depoterfolg < 0
 - Filter: Order Nr, Status, Datumsbereich, Closed-Toggle
 - Sort: Datum, Break-even (client-side)
 - Pairing: Checkbox-Selektion → PairingPanel (inline, aufklappbar)
@@ -219,6 +231,11 @@ API Routes (thin)  →  Services (DB + Binance)  →  Domain (pure, no I/O)
 - Formular für `max_order_value_eur` (Default: 1000 EUR)
 - useQuery + useMutation für GET/PUT Settings-API
 - Erweiterbar für zukünftige Settings
+
+**MacroSignal.jsx** - Makro-Signal Dashboard:
+- 4 Makro-Faktoren mit konfigurierbarer Richtungsempfehlung
+- Intervall-Auswahl (1m/5m/15m) aus User-Settings
+- Richtungseinfluss (bullish/bearish) visuell auf Indikator-Karten
 
 ### Datenmodell (Kern-Tabellen)
 
@@ -260,7 +277,7 @@ API Routes (thin)  →  Services (DB + Binance)  →  Domain (pure, no I/O)
 
 ## Testing
 
-**Backend (11 Testdateien, 99 Tests):**
+**Backend (12 Testdateien, 156 Tests):**
 - `test_portfolio_breakeven.py` - WAC, Fees, Partial Sells
 - `test_lots_fifo.py` - FIFO Allocation Deterministik
 - `test_lots_lot_specific.py` - Lot-spezifische Targets
@@ -272,6 +289,7 @@ API Routes (thin)  →  Services (DB + Binance)  →  Domain (pure, no I/O)
 - `test_reconciliation.py` - Balance-Abgleich
 - `test_csv_import.py` - CSV Import Validierung
 - `test_timezone_handling.py` - Timezone Edge Cases
+- `test_macro_signal.py` - Makro-Signal Berechnung
 
 **Test-Konfiguration (`tests/conftest.py`):**
 - Alle Tests verwenden automatisch `TEST_BINANCE_API_KEY` statt Produktions-Keys
