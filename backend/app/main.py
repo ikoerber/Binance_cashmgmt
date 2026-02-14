@@ -2,8 +2,10 @@
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
+from app.api.auth import require_api_key
 from dotenv import load_dotenv
 
 # Load .env file BEFORE importing routes
@@ -28,6 +30,7 @@ app = FastAPI(
     description="Ledger-first, deterministisches Cashflow-Tracking für BTC/EUR Trading",
     version="0.1.0",
     lifespan=lifespan,
+    dependencies=[Depends(require_api_key)],
 )
 
 # CORS für Frontend

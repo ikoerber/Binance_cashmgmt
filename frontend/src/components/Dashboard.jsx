@@ -3,6 +3,7 @@
  */
 import { useQuery } from '@tanstack/react-query';
 import { getPortfolio, getDailyPerformance } from '../api/client';
+import { formatNumber, formatEUR, formatBTC } from '../utils/formatters';
 import './Dashboard.css';
 
 const Dashboard = ({ userId = 'user_123', marketPrice = 50000 }) => {
@@ -22,20 +23,7 @@ const Dashboard = ({ userId = 'user_123', marketPrice = 50000 }) => {
   if (error) return <div className="error">Fehler: {error.message}</div>;
   if (!portfolio) return null;
 
-  const formatNumber = (num, decimals = 2) => {
-    return parseFloat(num).toLocaleString('de-DE', {
-      minimumFractionDigits: decimals,
-      maximumFractionDigits: decimals,
-    });
-  };
-
-  const formatCurrency = (num) => {
-    return `${formatNumber(num, 2)} €`;
-  };
-
-  const formatBTC = (num) => {
-    return `${formatNumber(num, 8)} BTC`;
-  };
+  const formatCurrency = formatEUR;
 
   const externalNet = parseFloat(portfolio.external_net_eur);
   const depotValue = parseFloat(portfolio.market_value_eur) + parseFloat(portfolio.eur_available);

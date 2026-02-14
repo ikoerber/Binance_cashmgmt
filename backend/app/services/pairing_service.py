@@ -244,7 +244,7 @@ def create_pairing(
         )
         db.add(pairing_item)
 
-    db.commit()
+    db.flush()
     db.refresh(pairing_db)
 
     # Konvertiere zu Domain und dann zu Dict
@@ -350,7 +350,7 @@ def lock_pairing(
     # Lock
     pairing_db.status = PairingStatusEnum.LOCKED
     pairing_db.locked_at = utcnow()
-    db.commit()
+    db.flush()
     db.refresh(pairing_db)
 
     domain_pairing = _pairing_db_to_domain(pairing_db)
@@ -378,7 +378,7 @@ def unlock_pairing(
 
     pairing_db.status = PairingStatusEnum.DRAFT
     pairing_db.locked_at = None
-    db.commit()
+    db.flush()
     db.refresh(pairing_db)
 
     domain_pairing = _pairing_db_to_domain(pairing_db)
@@ -420,7 +420,7 @@ def execute_pairing(
     # Execute
     pairing_db.status = PairingStatusEnum.EXECUTED
     pairing_db.executed_at = utcnow()
-    db.commit()
+    db.flush()
     db.refresh(pairing_db)
 
     domain_pairing = _pairing_db_to_domain(pairing_db)
@@ -456,4 +456,4 @@ def delete_pairing(
 
     # Items werden via cascade delete automatisch gelöscht
     db.delete(pairing_db)
-    db.commit()
+    db.flush()

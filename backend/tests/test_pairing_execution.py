@@ -236,12 +236,14 @@ def test_multiple_pairings_for_user(db_session, test_user, test_lots):
 
 
 def test_compute_pairing_order_params_basic():
-    """Test: Order-Parameter-Berechnung mit korrektem Rounding und Format"""
+    """Test: Aggregierte Order-Parameter-Berechnung mit korrektem Rounding und Format"""
+    from types import SimpleNamespace
+    items = [SimpleNamespace(lot_id="lot-1", qty_btc=Decimal("0.01234567"))]
+
     result = compute_pairing_order_params(
         pairing_id="pairing-1",
         user_id="user-1",
-        lot_id="lot-1",
-        qty_btc=Decimal("0.01234567"),
+        items=items,
         market_price=Decimal("55000"),
         fee_buffer_pct=Decimal("0.002"),
         max_order_value_eur=Decimal("1000"),
@@ -260,10 +262,13 @@ def test_compute_pairing_order_params_basic():
     # Preis = 55000 * 1.002 = 55110.00
     assert result["price"] == "55110.00"
 
-    # ClientOrderId Format
+    # ClientOrderId Format (aggregiert: user_pairing_id_price_version)
     assert "user-1" in result["newClientOrderId"]
-    assert "lot-1" in result["newClientOrderId"]
-    assert "pairing-1" in result["newClientOrderId"]
+    assert "pairing" in result["newClientOrderId"]
+
+    # Lot-Zuordnung
+    assert result["lot_ids"] == ["lot-1"]
+    assert result["lot_count"] == 1
 
     # Order Value = 0.01235 * 55110.00 = 680.61
     order_val = Decimal(result["order_value_eur"])
@@ -291,18 +296,20 @@ def test_simulate_includes_planned_orders(db_session, test_user, test_lots):
     assert "max_order_value_eur" in result
     assert "fee_buffer_pct" in result
 
-    # Pro Lot eine geplante Order
-    assert len(result["planned_orders"]) == 2
+    # Aggregierte Order: 1 Order fuer alle Lots im Pairing
+    assert len(result["planned_orders"]) == 1
 
-    for order in result["planned_orders"]:
-        assert order["symbol"] == "BTCEUR"
-        assert order["side"] == "SELL"
-        assert order["type"] == "TAKE_PROFIT_LIMIT"
-        assert order["timeInForce"] == "GTC"
-        assert order["price"] == order["stopPrice"]
-        assert "newClientOrderId" in order
-        assert "order_value_eur" in order
-        assert isinstance(order["exceeds_max_order_value"], bool)
+    order = result["planned_orders"][0]
+    assert order["symbol"] == "BTCEUR"
+    assert order["side"] == "SELL"
+    assert order["type"] == "TAKE_PROFIT_LIMIT"
+    assert order["timeInForce"] == "GTC"
+    assert order["price"] == order["stopPrice"]
+    assert "newClientOrderId" in order
+    assert "order_value_eur" in order
+    assert isinstance(order["exceeds_max_order_value"], bool)
+    assert order["lot_count"] == 2
+    assert len(order["lot_ids"]) == 2
 
     # Bestehende Felder weiterhin vorhanden
     assert "total_btc_to_sell" in result

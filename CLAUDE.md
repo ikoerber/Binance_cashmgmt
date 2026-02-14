@@ -23,6 +23,11 @@ BTC/EUR Cashflow-Management & Automation App für Binance Spot Trading. Ledger-b
 - Live BTC/EUR Preis via Binance API
 - Makro-Signal Dashboard (4 Faktoren, konfigurierbar, Richtungsempfehlung)
 - CSV Import (Binance Spot Order History)
+- API-Key Authentication (Header `X-API-Key`, konfigurierbar via `API_KEY` in `.env`)
+- Transaction-Safety: SQLAlchemy Auto-Commit/Rollback via `yield`-Pattern
+- Shared Formatters (`utils/formatters.js`) fuer alle Frontend-Komponenten
+- Komponenten-Aufspaltung: LotFilters, OpenOrdersPanel, SimulationModal, PairingExistingTab
+- Dependencies gepinnt auf exakte Versionen in `requirements.txt`
 
 **Offen (Iteration 4-5):**
 - Auto-Order Automation (Trigger-basiert)
@@ -72,16 +77,18 @@ cashmgnt/
 │   │   ├── db/
 │   │   │   ├── database.py           # SQLAlchemy Session
 │   │   │   └── models.py             # ORM: LedgerEventDB, TradeLotDB, PairingDB, OrderDB, UserSettingsDB
-│   │   └── api/routes/               # Thin HTTP Layer
-│   │       ├── portfolio.py           # GET /api/portfolio/{user_id}
-│   │       ├── lots.py                # GET/POST /api/lots/...
-│   │       ├── orders.py             # POST/GET/DELETE /api/orders/...
-│   │       ├── pairing.py            # GET/POST/DELETE /api/pairing/...
-│   │       ├── cashflow.py           # External Cashflows
-│   │       ├── sync.py               # Binance Sync
-│   │       ├── reconciliation.py     # POST /api/reconciliation/...
-│   │       ├── settings.py           # GET/PUT /api/settings/{user_id}
-│   │       └── macro.py             # GET /api/macro/...
+│   │   ├── api/
+│   │   │   ├── auth.py                # API-Key Authentication Dependency
+│   │   │   └── routes/                # Thin HTTP Layer
+│   │   │       ├── portfolio.py       # GET /api/portfolio/{user_id}
+│   │   │       ├── lots.py            # GET/POST /api/lots/...
+│   │   │       ├── orders.py         # POST/GET/DELETE /api/orders/...
+│   │   │       ├── pairing.py        # GET/POST/DELETE /api/pairing/...
+│   │   │       ├── cashflow.py       # External Cashflows
+│   │   │       ├── sync.py           # Binance Sync
+│   │   │       ├── reconciliation.py # POST /api/reconciliation/...
+│   │   │       ├── settings.py       # GET/PUT /api/settings/{user_id}
+│   │   │       └── macro.py          # GET /api/macro/...
 │   ├── tests/                         # 12 Testdateien
 │   │   └── conftest.py               # TEST_BINANCE_API_KEY + Testnet
 │   ├── alembic/                       # DB-Migrationen
@@ -94,8 +101,12 @@ cashmgnt/
     │   ├── api/client.js              # Axios: Portfolio, Lots, Orders, Pairing, Sync, Reconciliation, Settings
     │   ├── components/
     │   │   ├── Dashboard.jsx          # 8 KPI-Kacheln (Break-even, P&L, BTC, EUR)
-    │   │   ├── LotsTable.jsx          # Trade-Cockpit: Filter, Sort, Checkboxen, Pairing-Integration
-    │   │   ├── PairingPanel.jsx       # 3-Tab Panel: Vorschläge | Manuell | Bestehende + Simulation
+    │   │   ├── LotsTable.jsx          # Trade-Cockpit: Tabelle, Sort, Checkboxen, Pairing-Integration
+    │   │   ├── LotFilters.jsx         # Filter-Bar (Status, Order Nr, Datum, Closed-Toggle)
+    │   │   ├── OpenOrdersPanel.jsx    # Offene Sell Orders Tabelle
+    │   │   ├── PairingPanel.jsx       # 2-Tab Panel: Vorschläge | Manuell + Routing zu Bestehende
+    │   │   ├── PairingExistingTab.jsx # Tab "Bestehende Pairings" (Lifecycle, Mutations, Simulation)
+    │   │   ├── SimulationModal.jsx    # Simulation Preview Overlay (presentational)
     │   │   ├── Reconciliation.jsx     # 3 Sektionen: Orders, Balances, Fills + Diskrepanzen
     │   │   ├── Settings.jsx           # Konfigurierbare Parameter (max_order_value_eur)
     │   │   ├── MacroSignal.jsx        # Makro-Signal Dashboard (4 Faktoren, Richtungsempfehlung)
@@ -105,6 +116,8 @@ cashmgnt/
     │   │   ├── Reconciliation.css
     │   │   ├── Settings.css
     │   │   └── MacroSignal.css
+    │   ├── utils/
+    │   │   └── formatters.js          # Shared: formatNumber, formatEUR, formatBTC, formatPct, formatDate, formatTime
     │   └── hooks/useLivePrice.js      # Binance Ticker Polling (10s)
     ├── package.json
     └── vite.config.js
@@ -206,16 +219,31 @@ API Routes (thin)  →  Services (DB + Binance)  →  Domain (pure, no I/O)
 - Erholungspreis-KPI: Proportionaler Verkaufspreis bei dem alle Lots gemeinsam das Depot-Minus ausgleichen
   - Formel: `P = (total_qty × marktpreis + |deficit|) / (total_qty × (1 - fee_rate))`
   - Wird nur angezeigt wenn Depoterfolg < 0
-- Filter: Order Nr, Status, Datumsbereich, Closed-Toggle
+- Delegiert an Subkomponenten: LotFilters, OpenOrdersPanel
 - Sort: Datum, Break-even (client-side)
 - Pairing: Checkbox-Selektion → PairingPanel (inline, aufklappbar)
 - Live-P&L Berechnung mit marketPrice prop
 
+**LotFilters.jsx** - Filter-Bar (extrahiert aus LotsTable):
+- Order Nr (Text), Status (Select), Closed-Toggle, Datumsbereich, Reset-Button
+
+**OpenOrdersPanel.jsx** - Offene Sell Orders (extrahiert aus LotsTable):
+- Tabelle: Status, Preis, Menge, Referenz (Lot/Pairing), Erstellt
+- "Unter Markt"-Warnung wenn Sell-Preis <= Marktpreis
+
 **PairingPanel.jsx** - 3-Tab Pairing-UI:
 - Tab "Vorschläge": Backend-Heuristik, Threshold-Input, Karten mit Netto-KPIs
 - Tab "Manuell": Aus Checkbox-Auswahl, Live-Preview, "Pairing erstellen"
-- Tab "Bestehende": DRAFT/LOCKED/EXECUTED Lifecycle, Simulation-Overlay
-- Simulation: Modal mit Marktpreis, BTC, Erlös, Kosten, Fees, P&L, betroffene Lots
+- Tab "Bestehende": Delegiert an PairingExistingTab
+
+**PairingExistingTab.jsx** - Bestehende Pairings (extrahiert aus PairingPanel):
+- DRAFT/LOCKED/EXECUTED Lifecycle mit eigenen Mutations (Lock/Unlock/Execute/Delete)
+- Filter: Status, "Ausgeführte anzeigen"-Toggle
+- Simulation-State + SimulationModal inline
+
+**SimulationModal.jsx** - Simulation Preview (extrahiert aus PairingPanel):
+- Presentational Overlay: Marktpreis, BTC, Erlös, Kosten, Fees, P&L, betroffene Lots
+- Geplante Binance Order (aggregiert), Max-Value-Warnung
 
 **Dashboard.jsx** - Portfolio-Übersicht:
 - 8 KPI-Kacheln: Marktpreis, BTC Bestand, Break-even, Target, Unrealisiert/Realisiert P&L, EUR, Extern
@@ -300,12 +328,14 @@ API Routes (thin)  →  Services (DB + Binance)  →  Domain (pure, no I/O)
 
 ## Sicherheit
 
+- **API-Key Authentication** - Alle API-Routen geschuetzt via `X-API-Key` Header, konfigurierbar via `API_KEY` in `.env`
 - **Niemals Secrets committen** - `.env` ist in `.gitignore`
 - API-Keys verschlüsselt oder im Secret Manager
 - Environment Variables für Konfiguration
 - Strukturiertes Logging ohne Secret-Exposure
 - **Test-Keys getrennt** - `TEST_BINANCE_API_KEY` in `.env`, automatisch via `conftest.py` verwendet
 - **Max Order-Wert** - Konfigurierbares Limit pro User (Default: 1000 EUR, via Settings-Seite)
+- **Transaction-Safety** - SQLAlchemy Sessions mit Auto-Commit/Rollback (`yield`-Pattern in `get_db()`)
 
 ---
 

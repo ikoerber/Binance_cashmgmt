@@ -8,6 +8,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getMacroSignals, getSettings } from '../api/client';
+import { formatNumber } from '../utils/formatters';
 import './MacroSignal.css';
 
 const MacroSignal = ({ userId = 'user_123' }) => {
@@ -46,14 +47,6 @@ const MacroSignal = ({ userId = 'user_123' }) => {
     }, 1000);
     return () => clearInterval(timer);
   }, [data?.next_update]);
-
-  const formatNumber = (num, decimals = 2) => {
-    if (num === null || num === undefined) return 'N/A';
-    return parseFloat(num).toLocaleString('de-DE', {
-      minimumFractionDigits: decimals,
-      maximumFractionDigits: decimals,
-    });
-  };
 
   const formatPct = (num) => {
     if (num === null || num === undefined) return '';

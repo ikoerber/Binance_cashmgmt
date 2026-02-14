@@ -117,7 +117,7 @@ class ReconciliationService:
                         "issue": f"Order in DB but fetch failed: {str(e)}"
                     })
 
-        db.commit()
+        db.flush()
 
         return report
 

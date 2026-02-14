@@ -87,7 +87,7 @@ class OrderTrackingService:
         )
 
         db.add(order_db)
-        db.commit()
+        db.flush()
         db.refresh(order_db)
 
         return order_id
@@ -136,7 +136,7 @@ class OrderTrackingService:
         if raw_response:
             order_db.raw_response = raw_response
 
-        db.commit()
+        db.flush()
         db.refresh(order_db)
 
         return self._order_to_dict(order_db)
@@ -219,7 +219,7 @@ class OrderTrackingService:
             order_db.raw_response = binance_order
             order_db.updated_at = utcnow()
 
-            db.commit()
+            db.flush()
             db.refresh(order_db)
 
             return self._order_to_dict(order_db)
@@ -391,7 +391,7 @@ class OrderTrackingService:
                 db.add(order_db)
                 report["imported"] += 1
 
-            db.commit()
+            db.flush()
 
         except Exception as e:
             report["errors"].append(str(e))

@@ -5,6 +5,9 @@ import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getLots, getOrdersForUser, syncLots, createOrderForLot, listPairings, getPortfolio } from '../api/client';
 import PairingPanel from './PairingPanel';
+import LotFilters from './LotFilters';
+import OpenOrdersPanel from './OpenOrdersPanel';
+import { formatNumber, formatEUR, formatBTC, formatDate, formatTime } from '../utils/formatters';
 import './LotsTable.css';
 
 const LotsTable = ({ userId = 'user_123', marketPrice = 50000 }) => {
@@ -237,36 +240,18 @@ const LotsTable = ({ userId = 'user_123', marketPrice = 50000 }) => {
     return map;
   }, [openOrders, pairingsData]);
 
+  const FEE_RATE = 0.001; // 0.1% Binance Spot Fee
+
+  // Portfolio-Erholungspreis: alle offenen Lots tragen proportional (nach qty) bei
+  // WICHTIG: useMemo muss VOR Early Returns stehen (Rules of Hooks)
+  const recoveryPrice = useMemo(() => {
+    if (depotPnl === null || depotPnl >= 0 || totalOpenQty <= 0) return null;
+    const deficit = Math.abs(depotPnl);
+    return (totalOpenQty * marketPrice + deficit) / (totalOpenQty * (1 - FEE_RATE));
+  }, [depotPnl, totalOpenQty, marketPrice]);
+
   if (isLoading) return <div className="loading">Lade TradeLots...</div>;
   if (error) return <div className="error">Fehler: {error.message}</div>;
-
-  const formatNumber = (num, decimals = 2) => {
-    return parseFloat(num).toLocaleString('de-DE', {
-      minimumFractionDigits: decimals,
-      maximumFractionDigits: decimals,
-    });
-  };
-
-  const formatBTC = (num) => `${formatNumber(num, 8)} BTC`;
-  const formatEUR = (num) => `${formatNumber(num, 2)} \u20ac`;
-
-  const formatDate = (isoString) => {
-    const d = new Date(isoString);
-    return d.toLocaleDateString('de-DE', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    });
-  };
-
-  const formatTime = (isoString) => {
-    const d = new Date(isoString);
-    return d.toLocaleTimeString('de-DE', {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    });
-  };
 
   const calculateUnrealizedPnl = (lot) => {
     const qtyOpen = parseFloat(lot.qty_btc_open);
@@ -278,15 +263,6 @@ const LotsTable = ({ userId = 'user_123', marketPrice = 50000 }) => {
     const breakEven = parseFloat(lot.break_even);
     return ((marketPrice / breakEven) - 1) * 100;
   };
-
-  const FEE_RATE = 0.001; // 0.1% Binance Spot Fee
-
-  // Portfolio-Erholungspreis: alle offenen Lots tragen proportional (nach qty) bei
-  const recoveryPrice = useMemo(() => {
-    if (depotPnl === null || depotPnl >= 0 || totalOpenQty <= 0) return null;
-    const deficit = Math.abs(depotPnl);
-    return (totalOpenQty * marketPrice + deficit) / (totalOpenQty * (1 - FEE_RATE));
-  }, [depotPnl, totalOpenQty, marketPrice]);
 
   return (
     <div className="lots-table-container">
@@ -335,101 +311,16 @@ const LotsTable = ({ userId = 'user_123', marketPrice = 50000 }) => {
         )}
       </div>
 
-      {openOrders.length > 0 && (
-        <div className="open-orders-panel">
-          <h3>Offene Sell Orders ({openOrders.length})</h3>
-          <table className="open-orders-table">
-            <thead>
-              <tr>
-                <th>Status</th>
-                <th>Preis</th>
-                <th>Menge</th>
-                <th>Referenz</th>
-                <th>Erstellt</th>
-              </tr>
-            </thead>
-            <tbody>
-              {openOrders.map((order) => {
-                const belowMarket = parseFloat(order.price) <= marketPrice;
-                return (
-                <tr key={order.id} className={belowMarket ? 'order-row-warning' : ''}>
-                  <td><span className={`order-status-dot ${belowMarket ? 'warning' : 'open'}`} /> {order.status}</td>
-                  <td>
-                    {formatEUR(order.price)}
-                    {belowMarket && (
-                      <span className="order-warning-badge" title={`Sell-Preis liegt unter dem Marktpreis (${formatEUR(marketPrice)})`}>
-                        Unter Markt
-                      </span>
-                    )}
-                  </td>
-                  <td>{formatBTC(order.quantity)}</td>
-                  <td className="order-id">
-                    {order.linked_lot_id
-                      ? `Lot ${order.linked_lot_id.slice(0, 8)}...`
-                      : order.linked_pairing_id
-                        ? `Pairing ${order.linked_pairing_id.slice(0, 8)}...`
-                        : '-'}
-                  </td>
-                  <td>{formatDate(order.created_at)}</td>
-                </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <OpenOrdersPanel openOrders={openOrders} marketPrice={marketPrice} />
 
       {/* Filter Bar */}
-      <div className="lots-filters">
-        <div className="filter-group">
-          <span className="filter-label">Order Nr.</span>
-          <input
-            type="text"
-            value={orderFilter}
-            onChange={(e) => setOrderFilter(e.target.value)}
-            placeholder="Suchen..."
-          />
-        </div>
-        <div className="filter-group">
-          <span className="filter-label">Status</span>
-          <select value={statusFilter || ''} onChange={(e) => setStatusFilter(e.target.value || null)}>
-            <option value="">Alle</option>
-            <option value="OPEN">Open</option>
-            <option value="PARTIAL_CLOSED">Partial Closed</option>
-            <option value="CLOSED">Closed</option>
-          </select>
-        </div>
-        <label className="toggle-label">
-          <span className="toggle-switch">
-            <input
-              type="checkbox"
-              checked={showClosed}
-              onChange={(e) => setShowClosed(e.target.checked)}
-            />
-            <span className="toggle-slider" />
-          </span>
-          Closed anzeigen
-        </label>
-        <div className="date-range">
-          <div className="filter-group">
-            <span className="filter-label">Von</span>
-            <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
-          </div>
-          <span className="date-separator">&ndash;</span>
-          <div className="filter-group">
-            <span className="filter-label">Bis</span>
-            <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
-          </div>
-        </div>
-        {(statusFilter || fromDate || toDate || orderFilter) && (
-          <button
-            className="btn-reset-filters"
-            onClick={() => { setStatusFilter(null); setFromDate(''); setToDate(''); setOrderFilter(''); }}
-          >
-            Filter zurücksetzen
-          </button>
-        )}
-      </div>
+      <LotFilters
+        statusFilter={statusFilter} setStatusFilter={setStatusFilter}
+        fromDate={fromDate} setFromDate={setFromDate}
+        toDate={toDate} setToDate={setToDate}
+        orderFilter={orderFilter} setOrderFilter={setOrderFilter}
+        showClosed={showClosed} setShowClosed={setShowClosed}
+      />
 
       {/* Pairing Action Bar */}
       <div className="pairing-action-bar">

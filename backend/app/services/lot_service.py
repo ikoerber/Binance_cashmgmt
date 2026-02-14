@@ -165,7 +165,7 @@ def create_lot_from_buy_fill(
     )
 
     db.add(lot_db)
-    db.commit()
+    db.flush()
     db.refresh(lot_db)
 
     return _lot_db_to_dict(lot_db)
@@ -259,7 +259,7 @@ def process_sell_fill_fifo(
             "realized_pnl_eur": str(allocation.realized_pnl_eur),
         })
 
-    db.commit()
+    db.flush()
 
     return {
         "updated_lots": updated_lot_dicts,
@@ -361,7 +361,7 @@ def process_sell_fill_lot_specific(
             "realized_pnl_eur": str(allocation.realized_pnl_eur),
         })
 
-    db.commit()
+    db.flush()
 
     return {
         "updated_lots": updated_lot_dicts,
@@ -472,7 +472,7 @@ def update_auto_order(db: Session, user_id: str, lot_id: str, enabled: bool) -> 
         raise ValueError(f"Lot {lot_id} not found")
 
     lot_db.auto_order_enabled = enabled
-    db.commit()
+    db.flush()
     db.refresh(lot_db)
 
     return _lot_db_to_dict(lot_db)

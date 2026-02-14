@@ -6,16 +6,8 @@ import {
   reconcileBalances,
   reconcileFills,
 } from '../api/client';
+import { formatNumber, formatEUR, formatBTC } from '../utils/formatters';
 import './Reconciliation.css';
-
-const formatNumber = (num, decimals = 2) =>
-  parseFloat(num).toLocaleString('de-DE', {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  });
-
-const formatBTC = (num) => `${formatNumber(num, 8)} BTC`;
-const formatEUR = (num) => `${formatNumber(num, 2)} \u20ac`;
 
 const ErrorBanner = ({ errors }) => (
   <div className="recon-errors">

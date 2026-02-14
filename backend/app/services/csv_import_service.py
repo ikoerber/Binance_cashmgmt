@@ -233,7 +233,7 @@ def import_trading_bots_csv(
         db.add(event_db)
         created_events.append(event_db)
 
-    db.commit()
+    db.flush()
 
     # 4. TradeLots und Allocations erstellen
     # Gleiche Strategie wie SyncService: Erst alle Buy-Lots, dann Sells

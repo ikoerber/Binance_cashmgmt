@@ -81,7 +81,7 @@ class SyncService:
             event_db = self._persist_ledger_event(db, user_id, fill)
             created_events.append(event_db)
 
-        db.commit()
+        db.flush()
 
         # 5. TradeLots und Allocations erstellen
         # WICHTIG: Erst ALLE Buy-Lots erstellen, dann Sells allokieren.
@@ -168,7 +168,7 @@ class SyncService:
             else:
                 new_withdrawal_count += 1
 
-        db.commit()
+        db.flush()
 
         logger.info(
             "Fiat sync for %s: %d deposits, %d withdrawals",
