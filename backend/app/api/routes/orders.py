@@ -149,6 +149,10 @@ def list_orders(
         Liste von Orders
     """
     try:
+        # Auto-Sync: Wenn OPEN Orders abgefragt werden, vorher Binance-Status prüfen
+        if status and status.upper() in ("OPEN", "PARTIALLY_FILLED"):
+            tracking_service.sync_open_order_statuses(db, user_id)
+
         orders = tracking_service.get_orders_for_user(
             db,
             user_id,

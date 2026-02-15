@@ -227,6 +227,85 @@ class OrderTrackingService:
         except Exception as e:
             raise ValueError(f"Failed to sync order from Binance: {str(e)}")
 
+    def sync_open_order_statuses(
+        self,
+        db: Session,
+        user_id: str,
+        symbol: str = "BTCEUR"
+    ) -> int:
+        """
+        Synct Status aller OPEN/PARTIALLY_FILLED Orders mit Binance.
+
+        Effizient: 1 API-Call für offene Orders, dann nur einzelne Calls
+        für Orders die nicht mehr offen sind.
+
+        Args:
+            db: Database Session
+            user_id: User ID
+            symbol: Trading pair
+
+        Returns:
+            Anzahl aktualisierter Orders
+        """
+        if not self.binance_service:
+            return 0
+
+        updated = 0
+
+        try:
+            # 1. Alle aktuell offenen Orders von Binance holen (1 API Call)
+            binance_open = self.binance_service.client.get_open_orders(symbol=symbol)
+            binance_open_ids = {str(order["orderId"]) for order in binance_open}
+
+            # 2. Alle OPEN/PARTIALLY_FILLED Orders aus DB
+            db_orders = db.query(OrderDB).filter(
+                OrderDB.user_id == user_id,
+                OrderDB.symbol == symbol,
+                OrderDB.status.in_([OrderStatusEnum.OPEN, OrderStatusEnum.PARTIALLY_FILLED])
+            ).all()
+
+            # 3. Orders die nicht mehr in Binance open list sind → Status holen
+            for order_db in db_orders:
+                if not order_db.binance_order_id:
+                    continue
+
+                if order_db.binance_order_id not in binance_open_ids:
+                    try:
+                        binance_order = self.binance_service.client.get_order(
+                            symbol=symbol,
+                            orderId=int(order_db.binance_order_id)
+                        )
+
+                        status_map = {
+                            "NEW": "OPEN",
+                            "PARTIALLY_FILLED": "PARTIALLY_FILLED",
+                            "FILLED": "FILLED",
+                            "CANCELED": "CANCELLED",
+                            "REJECTED": "REJECTED",
+                            "EXPIRED": "EXPIRED"
+                        }
+
+                        new_status = status_map.get(binance_order["status"], "OPEN")
+
+                        if order_db.status.value != new_status:
+                            order_db.status = OrderStatusEnum[new_status]
+                            order_db.raw_response = binance_order
+                            order_db.updated_at = utcnow()
+                            updated += 1
+
+                    except Exception:
+                        # Fehler beim Einzelabruf ignorieren, nächster Versuch beim nächsten Poll
+                        pass
+
+            if updated > 0:
+                db.flush()
+
+        except Exception:
+            # Binance nicht erreichbar → stille Degradation, DB-Daten zurückgeben
+            pass
+
+        return updated
+
     def get_orders_for_user(
         self,
         db: Session,
