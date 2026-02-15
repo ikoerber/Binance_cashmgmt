@@ -1,4 +1,5 @@
 """FastAPI Main Application"""
+import asyncio
 import os
 from contextlib import asynccontextmanager
 
@@ -12,15 +13,19 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from app.db.database import init_db, create_tables
-from app.api.routes import portfolio, lots, sync, pairing, orders, reconciliation, cashflow, settings, macro
+from app.api.routes import portfolio, lots, sync, pairing, orders, reconciliation, cashflow, settings, macro, sentiment
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Initialisiert DB beim Start"""
+    """Initialisiert DB und Sentiment-Historien beim Start"""
     database_url = os.getenv("DATABASE_URL", "sqlite:///./cashmgnt.db")
     init_db(database_url)
     create_tables()
+    # Sentiment-Historien vorinitialisieren (vermeidet 60s Delay beim ersten Request)
+    from app.services.sentiment_data_service import get_sentiment_data_service
+    service = get_sentiment_data_service()
+    await asyncio.to_thread(service.initialize)
     yield
 
 
@@ -53,6 +58,7 @@ app.include_router(reconciliation.router)
 app.include_router(cashflow.router)
 app.include_router(settings.router)
 app.include_router(macro.router)
+app.include_router(sentiment.router)
 
 
 @app.get("/")

@@ -22,15 +22,19 @@ BTC/EUR Cashflow-Management & Automation App für Binance Spot Trading. Ledger-b
 - Settings-Seite (max_order_value_eur konfigurierbar)
 - Live BTC/EUR Preis via Binance API
 - Makro-Signal Dashboard (4 Faktoren, konfigurierbar, Richtungsempfehlung)
+- Sentiment Engine v3 (5 Pillars, korrelationsgewichtete Aggregation, Dispersion + Volatility Scaling)
 - CSV Import (Binance Spot Order History)
 - API-Key Authentication (Header `X-API-Key`, konfigurierbar via `API_KEY` in `.env`)
 - Transaction-Safety: SQLAlchemy Auto-Commit/Rollback via `yield`-Pattern
 - Shared Formatters (`utils/formatters.js`) fuer alle Frontend-Komponenten
 - Komponenten-Aufspaltung: LotFilters, OpenOrdersPanel, SimulationModal, PairingExistingTab
 - Dependencies gepinnt auf exakte Versionen in `requirements.txt`
+- Alternative Sell Allocation Strategien (FIFO, LIFO, HIGHEST_COST) konfigurierbar in Settings
 
 **Offen (Iteration 4-5):**
 - Auto-Order Automation (Trigger-basiert)
+- Sentiment History Persistierung (SentimentHistoryDB, History-Endpoint)
+- Combined Score (MacroSignal + Sentiment)
 - Hardening: Monitoring/Alerting, Rate-Limit-Optimierung, WebSocket
 
 ## Kernprinzipien
@@ -60,9 +64,10 @@ cashmgnt/
 │   │   ├── domain/                    # Pure Domain-Logik (kein I/O)
 │   │   │   ├── models.py             # Dataclasses: LedgerEvent, TradeLot, Pairing, PortfolioState
 │   │   │   ├── portfolio.py           # compute_portfolio_from_ledger() - zentrale Berechnung
-│   │   │   ├── lots.py                # create_trade_lot_from_buy_fill(), allocate_sell_fifo()
+│   │   │   ├── lots.py                # create_trade_lot_from_buy_fill(), allocate_sell_with_strategy(), allocate_sell_fifo()
 │   │   │   ├── pairing.py            # suggest_pairings(), simulate_pairing()
-│   │   │   └── macro_signal.py        # Makro-Faktoren Analyse + Richtungsempfehlung
+│   │   │   ├── macro_signal.py        # Makro-Faktoren Analyse + Richtungsempfehlung
+│   │   │   └── sentiment.py           # Sentiment v3: 5-Pillar Scoring, Dispersion, Volatility Scaling
 │   │   ├── services/                  # DB-Integration, Binance API
 │   │   │   ├── binance.py            # Binance API Client
 │   │   │   ├── sync_service.py       # Fills importieren
@@ -73,7 +78,8 @@ cashmgnt/
 │   │   │   ├── portfolio_service.py  # Portfolio-State aus Ledger
 │   │   │   ├── reconciliation_service.py
 │   │   │   ├── csv_import_service.py  # Binance CSV Import
-│   │   │   └── macro_data_service.py  # Makro-Daten (Klines, Fear&Greed, etc.)
+│   │   │   ├── macro_data_service.py  # Makro-Daten (Klines, Fear&Greed, etc.)
+│   │   │   └── sentiment_data_service.py # Sentiment-Daten: F&G, OKX Funding, Klines, Caching (Singleton)
 │   │   ├── db/
 │   │   │   ├── database.py           # SQLAlchemy Session
 │   │   │   └── models.py             # ORM: LedgerEventDB, TradeLotDB, PairingDB, OrderDB, UserSettingsDB
@@ -88,8 +94,11 @@ cashmgnt/
 │   │   │       ├── sync.py           # Binance Sync
 │   │   │       ├── reconciliation.py # POST /api/reconciliation/...
 │   │   │       ├── settings.py       # GET/PUT /api/settings/{user_id}
-│   │   │       └── macro.py          # GET /api/macro/...
-│   ├── tests/                         # 12 Testdateien
+│   │   │       ├── macro.py          # GET /api/macro/...
+│   │   │       └── sentiment.py     # GET /api/sentiment/{user_id}/current
+│   ├── scripts/
+│   │   └── backtest_sentiment.py     # Backtesting: v1/v2/v3 Sentiment vs. 2000+ Tage historische Daten
+│   ├── tests/                         # 13 Testdateien
 │   │   └── conftest.py               # TEST_BINANCE_API_KEY + Testnet
 │   ├── alembic/                       # DB-Migrationen
 │   ├── requirements.txt
@@ -97,8 +106,8 @@ cashmgnt/
 │
 └── frontend/
     ├── src/
-    │   ├── App.jsx                    # Routing: Dashboard | TradeLots | Reconciliation | Settings | API Docs
-    │   ├── api/client.js              # Axios: Portfolio, Lots, Orders, Pairing, Sync, Reconciliation, Settings
+    │   ├── App.jsx                    # Routing: Dashboard | TradeLots | Reconciliation | Settings | Makro-Signal | Sentiment | API Docs
+    │   ├── api/client.js              # Axios: Portfolio, Lots, Orders, Pairing, Sync, Reconciliation, Settings, Sentiment
     │   ├── components/
     │   │   ├── Dashboard.jsx          # 8 KPI-Kacheln (Break-even, P&L, BTC, EUR)
     │   │   ├── LotsTable.jsx          # Trade-Cockpit: Tabelle, Sort, Checkboxen, Pairing-Integration
@@ -110,12 +119,14 @@ cashmgnt/
     │   │   ├── Reconciliation.jsx     # 3 Sektionen: Orders, Balances, Fills + Diskrepanzen
     │   │   ├── Settings.jsx           # Konfigurierbare Parameter (max_order_value_eur)
     │   │   ├── MacroSignal.jsx        # Makro-Signal Dashboard (4 Faktoren, Richtungsempfehlung)
+    │   │   ├── Sentiment.jsx          # Sentiment Engine Dashboard (5 Pillars, Gauge, Empfehlung)
     │   │   ├── LotsTable.css
     │   │   ├── PairingPanel.css
     │   │   ├── Dashboard.css
     │   │   ├── Reconciliation.css
     │   │   ├── Settings.css
-    │   │   └── MacroSignal.css
+    │   │   ├── MacroSignal.css
+    │   │   └── Sentiment.css
     │   ├── utils/
     │   │   └── formatters.js          # Shared: formatNumber, formatEUR, formatBTC, formatPct, formatDate, formatTime
     │   └── hooks/useLivePrice.js      # Binance Ticker Polling (10s)
@@ -141,6 +152,12 @@ pytest --cov=app tests/                   # Mit Coverage
 # Linting
 ruff check . && black --check .
 black . && ruff check --fix .             # Auto-Fix
+```
+
+### Sentiment Backtesting
+```bash
+cd backend
+python scripts/backtest_sentiment.py --days 2000 --symbol BTCUSDT
 ```
 
 ### Frontend
@@ -185,6 +202,7 @@ alembic downgrade -1                      # Rollback
 | `/api/reconciliation/{user_id}/fills` | POST | Fills synchronisieren |
 | `/api/settings/{user_id}` | GET | User-Settings laden (oder Defaults) |
 | `/api/settings/{user_id}` | PUT | User-Settings speichern (upsert) |
+| `/api/sentiment/{user_id}/current` | GET | Aktueller Sentiment Score v3 (5 Pillars, Dispersion, Volatility) |
 
 ## Architektur
 
@@ -204,12 +222,32 @@ API Routes (thin)  →  Services (DB + Binance)  →  Domain (pure, no I/O)
 
 **`domain/lots.py`**:
 - `create_trade_lot_from_buy_fill()` - 1 Fill = 1 Lot (Fees in EUR/BTC/BNB)
-- `allocate_sell_fifo()` - FIFO Sell Allocation (deterministisch nach created_at)
-- `allocate_sell_to_lot()` - Lot-spezifische Allocation + Overflow via FIFO
+- `allocate_sell_with_strategy()` - Strategy-Aware Sell Allocation (FIFO/LIFO/HIGHEST_COST)
+- `allocate_sell_fifo()` - FIFO Wrapper (Rueckwaertskompatibilitaet)
+- `allocate_sell_to_lot()` - Lot-spezifische Allocation + Overflow nach konfigurierbarer Strategie
+- `_sort_lots_by_strategy()` - Sortierung nach Strategie (FIFO: created_at asc, LIFO: created_at desc, HIGHEST_COST: break_even desc)
 
 **`domain/pairing.py`**:
 - `suggest_pairings(lots, market_price, threshold_pct)` - Heuristik v1
 - `simulate_pairing(pairing, market_price, all_lots, fee_pct)` - Deterministische Simulation
+
+**`domain/sentiment.py`** - Sentiment Engine v3 (pure, kein I/O):
+- 5 korrelierte Pillars: DMA (42%), F&G (28%), Funding (20%), Taker (18%), Volume (12%)
+- `compute_sentiment_v3(pillars, weights)` - Gewichtete Aggregation mit Renormalisierung bei fehlenden Pillars
+- `compute_pillar_dispersion(scores)` - Confidence-Faktor (std=0 → 1.0, std≥30 → 0.0)
+- `compute_volatility_scaling(daily_returns)` - Regime-Erkennung (HIGH/NORMAL/LOW)
+- `compute_piecewise_linear_multiplier(score)` - Stetige Buy-Size-Empfehlung (1.5x Fear → 1.0x Neutral → 0.85x Greed)
+- `get_recommendation_v3()` - Finaler Multiplikator: base × dispersion_confidence × volatility_scaling
+- `rolling_percentile()`, `score_funding_rate()` - Pillar-Normalisierung
+- Dataclasses: `PillarScore`, `DispersionInfo`, `VolatilityScaling`, `SentimentResultV3`, `SentimentRecommendationV3`
+
+**`services/sentiment_data_service.py`** - Singleton mit TTL-Cache:
+- Datenquellen: Alternative.me F&G (30min TTL), Binance Klines (5min TTL), OKX Funding Rate (15min TTL)
+- 90-Tage Rolling Histories (deque) fuer Percentile-Scoring
+- 120-Tage Daily Returns fuer Volatility Scaling
+- `_initialize_history()` - Einmalige Population (300 Tage Klines)
+- Graceful Degradation: Fehlende Quellen → Score 50, Quality "unavailable"
+- Quality-Badges: "live", "cached", "stale" (6× TTL), "unavailable"
 
 ### Frontend-Komponenten
 
@@ -256,14 +294,22 @@ API Routes (thin)  →  Services (DB + Binance)  →  Domain (pure, no I/O)
 - useMutation für alle POST-Endpoints, Query-Invalidierung nach Erfolg
 
 **Settings.jsx** - Konfigurierbare Parameter:
-- Formular für `max_order_value_eur` (Default: 1000 EUR)
-- useQuery + useMutation für GET/PUT Settings-API
-- Erweiterbar für zukünftige Settings
+- Formular fuer `max_order_value_eur` (Default: 1000 EUR)
+- Sell-Allocation Strategie (FIFO / LIFO / Hoechste Kosten) als Button-Group
+- useQuery + useMutation fuer GET/PUT Settings-API
 
 **MacroSignal.jsx** - Makro-Signal Dashboard:
 - 4 Makro-Faktoren mit konfigurierbarer Richtungsempfehlung
 - Intervall-Auswahl (1m/5m/15m) aus User-Settings
 - Richtungseinfluss (bullish/bearish) visuell auf Indikator-Karten
+
+**Sentiment.jsx** - Sentiment Engine Dashboard:
+- Halbkreis-Gauge mit animierter Nadel (Fear ← Neutral → Greed)
+- 5 Pillar-Karten: Score (0-100), Quality-Badge, Progress-Bar mit Gradient, Raw-Value, Erklaerung
+- Empfehlungs-Karte: Action-Text + Buy-Size Multiplikator mit Breakdown (base × confidence × volatility)
+- Analyse-Grid: Pillar Agreement (Confidence %), Volatility Regime (HIGH/NORMAL/LOW mit Scaling)
+- TanStack Query mit 60s Refetch-Intervall
+- Loading/Error States, Disclaimer Footer
 
 ### Datenmodell (Kern-Tabellen)
 
@@ -275,14 +321,14 @@ API Routes (thin)  →  Services (DB + Binance)  →  Domain (pure, no I/O)
 | `orders` | Order-Tracking: client_order_id, binance_order_id, price, stop_price, linked_lot_id, linked_pairing_id |
 | `pairings` | Virtuelle Bündelung: threshold_pct, status (DRAFT/LOCKED/EXECUTED) |
 | `pairing_items` | N:M Pairing ↔ Lot: qty_btc, cost_eur (unterstützt Teilmengen) |
-| `user_settings` | Konfigurierbare Parameter pro User: max_order_value_eur (Default: 1000 EUR) |
+| `user_settings` | Konfigurierbare Parameter pro User: max_order_value_eur, sell_allocation_strategy (FIFO/LIFO/HIGHEST_COST) |
 
 ### Kritische Invarianten
 
 1. Ledger ist **append-only** - Korrekturen nur via ADJUSTMENT Events
 2. **Decimal überall** - niemals float für Geld/Preise
 3. **1 Fill = 1 Lot** - deterministische Lot-Bildung, 1:1 Auditierbarkeit
-4. **FIFO Allocation** - nach `created_at` sortiert, deterministisch
+4. **Sell Allocation Strategy** - konfigurierbar (FIFO/LIFO/HIGHEST_COST), deterministisch pro Strategie. Lot-spezifische und Pairing-spezifische Allocations ueberschreiben die Default-Strategie
 5. **Idempotente Orders** - `clientOrderId` Format: `{userId}_{lotId}_{targetPrice}_{qty}_{version}`
 6. **Simulation vor Execution** - Pairing-Ausführung erzwingt vorherige Simulation
 7. Pairing-Lifecycle: **DRAFT → LOCKED → EXECUTED** (nur DRAFT löschbar)
@@ -290,6 +336,7 @@ API Routes (thin)  →  Services (DB + Binance)  →  Domain (pure, no I/O)
 9. **TAKE_PROFIT_LIMIT** - Alle Sell Orders als Stop-Limit (stopPrice = price = targetPrice)
 10. **Max Order-Wert** - Order-Erstellung abgelehnt wenn `qty * price > max_order_value_eur` (konfigurierbar via Settings)
 11. **Test-Isolation** - Tests verwenden `TEST_BINANCE_API_KEY` + Testnet, nie Produktions-Keys
+12. **Sentiment Scoring** - Korrelationsbasierte Gewichte (nicht gleich), Dispersion als Confidence, Volatility als Scaling - stetige piecewise-linear Multiplikatoren (keine Buckets/Cliff-Effekte)
 
 ## Styling-Konventionen (Frontend)
 
@@ -299,15 +346,17 @@ API Routes (thin)  →  Services (DB + Binance)  →  Domain (pure, no I/O)
   - Profit: Grün `#16a34a`, Loss: Rot `#dc2626`
   - Pairing/Akzent: Indigo `#6366f1`
   - Reconciliation: Sky-Blue `#0ea5e9`
+  - Sentiment: Teal `#0d9488` (Gauge-Gradient: Rot `#dc2626` → Slate `#64748b` → Gruen `#16a34a`)
   - Binance-Sync: Orange `#f7931a`
   - Neutrals: Slate-Palette (`#f8fafc`, `#e2e8f0`, `#64748b`, `#1e293b`)
 - **Patterns**: Summary-Cards, Filter-Groups mit Labels, Toggle-Switches, Status-Badges, Sort-Icons
 
 ## Testing
 
-**Backend (12 Testdateien, 156 Tests):**
+**Backend (14 Testdateien):**
 - `test_portfolio_breakeven.py` - WAC, Fees, Partial Sells
 - `test_lots_fifo.py` - FIFO Allocation Deterministik
+- `test_lots_strategies.py` - LIFO, HIGHEST_COST, Strategy-Routing, Overflow-Strategien (18 Tests)
 - `test_lots_lot_specific.py` - Lot-spezifische Targets
 - `test_lot_fee_handling.py` - Fee-Berechnung (EUR/BTC/BNB)
 - `test_pairing.py` - Pairing-Heuristik, Thresholds
@@ -318,6 +367,7 @@ API Routes (thin)  →  Services (DB + Binance)  →  Domain (pure, no I/O)
 - `test_csv_import.py` - CSV Import Validierung
 - `test_timezone_handling.py` - Timezone Edge Cases
 - `test_macro_signal.py` - Makro-Signal Berechnung
+- `test_sentiment_v3.py` - Sentiment v3: Pillar Dispersion, Funding Scoring, Piecewise Multiplier, Volatility Scaling, Recommendation (45+ Tests)
 
 **Test-Konfiguration (`tests/conftest.py`):**
 - Alle Tests verwenden automatisch `TEST_BINANCE_API_KEY` statt Produktions-Keys
@@ -336,6 +386,7 @@ API Routes (thin)  →  Services (DB + Binance)  →  Domain (pure, no I/O)
 - **Test-Keys getrennt** - `TEST_BINANCE_API_KEY` in `.env`, automatisch via `conftest.py` verwendet
 - **Max Order-Wert** - Konfigurierbares Limit pro User (Default: 1000 EUR, via Settings-Seite)
 - **Transaction-Safety** - SQLAlchemy Sessions mit Auto-Commit/Rollback (`yield`-Pattern in `get_db()`)
+- **Sentiment EU-Compliance** - OKX Funding Rate statt Binance Futures (MiCA-konform), alle Quellen oeffentlich (keine Extra-Credentials)
 
 ---
 
@@ -462,13 +513,42 @@ Zeigt: betroffene Lots, erwartete P&L, Fees, verbleibende Bestände
 
 ---
 
+### 2.5 Sentiment Engine (v3)
+
+Krypto-spezifische Stimmungsanalyse, komplementaer zum MacroSignal (Makro-Richtung ≠ Sentiment-Sizing).
+
+**5 Pillars (korrelationsbasierte Gewichte):**
+| Pillar | Gewicht | Quelle | Beschreibung |
+|--------|---------|--------|-------------|
+| Trend-Deviation (DMA) | 42% | Binance Klines | Price Distance to 50-DMA + 200-DMA Regime-Filter |
+| Fear & Greed Index | 28% | alternative.me | Emotional Sentiment (0-100) |
+| Funding Rate | 20% | OKX Public API | Derivate-Hitze (EU-kompatibel, kein Binance Futures) |
+| Taker Buy/Sell Ratio | 18% | Binance Klines | Orderflow-Indikator (7d avg) |
+| Volume-Momentum | 12% | Binance Klines | Volume Ratio vs. 20d-Avg, richtungsangepasst |
+
+**Scoring-Modell:**
+- Rolling Percentile (90-Tage Historie) statt fixer Schwellwerte
+- Pillar Dispersion als Confidence: std=0 → 1.0, std≥30 → 0.0 (lineare Daempfung)
+- Volatility Scaling: HIGH (vol_ratio>1.5, komprimiert), NORMAL, LOW (vol_ratio<0.7, expandiert)
+- Piecewise-Linear Multiplikator: 1.5x (Extreme Fear) → 1.0x (Neutral 40-60) → 0.85x (Extreme Greed)
+- Finaler Multiplikator: base × dispersion_confidence × volatility_scaling
+
+**Abgrenzung MacroSignal vs. SentimentEngine:**
+- MacroSignal: Kurzfristige Richtung (1m/5m/15m), Score -2 bis +2
+- SentimentEngine: Mittelfristiges Position-Sizing (taeglich/rollierend), Score 0-100
+
+---
+
 ## 4. Offene Punkte
 - Fee-Umrechnung: Fill-Preis vs separate Preisquelle
-- Alternative Sell Allocation Regeln (LIFO, Highest-cost-first) (v1.1+)
 - Aggregierte Pairing-Orders (v1.1+)
 - Frontend-Tests (Vitest)
 - Auto-Order Trigger-Logik
 - WebSocket für Realtime-Sync
+- Sentiment History Persistierung (SentimentHistoryDB Tabelle + `/api/sentiment/{user_id}/history`)
+- Combined Score: MacroSignal + Sentiment (Timing + Sizing)
+- Social Sentiment (Twitter/X, Reddit via LunarCrush/Santiment)
+- Echte On-Chain-Daten (Glassnode/CryptoQuant)
 
 ## 5. Akzeptanzkriterien
 - Break-even und P&L reproduzierbar aus Ledger
@@ -476,3 +556,6 @@ Zeigt: betroffene Lots, erwartete P&L, Fees, verbleibende Bestände
 - Pairing liefert Simulation vor Execution
 - Auto-Order erzeugt keine Doppelorders (Idempotenz via clientOrderId)
 - UI bedienbar bei hoher Lot-Anzahl (Gruppierung/Filter)
+- Sentiment Score reproduzierbar aus gleichen Rohdaten (deterministische Domain-Logik)
+- Sentiment Graceful Degradation: System funktioniert mit 1-5 aktiven Pillars
+- Sentiment EU-kompatibel: Keine geo-blockierten APIs (OKX statt Binance Futures)

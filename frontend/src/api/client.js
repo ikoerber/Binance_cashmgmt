@@ -162,4 +162,12 @@ export const getMacroSignals = async (interval = '15') => {
   return response.data;
 };
 
+// Sentiment API
+export const getSentiment = async (userId, symbol = 'BTCEUR') => {
+  const response = await apiClient.get(`/api/sentiment/${userId}/current`, {
+    params: { symbol },
+  });
+  return response.data;
+};
+
 export default apiClient;

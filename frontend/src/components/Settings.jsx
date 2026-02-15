@@ -8,6 +8,7 @@ const Settings = ({ userId = 'user_123' }) => {
   const [message, setMessage] = useState(null);
   const [maxOrderValueEur, setMaxOrderValueEur] = useState('');
   const [macroSignalInterval, setMacroSignalInterval] = useState('15');
+  const [sellAllocationStrategy, setSellAllocationStrategy] = useState('FIFO');
 
   const showMessage = (type, text) => {
     setMessage({ type, text });
@@ -23,6 +24,7 @@ const Settings = ({ userId = 'user_123' }) => {
     if (settings) {
       setMaxOrderValueEur(settings.max_order_value_eur);
       setMacroSignalInterval(settings.macro_signal_interval || '15');
+      setSellAllocationStrategy(settings.sell_allocation_strategy || 'FIFO');
     }
   }, [settings]);
 
@@ -46,6 +48,7 @@ const Settings = ({ userId = 'user_123' }) => {
     saveMutation.mutate({
       max_order_value_eur: value,
       macro_signal_interval: macroSignalInterval,
+      sell_allocation_strategy: sellAllocationStrategy,
     });
   };
 
@@ -112,6 +115,36 @@ const Settings = ({ userId = 'user_123' }) => {
           <div className="settings-hint">
             Kuerzere Intervalle zeigen schnellere Bewegungen, haben aber angepasste (kleinere) Schwellenwerte.
             Schwellenwerte skalieren mit sqrt(Intervall) - z.B. sind 1-Min-Schwellen ~26% der 15-Min-Werte.
+          </div>
+        </div>
+      </div>
+
+      <div className="settings-section">
+        <h3>Sell-Allocation Strategie</h3>
+
+        <div className="settings-field">
+          <label className="settings-label">Standard-Allokation bei Verkaeufen</label>
+          <div className="settings-interval-group">
+            {[
+              { value: 'FIFO', label: 'FIFO' },
+              { value: 'LIFO', label: 'LIFO' },
+              { value: 'HIGHEST_COST', label: 'Hoechste Kosten' },
+            ].map(({ value, label }) => (
+              <button
+                key={value}
+                className={`interval-btn ${sellAllocationStrategy === value ? 'interval-active' : ''}`}
+                onClick={() => setSellAllocationStrategy(value)}
+                type="button"
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className="settings-hint">
+            FIFO: Aelteste Lots zuerst schliessen (Standard, steuerlich oft vorteilhaft).
+            LIFO: Neueste Lots zuerst schliessen.
+            Hoechste Kosten: Lots mit hoechstem Break-even zuerst (minimiert realisierte Gewinne).
+            Gilt nur fuer Verkaeufe ohne explizite Lot-/Pairing-Zuordnung.
           </div>
         </div>
       </div>

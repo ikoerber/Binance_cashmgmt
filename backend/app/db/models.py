@@ -324,6 +324,7 @@ class UserSettingsDB(Base):
 
     max_order_value_eur = Column(Numeric(precision=20, scale=2), nullable=False, server_default="1000")
     macro_signal_interval = Column(String, nullable=False, server_default="15")
+    sell_allocation_strategy = Column(String, nullable=False, server_default="FIFO")
 
     created_at = Column(DateTime, nullable=False, default=_utcnow)
     updated_at = Column(DateTime, nullable=False, default=_utcnow, onupdate=_utcnow)

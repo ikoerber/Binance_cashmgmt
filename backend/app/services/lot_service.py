@@ -10,13 +10,15 @@ import logging
 from app.domain.lots import (
     create_trade_lot_from_buy_fill,
     allocate_sell_fifo,
+    allocate_sell_with_strategy,
     allocate_sell_to_lot,
     calculate_lot_target_price,
     _compute_net_proceeds_per_btc,
     _allocate_qty_to_lots,
+    _sort_lots_by_strategy,
 )
-from app.domain.models import LotStatus, TradeLot as DomainLot
-from app.db.models import TradeLotDB, SellAllocationDB, LedgerEventDB, LotStatusEnum, OrderDB, PairingItemDB
+from app.domain.models import LotStatus, TradeLot as DomainLot, AllocationStrategy
+from app.db.models import TradeLotDB, SellAllocationDB, LedgerEventDB, LotStatusEnum, OrderDB, PairingItemDB, UserSettingsDB
 
 logger = logging.getLogger(__name__)
 from app.services.portfolio_service import _db_event_to_domain
@@ -439,7 +441,7 @@ def process_sell_fill_for_pairing(
 
     pairing_lots_domain = [_lot_db_to_domain(lot_db) for lot_db in pairing_lots_db]
 
-    # Restliche offene Lots fuer Overflow (FIFO, Pairing-Lots ausgeschlossen)
+    # Restliche offene Lots fuer Overflow (nach User-Strategie sortiert, Pairing-Lots ausgeschlossen)
     remaining_lots_db = (
         db.query(TradeLotDB)
         .filter(
@@ -447,12 +449,15 @@ def process_sell_fill_for_pairing(
             TradeLotDB.qty_btc_open > 0,
             ~TradeLotDB.id.in_(pairing_lot_ids)
         )
-        .order_by(TradeLotDB.created_at.asc())
         .all()
     )
     remaining_lots_domain = [_lot_db_to_domain(lot_db) for lot_db in remaining_lots_db]
 
-    # Pairing-Lots zuerst, dann Overflow-Lots (FIFO)
+    # Overflow-Lots nach User-Strategie sortieren
+    overflow_strategy = _get_user_allocation_strategy(db, user_id)
+    remaining_lots_domain = _sort_lots_by_strategy(remaining_lots_domain, overflow_strategy)
+
+    # Pairing-Lots zuerst, dann Overflow-Lots (nach User-Strategie)
     all_lots = pairing_lots_domain + remaining_lots_domain
 
     net_proceeds_per_btc = _compute_net_proceeds_per_btc(sell_event_domain, fee_conversion_rates)
@@ -507,6 +512,111 @@ def process_sell_fill_for_pairing(
     }
 
 
+def _get_user_allocation_strategy(db: Session, user_id: str) -> AllocationStrategy:
+    """Laedt die bevorzugte Sell-Allocation-Strategie des Users aus den Settings."""
+    settings = db.query(UserSettingsDB).filter(
+        UserSettingsDB.user_id == user_id
+    ).first()
+
+    if settings and settings.sell_allocation_strategy:
+        try:
+            return AllocationStrategy(settings.sell_allocation_strategy)
+        except ValueError:
+            logger.warning(
+                "Invalid strategy '%s' for user %s, falling back to FIFO",
+                settings.sell_allocation_strategy, user_id
+            )
+    return AllocationStrategy.FIFO
+
+
+def process_sell_fill_with_strategy(
+    db: Session,
+    user_id: str,
+    sell_event_id: str,
+    strategy: AllocationStrategy = AllocationStrategy.FIFO,
+    fee_conversion_rates: dict[str, Decimal] | None = None
+) -> dict:
+    """
+    Verarbeitet Sell-Fill mit konfigurierbarer Allocation Strategy.
+
+    Args:
+        db: Database Session
+        user_id: User ID
+        sell_event_id: Sell Event ID (LedgerEvent)
+        strategy: Allocation Strategy (FIFO, LIFO, HIGHEST_COST)
+        fee_conversion_rates: Optional dict mit Konvertierungsraten zu EUR
+
+    Returns:
+        Dict mit updated_lots und allocations
+    """
+    sell_event_db = (
+        db.query(LedgerEventDB)
+        .filter(
+            LedgerEventDB.id == sell_event_id,
+            LedgerEventDB.user_id == user_id
+        )
+        .first()
+    )
+
+    if not sell_event_db:
+        raise ValueError(f"Sell event {sell_event_id} not found")
+
+    sell_event_domain = _db_event_to_domain(sell_event_db)
+
+    lots_db = (
+        db.query(TradeLotDB)
+        .filter(
+            TradeLotDB.user_id == user_id,
+            TradeLotDB.qty_btc_open > 0
+        )
+        .all()
+    )
+
+    lots_domain = [_lot_db_to_domain(lot_db) for lot_db in lots_db]
+
+    updated_lots_domain, allocations_domain = allocate_sell_with_strategy(
+        sell_event_domain,
+        lots_domain,
+        strategy,
+        fee_conversion_rates
+    )
+
+    # In DB persistieren
+    updated_lot_dicts = []
+    for updated_lot in updated_lots_domain:
+        lot_db = db.query(TradeLotDB).filter(TradeLotDB.id == updated_lot.id).first()
+        if lot_db:
+            lot_db.qty_btc_open = updated_lot.qty_btc_open
+            lot_db.status = LotStatusEnum[updated_lot.status.value]
+            updated_lot_dicts.append(_lot_db_to_dict(lot_db))
+
+    allocation_dicts = []
+    for allocation in allocations_domain:
+        alloc_db = SellAllocationDB(
+            id=allocation.id,
+            sell_fill_id=allocation.sell_fill_id,
+            trade_lot_id=allocation.trade_lot_id,
+            qty_allocated=allocation.qty_allocated,
+            realized_pnl_eur=allocation.realized_pnl_eur,
+            created_at=allocation.created_at,
+        )
+        db.add(alloc_db)
+        allocation_dicts.append({
+            "id": allocation.id,
+            "sell_fill_id": allocation.sell_fill_id,
+            "trade_lot_id": allocation.trade_lot_id,
+            "qty_allocated": str(allocation.qty_allocated),
+            "realized_pnl_eur": str(allocation.realized_pnl_eur),
+        })
+
+    db.flush()
+
+    return {
+        "updated_lots": updated_lot_dicts,
+        "allocations": allocation_dicts,
+    }
+
+
 def process_sell_fill(
     db: Session,
     user_id: str,
@@ -514,7 +624,7 @@ def process_sell_fill(
     fee_conversion_rates: dict[str, Decimal] | None = None
 ) -> dict:
     """
-    Routing-Funktion: Entscheidet ob lot-spezifisch, pairing-spezifisch oder FIFO
+    Routing-Funktion: Entscheidet ob lot-spezifisch, pairing-spezifisch oder User-Strategie
 
     Prüft ob der Sell-Fill zu einer Order gehört:
     1. Order mit linked_lot_id → lot-spezifische Allocation
@@ -592,8 +702,11 @@ def process_sell_fill(
             db, user_id, sell_event_id, linked_pairing_id, fee_conversion_rates
         )
 
-    # Default: FIFO
-    return process_sell_fill_fifo(db, user_id, sell_event_id, fee_conversion_rates)
+    # Default: User-konfigurierte Strategie (Fallback: FIFO)
+    strategy = _get_user_allocation_strategy(db, user_id)
+    return process_sell_fill_with_strategy(
+        db, user_id, sell_event_id, strategy, fee_conversion_rates
+    )
 
 
 def update_auto_order(db: Session, user_id: str, lot_id: str, enabled: bool) -> dict:

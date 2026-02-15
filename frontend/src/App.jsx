@@ -5,6 +5,7 @@ import LotsTable from './components/LotsTable';
 import Reconciliation from './components/Reconciliation';
 import Settings from './components/Settings';
 import MacroSignal from './components/MacroSignal';
+import Sentiment from './components/Sentiment';
 import { useLivePrice } from './hooks/useLivePrice';
 import './App.css';
 
@@ -68,6 +69,12 @@ function AppContent() {
             Makro-Signal
           </button>
           <button
+            className={currentView === 'sentiment' ? 'active' : ''}
+            onClick={() => setCurrentView('sentiment')}
+          >
+            Sentiment
+          </button>
+          <button
             className={currentView === 'reconciliation' ? 'active' : ''}
             onClick={() => setCurrentView('reconciliation')}
           >
@@ -96,6 +103,9 @@ function AppContent() {
         )}
         {currentView === 'macro' && (
           <MacroSignal userId={userId} />
+        )}
+        {currentView === 'sentiment' && (
+          <Sentiment userId={userId} />
         )}
         {currentView === 'reconciliation' && (
           <Reconciliation userId={userId} />

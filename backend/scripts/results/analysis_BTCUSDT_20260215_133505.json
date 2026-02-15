@@ -1,0 +1,132 @@
+{
+  "analysis": {
+    "Extreme Fear (0-15)": {
+      "count": 8,
+      "pct_of_total": "0.4",
+      "avg_score": "11.3",
+      "fwd_7d": {
+        "avg": "-0.05",
+        "median": "-0.67",
+        "win_rate": "42.9",
+        "count": 7
+      },
+      "fwd_14d": {
+        "avg": "-2.05",
+        "median": "-1.31",
+        "win_rate": "50.0",
+        "count": 6
+      },
+      "fwd_30d": {
+        "avg": "-2.43",
+        "median": "-1.06",
+        "win_rate": "33.3",
+        "count": 6
+      }
+    },
+    "Fear (16-35)": {
+      "count": 279,
+      "pct_of_total": "15.5",
+      "avg_score": "29.7",
+      "fwd_7d": {
+        "avg": "-0.30",
+        "median": "0.12",
+        "win_rate": "51.3",
+        "count": 273
+      },
+      "fwd_14d": {
+        "avg": "-0.89",
+        "median": "-0.52",
+        "win_rate": "48.5",
+        "count": 268
+      },
+      "fwd_30d": {
+        "avg": "-1.25",
+        "median": "-0.84",
+        "win_rate": "46.8",
+        "count": 263
+      }
+    },
+    "Neutral (36-65)": {
+      "count": 1303,
+      "pct_of_total": "72.4",
+      "avg_score": "49.8",
+      "fwd_7d": {
+        "avg": "0.42",
+        "median": "0.17",
+        "win_rate": "51.3",
+        "count": 1303
+      },
+      "fwd_14d": {
+        "avg": "0.75",
+        "median": "0.19",
+        "win_rate": "51.5",
+        "count": 1302
+      },
+      "fwd_30d": {
+        "avg": "2.19",
+        "median": "0.27",
+        "win_rate": "50.7",
+        "count": 1292
+      }
+    },
+    "Greed (66-85)": {
+      "count": 139,
+      "pct_of_total": "7.7",
+      "avg_score": "69.4",
+      "fwd_7d": {
+        "avg": "0.78",
+        "median": "0.02",
+        "win_rate": "50.4",
+        "count": 139
+      },
+      "fwd_14d": {
+        "avg": "2.93",
+        "median": "1.64",
+        "win_rate": "57.6",
+        "count": 139
+      },
+      "fwd_30d": {
+        "avg": "3.17",
+        "median": "-0.36",
+        "win_rate": "49.6",
+        "count": 139
+      }
+    },
+    "Extreme Greed (86-100)": {
+      "count": 0,
+      "pct_of_total": "0"
+    }
+  },
+  "dca_simulation": {
+    "buy_count": 258,
+    "end_price": "70360.79000000",
+    "flat": {
+      "eur_spent": "25800.00",
+      "btc_accumulated": "0.63181419",
+      "avg_buy_price": "40834.79",
+      "current_value": "44454.95",
+      "pnl_eur": "18654.95",
+      "pnl_pct": "72.31"
+    },
+    "sentiment": {
+      "eur_spent": "26100.00",
+      "btc_accumulated": "0.64244193",
+      "avg_buy_price": "40626.24",
+      "current_value": "45202.72",
+      "pnl_eur": "19102.72",
+      "pnl_pct": "73.19"
+    },
+    "delta": {
+      "extra_btc": "0.01062773",
+      "extra_value_eur": "747.78",
+      "pnl_diff_pct": "0.88"
+    }
+  },
+  "params": {
+    "days": 2000,
+    "symbol": "BTCUSDT",
+    "output": "scripts/results",
+    "dca_amount": 100,
+    "warmup": 200
+  }
+}

@@ -1,0 +1,353 @@
+{
+  "params": {
+    "days": 2000,
+    "symbol": "BTCUSDT",
+    "output": "scripts/results",
+    "dca_amount": 100,
+    "warmup": 200
+  },
+  "analysis_v1": {
+    "Extreme Fear (0-15)": {
+      "count": 7,
+      "pct_of_total": "0.4",
+      "fwd_7d": {
+        "avg": "-0.05",
+        "median": "-0.67",
+        "win_rate": "42.9",
+        "count": 7
+      },
+      "fwd_14d": {
+        "avg": "-2.05",
+        "median": "-1.31",
+        "win_rate": "50.0",
+        "count": 6
+      },
+      "fwd_30d": {
+        "avg": "-2.43",
+        "median": "-1.06",
+        "win_rate": "33.3",
+        "count": 6
+      }
+    },
+    "Fear (16-35)": {
+      "count": 280,
+      "pct_of_total": "15.6",
+      "fwd_7d": {
+        "avg": "-0.30",
+        "median": "0.12",
+        "win_rate": "50.9",
+        "count": 273
+      },
+      "fwd_14d": {
+        "avg": "-0.90",
+        "median": "-0.52",
+        "win_rate": "48.5",
+        "count": 268
+      },
+      "fwd_30d": {
+        "avg": "-1.25",
+        "median": "-0.84",
+        "win_rate": "46.8",
+        "count": 263
+      }
+    },
+    "Neutral (36-65)": {
+      "count": 1303,
+      "pct_of_total": "72.4",
+      "fwd_7d": {
+        "avg": "0.42",
+        "median": "0.17",
+        "win_rate": "51.3",
+        "count": 1303
+      },
+      "fwd_14d": {
+        "avg": "0.75",
+        "median": "0.19",
+        "win_rate": "51.5",
+        "count": 1302
+      },
+      "fwd_30d": {
+        "avg": "2.19",
+        "median": "0.27",
+        "win_rate": "50.7",
+        "count": 1292
+      }
+    },
+    "Greed (66-85)": {
+      "count": 139,
+      "pct_of_total": "7.7",
+      "fwd_7d": {
+        "avg": "0.78",
+        "median": "0.02",
+        "win_rate": "50.4",
+        "count": 139
+      },
+      "fwd_14d": {
+        "avg": "2.93",
+        "median": "1.64",
+        "win_rate": "57.6",
+        "count": 139
+      },
+      "fwd_30d": {
+        "avg": "3.17",
+        "median": "-0.36",
+        "win_rate": "49.6",
+        "count": 139
+      }
+    },
+    "Extreme Greed (86-100)": {
+      "count": 0,
+      "pct_of_total": "0"
+    }
+  },
+  "analysis_v2": {
+    "Extreme Fear (0-15)": {
+      "count": 146,
+      "pct_of_total": "8.1",
+      "fwd_7d": {
+        "avg": "0.43",
+        "median": "0.99",
+        "win_rate": "58.9",
+        "count": 146
+      },
+      "fwd_14d": {
+        "avg": "0.20",
+        "median": "0.01",
+        "win_rate": "50.0",
+        "count": 142
+      },
+      "fwd_30d": {
+        "avg": "-2.90",
+        "median": "-2.01",
+        "win_rate": "43.3",
+        "count": 141
+      }
+    },
+    "Fear (16-35)": {
+      "count": 419,
+      "pct_of_total": "23.3",
+      "fwd_7d": {
+        "avg": "-0.10",
+        "median": "-0.54",
+        "win_rate": "46.1",
+        "count": 414
+      },
+      "fwd_14d": {
+        "avg": "-0.74",
+        "median": "-1.01",
+        "win_rate": "45.5",
+        "count": 413
+      },
+      "fwd_30d": {
+        "avg": "-1.13",
+        "median": "-0.70",
+        "win_rate": "47.6",
+        "count": 410
+      }
+    },
+    "Neutral (36-65)": {
+      "count": 798,
+      "pct_of_total": "44.3",
+      "fwd_7d": {
+        "avg": "0.40",
+        "median": "0.20",
+        "win_rate": "51.4",
+        "count": 796
+      },
+      "fwd_14d": {
+        "avg": "1.04",
+        "median": "0.47",
+        "win_rate": "53.0",
+        "count": 795
+      },
+      "fwd_30d": {
+        "avg": "3.23",
+        "median": "0.19",
+        "win_rate": "50.4",
+        "count": 788
+      }
+    },
+    "Greed (66-85)": {
+      "count": 297,
+      "pct_of_total": "16.5",
+      "fwd_7d": {
+        "avg": "0.96",
+        "median": "0.51",
+        "win_rate": "54.9",
+        "count": 297
+      },
+      "fwd_14d": {
+        "avg": "1.56",
+        "median": "0.86",
+        "win_rate": "54.5",
+        "count": 297
+      },
+      "fwd_30d": {
+        "avg": "2.95",
+        "median": "0.56",
+        "win_rate": "52.2",
+        "count": 295
+      }
+    },
+    "Extreme Greed (86-100)": {
+      "count": 74,
+      "pct_of_total": "4.1",
+      "fwd_7d": {
+        "avg": "0.99",
+        "median": "-0.33",
+        "win_rate": "48.6",
+        "count": 74
+      },
+      "fwd_14d": {
+        "avg": "4.55",
+        "median": "3.32",
+        "win_rate": "66.2",
+        "count": 74
+      },
+      "fwd_30d": {
+        "avg": "9.17",
+        "median": "9.94",
+        "win_rate": "69.9",
+        "count": 73
+      }
+    }
+  },
+  "velocity_analysis": {
+    "Crash (<-15)": {
+      "count": 460,
+      "pct_of_total": "25.7",
+      "fwd_7d": {
+        "avg": "0.79",
+        "median": "0.52",
+        "win_rate": "52.8",
+        "count": 460
+      },
+      "fwd_30d": {
+        "avg": "1.45",
+        "median": "0.09",
+        "win_rate": "50.3",
+        "count": 447
+      }
+    },
+    "Stark fallend (-15..-5)": {
+      "count": 257,
+      "pct_of_total": "14.3",
+      "fwd_7d": {
+        "avg": "0.77",
+        "median": "-0.29",
+        "win_rate": "48.6",
+        "count": 255
+      },
+      "fwd_30d": {
+        "avg": "1.22",
+        "median": "-1.13",
+        "win_rate": "47.0",
+        "count": 253
+      }
+    },
+    "Leicht fallend (-5..0)": {
+      "count": 166,
+      "pct_of_total": "9.3",
+      "fwd_7d": {
+        "avg": "0.54",
+        "median": "1.06",
+        "win_rate": "57.8",
+        "count": 166
+      },
+      "fwd_30d": {
+        "avg": "1.10",
+        "median": "-0.55",
+        "win_rate": "47.9",
+        "count": 163
+      }
+    },
+    "Leicht steigend (0..+5)": {
+      "count": 169,
+      "pct_of_total": "9.4",
+      "fwd_7d": {
+        "avg": "1.24",
+        "median": "0.75",
+        "win_rate": "56.2",
+        "count": 169
+      },
+      "fwd_30d": {
+        "avg": "4.26",
+        "median": "1.18",
+        "win_rate": "53.8",
+        "count": 169
+      }
+    },
+    "Stark steigend (+5..+15)": {
+      "count": 303,
+      "pct_of_total": "16.9",
+      "fwd_7d": {
+        "avg": "-0.41",
+        "median": "0.02",
+        "win_rate": "50.2",
+        "count": 303
+      },
+      "fwd_30d": {
+        "avg": "1.52",
+        "median": "0.53",
+        "win_rate": "51.8",
+        "count": 301
+      }
+    },
+    "Euphorie (>+15)": {
+      "count": 438,
+      "pct_of_total": "24.4",
+      "fwd_7d": {
+        "avg": "-0.09",
+        "median": "-0.34",
+        "win_rate": "47.3",
+        "count": 433
+      },
+      "fwd_30d": {
+        "avg": "2.34",
+        "median": "0.27",
+        "win_rate": "50.9",
+        "count": 430
+      }
+    }
+  },
+  "correlations": {
+    "Fear & Greed": "0.048",
+    "Taker Ratio": "0.031",
+    "DMA Distance": "0.073",
+    "Volume Ratio": "0.020",
+    "Score v1": "0.064",
+    "Score v2": "0.159",
+    "Velocity v2": "0.012"
+  },
+  "dca_simulation": {
+    "buys": 258,
+    "end_price": "69366.59000000",
+    "flat": {
+      "name": "Flat DCA",
+      "eur_spent": "25800.00",
+      "btc": "0.63183456",
+      "avg_price": "40833.47",
+      "value": "43828.21",
+      "pnl_eur": "18028.21",
+      "pnl_pct": "69.88"
+    },
+    "v1_contrarian": {
+      "name": "v1 Contrarian",
+      "eur_spent": "26085.00",
+      "btc": "0.64225216",
+      "avg_price": "40614.89",
+      "value": "44550.84",
+      "pnl_eur": "18465.84",
+      "pnl_pct": "70.79"
+    },
+    "v2_regime": {
+      "name": "v2 Regime-Switch",
+      "eur_spent": "26110.00",
+      "btc": "0.63795999",
+      "avg_price": "40927.33",
+      "value": "44253.11",
+      "pnl_eur": "18143.11",
+      "pnl_pct": "69.49"
+    }
+  }
+}

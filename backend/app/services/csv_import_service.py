@@ -25,7 +25,7 @@ from sqlalchemy.orm import Session
 
 from app.domain.models import LedgerEvent, EventType, EventSource, TradeSide
 from app.db.models import LedgerEventDB, EventTypeEnum, EventSourceEnum, TradeSideEnum
-from app.services.lot_service import create_lot_from_buy_fill, process_sell_fill_fifo
+from app.services.lot_service import create_lot_from_buy_fill, process_sell_fill
 
 
 def parse_amount_with_asset(value: str) -> tuple[Decimal, str]:
@@ -260,7 +260,7 @@ def import_trading_bots_csv(
     )
     for event_db in sell_events:
         try:
-            result = process_sell_fill_fifo(db, user_id, event_db.id)
+            result = process_sell_fill(db, user_id, event_db.id)
             allocations_count += len(result["allocations"])
         except Exception as e:
             errors.append(f"Error processing sell fill {event_db.id}: {e}")

@@ -15,6 +15,10 @@ router = APIRouter(prefix="/api/settings", tags=["settings"])
 class SettingsUpdate(BaseModel):
     max_order_value_eur: float
     macro_signal_interval: str = "15"
+    sell_allocation_strategy: str = "FIFO"
+
+
+VALID_STRATEGIES = {"FIFO", "LIFO", "HIGHEST_COST"}
 
 
 def _settings_to_dict(settings: UserSettingsDB) -> dict:
@@ -22,12 +26,14 @@ def _settings_to_dict(settings: UserSettingsDB) -> dict:
         "user_id": settings.user_id,
         "max_order_value_eur": float(settings.max_order_value_eur),
         "macro_signal_interval": settings.macro_signal_interval,
+        "sell_allocation_strategy": settings.sell_allocation_strategy,
     }
 
 
 DEFAULTS = {
     "max_order_value_eur": 1000.0,
     "macro_signal_interval": "15",
+    "sell_allocation_strategy": "FIFO",
 }
 
 
@@ -67,6 +73,11 @@ def update_settings(
         raise HTTPException(status_code=400, detail="max_order_value_eur muss > 0 sein")
     if body.macro_signal_interval not in ("1", "5", "15"):
         raise HTTPException(status_code=400, detail="macro_signal_interval muss '1', '5' oder '15' sein")
+    if body.sell_allocation_strategy not in VALID_STRATEGIES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"sell_allocation_strategy muss einer von {sorted(VALID_STRATEGIES)} sein"
+        )
 
     settings = db.query(UserSettingsDB).filter(
         UserSettingsDB.user_id == user_id
@@ -75,6 +86,7 @@ def update_settings(
     if settings:
         settings.max_order_value_eur = Decimal(str(body.max_order_value_eur))
         settings.macro_signal_interval = body.macro_signal_interval
+        settings.sell_allocation_strategy = body.sell_allocation_strategy
         settings.updated_at = utcnow()
     else:
         settings = UserSettingsDB(
@@ -82,6 +94,7 @@ def update_settings(
             user_id=user_id,
             max_order_value_eur=Decimal(str(body.max_order_value_eur)),
             macro_signal_interval=body.macro_signal_interval,
+            sell_allocation_strategy=body.sell_allocation_strategy,
             created_at=utcnow(),
             updated_at=utcnow(),
         )

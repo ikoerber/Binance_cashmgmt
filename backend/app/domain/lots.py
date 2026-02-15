@@ -20,6 +20,7 @@ from .models import (
     EventType,
     TradeSide,
     LotStatus,
+    AllocationStrategy,
 )
 
 
@@ -186,26 +187,47 @@ def _allocate_qty_to_lots(
     return updated_lots, allocations, qty_to_allocate
 
 
-def allocate_sell_fifo(
+def _sort_lots_by_strategy(
+    lots: List[TradeLot],
+    strategy: AllocationStrategy,
+) -> List[TradeLot]:
+    """
+    Sortiert Lots nach der gegebenen Allocation-Strategie.
+
+    FIFO: created_at aufsteigend (aelteste zuerst)
+    LIFO: created_at absteigend (neueste zuerst)
+    HIGHEST_COST: break_even absteigend (teuerste zuerst), Tie-Break: created_at absteigend
+    """
+    if strategy == AllocationStrategy.FIFO:
+        return sorted(lots, key=lambda lot: lot.created_at)
+    elif strategy == AllocationStrategy.LIFO:
+        return sorted(lots, key=lambda lot: lot.created_at, reverse=True)
+    elif strategy == AllocationStrategy.HIGHEST_COST:
+        # Hoechster Break-even zuerst; bei Gleichstand neueste zuerst (LIFO als Tie-Break)
+        return sorted(lots, key=lambda lot: (lot.break_even, lot.created_at), reverse=True)
+    else:
+        raise ValueError(f"Unknown allocation strategy: {strategy}")
+
+
+def allocate_sell_with_strategy(
     sell_event: LedgerEvent,
     open_lots: List[TradeLot],
+    strategy: AllocationStrategy = AllocationStrategy.FIFO,
     fee_conversion_rates: dict[str, Decimal] | None = None
 ) -> Tuple[List[TradeLot], List[SellAllocation]]:
     """
-    FIFO Sell Allocation - Deterministisch
+    Strategy-Aware Sell Allocation - Deterministisch
 
-    Schließt die ältesten offenen Lots zuerst.
+    Sortiert Lots nach der gegebenen Strategie und allokiert.
 
     Args:
         sell_event: Sell TRADE_FILL Event
-        open_lots: Liste offener TradeLots (muss nach created_at sortiert sein!)
+        open_lots: Liste offener TradeLots
+        strategy: Allocation Strategy (FIFO, LIFO, HIGHEST_COST)
         fee_conversion_rates: Optional dict mit Konvertierungsraten zu EUR
-                             z.B. {"BNB": Decimal("700.00")} für BNB/EUR-Preis
 
     Returns:
         Tuple[updated_lots, allocations]
-        - updated_lots: Liste der aktualisierten TradeLots
-        - allocations: Liste der erstellten SellAllocations
 
     Raises:
         ValueError: Wenn Event kein Sell-Fill ist oder nicht genug offene Lots
@@ -219,18 +241,15 @@ def allocate_sell_fifo(
     if sell_event.price is None or sell_event.amount is None:
         raise ValueError("Sell fill must have price and amount")
 
-    # Sortiere Lots nach Alter (FIFO)
-    sorted_lots = sorted(open_lots, key=lambda lot: lot.created_at)
+    sorted_lots = _sort_lots_by_strategy(open_lots, strategy)
 
     net_proceeds_per_btc = _compute_net_proceeds_per_btc(sell_event, fee_conversion_rates)
 
-    # FIFO: Lots durchgehen und allokieren
     updated_lots, allocations, remaining = _allocate_qty_to_lots(
         sell_event, sorted_lots, sell_event.amount, net_proceeds_per_btc
     )
 
-    # Prüfen: Wurde alles allokiert?
-    if remaining > Decimal("0.00000001"):  # Toleranz für Rundungsfehler
+    if remaining > Decimal("0.00000001"):
         raise ValueError(
             f"Not enough open lots to allocate sell. "
             f"Remaining: {remaining} BTC"
@@ -239,23 +258,41 @@ def allocate_sell_fifo(
     return updated_lots, allocations
 
 
+def allocate_sell_fifo(
+    sell_event: LedgerEvent,
+    open_lots: List[TradeLot],
+    fee_conversion_rates: dict[str, Decimal] | None = None
+) -> Tuple[List[TradeLot], List[SellAllocation]]:
+    """
+    FIFO Sell Allocation - Deterministisch (Wrapper)
+
+    Schließt die ältesten offenen Lots zuerst.
+    Delegiert an allocate_sell_with_strategy() mit FIFO.
+    """
+    return allocate_sell_with_strategy(
+        sell_event, open_lots, AllocationStrategy.FIFO, fee_conversion_rates
+    )
+
+
 def allocate_sell_to_lot(
     sell_event: LedgerEvent,
     target_lot: TradeLot,
     remaining_open_lots: List[TradeLot],
-    fee_conversion_rates: dict[str, Decimal] | None = None
+    fee_conversion_rates: dict[str, Decimal] | None = None,
+    overflow_strategy: AllocationStrategy = AllocationStrategy.FIFO,
 ) -> Tuple[List[TradeLot], List[SellAllocation]]:
     """
     Lot-spezifische Sell Allocation
 
     Allokiert den Sell zuerst an ein bestimmtes Lot.
-    Overflow (sell > lot.qty_open) wird via FIFO an remaining_open_lots verteilt.
+    Overflow (sell > lot.qty_open) wird nach overflow_strategy an remaining_open_lots verteilt.
 
     Args:
         sell_event: Sell TRADE_FILL Event
         target_lot: Das Lot, dem der Sell zugeordnet werden soll
-        remaining_open_lots: Weitere offene Lots für Overflow (FIFO)
+        remaining_open_lots: Weitere offene Lots fuer Overflow
         fee_conversion_rates: Optional dict mit Konvertierungsraten zu EUR
+        overflow_strategy: Strategie fuer Overflow-Allokation (Default: FIFO)
 
     Returns:
         Tuple[updated_lots, allocations]
@@ -282,15 +319,14 @@ def allocate_sell_to_lot(
         sell_event, [target_lot], sell_event.amount, net_proceeds_per_btc
     )
 
-    # Phase 2: Overflow via FIFO auf restliche Lots
+    # Phase 2: Overflow nach overflow_strategy auf restliche Lots
     if remaining > Decimal("0.00000001"):
-        # Restliche Lots nach Alter sortieren (FIFO), Ziel-Lot ausschließen
-        fifo_lots = sorted(
+        overflow_lots = _sort_lots_by_strategy(
             [lot for lot in remaining_open_lots if lot.id != target_lot.id],
-            key=lambda lot: lot.created_at
+            overflow_strategy,
         )
         fifo_updated, fifo_allocs, still_remaining = _allocate_qty_to_lots(
-            sell_event, fifo_lots, remaining, net_proceeds_per_btc
+            sell_event, overflow_lots, remaining, net_proceeds_per_btc
         )
 
         if still_remaining > Decimal("0.00000001"):

@@ -41,6 +41,13 @@ class LotStatus(Enum):
     CLOSED = "CLOSED"
 
 
+class AllocationStrategy(Enum):
+    """Sell Allocation Strategy"""
+    FIFO = "FIFO"             # First In, First Out (aelteste Lots zuerst)
+    LIFO = "LIFO"             # Last In, First Out (neueste Lots zuerst)
+    HIGHEST_COST = "HIGHEST_COST"  # Hoechster Break-even zuerst (Tax-Loss Harvesting)
+
+
 @dataclass
 class LedgerEvent:
     """
