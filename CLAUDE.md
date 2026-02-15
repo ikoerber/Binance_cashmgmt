@@ -77,7 +77,7 @@ cashmgnt/
 │   │   │   ├── pairing_service.py    # Pairing-Persistenz + Lifecycle
 │   │   │   ├── portfolio_service.py  # Portfolio-State aus Ledger
 │   │   │   ├── reconciliation_service.py
-│   │   │   ├── csv_import_service.py  # Binance CSV Import
+│   │   │   ├── csv_import_service.py  # CSV Import (nur fuer Trading Bot / Grid Bot Trades, da diese NICHT ueber die Binance API abrufbar sind)
 │   │   │   ├── macro_data_service.py  # Makro-Daten (Klines, Fear&Greed, etc.)
 │   │   │   └── sentiment_data_service.py # Sentiment-Daten: F&G, OKX Funding, Klines, Caching (Singleton)
 │   │   ├── db/
