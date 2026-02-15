@@ -60,8 +60,10 @@ def compute_portfolio_from_ledger(
                     btc_qty += event.amount
                     trade_cost += event.fee_amount
                 else:
-                    # Kein Fee oder BNB Fee (BTC-Menge nicht betroffen)
+                    # BNB oder andere Fee: BTC-Menge nicht betroffen, aber EUR-Kosten erhoehen
                     btc_qty += event.amount
+                    if event.fee_eur_value and event.fee_asset not in ("EUR", "BTC", None):
+                        trade_cost += event.fee_eur_value
 
                 btc_cost_basis_eur += trade_cost
                 eur_available -= trade_cost
@@ -78,8 +80,11 @@ def compute_portfolio_from_ledger(
                     sell_proceeds -= event.fee_amount
                 # Fee in BTC: event.amount ist bereits netto, aber EUR-Fee-Wert muss vom Erlös abgezogen werden
                 elif event.fee_asset == "BTC" and event.fee_amount and event.price:
-                    fee_eur_value = event.fee_amount * event.price
-                    sell_proceeds -= fee_eur_value
+                    btc_fee_eur = event.fee_amount * event.price
+                    sell_proceeds -= btc_fee_eur
+                # BNB oder andere Fee: Vorberechneten EUR-Wert abziehen
+                elif event.fee_eur_value:
+                    sell_proceeds -= event.fee_eur_value
 
                 # Weighted Average Cost: Anteilige Kostenbasis
                 if btc_qty > 0:

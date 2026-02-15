@@ -16,12 +16,15 @@ Unterstütztes Format (Binance Trading Bots CSV):
 import csv
 import hashlib
 import io
+import logging
 import re
 from datetime import datetime
 from decimal import Decimal
 from typing import List, Dict, Any
 
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger(__name__)
 
 from app.domain.models import LedgerEvent, EventType, EventSource, TradeSide
 from app.db.models import LedgerEventDB, EventTypeEnum, EventSourceEnum, TradeSideEnum
@@ -210,9 +213,10 @@ def import_trading_bots_csv(
             "message": f"All {total_rows} trades already imported",
         }
 
-    # 3. Ledger Events persistieren
+    # 3. Ledger Events persistieren (mit fee_eur_value)
     created_events = []
     for event in new_events:
+        fee_eur_value = _compute_csv_fee_eur_value(event)
         event_db = LedgerEventDB(
             id=event.id,
             user_id=user_id,
@@ -225,6 +229,7 @@ def import_trading_bots_csv(
             side=TradeSideEnum[event.side.value] if event.side else None,
             fee_asset=event.fee_asset,
             fee_amount=event.fee_amount,
+            fee_eur_value=fee_eur_value,
             source=EventSourceEnum[event.source.value],
             source_id=event.source_id,
             note=event.note,
@@ -282,3 +287,32 @@ def import_trading_bots_csv(
             + (f", {len(errors)} errors" if errors else "")
         ),
     }
+
+
+def _compute_csv_fee_eur_value(event: LedgerEvent) -> Decimal | None:
+    """
+    Berechnet den EUR-Wert der Fee fuer ein CSV-importiertes Event.
+
+    EUR-Fee und BTC-Fee koennen direkt berechnet werden.
+    BNB/andere Fees haben keinen historischen Preis im CSV-Kontext.
+
+    Args:
+        event: LedgerEvent aus CSV-Import
+
+    Returns:
+        EUR-Wert der Fee, oder None
+    """
+    if not event.fee_amount or event.fee_amount == 0:
+        return None
+
+    if event.fee_asset == "EUR":
+        return event.fee_amount
+    elif event.fee_asset == "BTC" and event.price:
+        return event.fee_amount * event.price
+    else:
+        if event.fee_asset and event.fee_asset not in ("EUR", "BTC"):
+            logger.warning(
+                "CSV import: %s fee detected but no conversion rate available for %s",
+                event.fee_asset, event.id,
+            )
+        return None

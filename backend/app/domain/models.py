@@ -69,6 +69,7 @@ class LedgerEvent:
 
     fee_asset: Optional[str] = None
     fee_amount: Optional[Decimal] = None
+    fee_eur_value: Optional[Decimal] = None  # Vorberechneter EUR-Wert der Fee (fuer BNB/andere Fee-Assets)
 
     source: EventSource = EventSource.BINANCE
     source_id: Optional[str] = None  # z.B. Binance tradeId

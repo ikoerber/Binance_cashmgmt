@@ -3,11 +3,16 @@ Binance API Client
 
 Holt Trades/Fills von Binance und konvertiert zu Ledger Events
 """
+import logging
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import List, Optional
+
+import requests
 from binance.client import Client
 from binance.exceptions import BinanceAPIException
+
+logger = logging.getLogger(__name__)
 
 from app.domain.models import LedgerEvent, EventType, EventSource, TradeSide
 
@@ -91,6 +96,46 @@ class BinanceService:
             return Decimal(ticker["price"])
         except BinanceAPIException as e:
             raise Exception(f"Binance API Error: {e.status_code} - {e.message}")
+
+    def get_historical_price(self, symbol: str, timestamp: datetime) -> Decimal:
+        """
+        Holt den historischen Preis fuer ein Symbol zum angegebenen Zeitpunkt.
+
+        Verwendet die Binance Klines API mit 1-Minuten-Intervall.
+        Gibt den Close-Preis der Minute zurueck, in der der Timestamp liegt.
+
+        Args:
+            symbol: Trading Pair (z.B. "BNBEUR")
+            timestamp: Zeitpunkt fuer den historischen Preis
+
+        Returns:
+            Close-Preis als Decimal
+
+        Raises:
+            Exception: Wenn keine Kline-Daten verfuegbar
+        """
+        ts_ms = int(timestamp.timestamp() * 1000)
+
+        base_url = "https://testnet.binance.vision" if getattr(self.client, "testnet", False) else "https://api.binance.com"
+        url = f"{base_url}/api/v3/klines"
+
+        resp = requests.get(
+            url,
+            params={
+                "symbol": symbol,
+                "interval": "1m",
+                "startTime": ts_ms,
+                "limit": 1,
+            },
+            timeout=10,
+        )
+        resp.raise_for_status()
+        klines = resp.json()
+
+        if not klines:
+            raise Exception(f"No kline data for {symbol} at {timestamp}")
+
+        return Decimal(str(klines[0][4]))
 
     def _trade_to_ledger_event(self, trade: dict, symbol: str) -> LedgerEvent:
         """

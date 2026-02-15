@@ -72,14 +72,16 @@ class SyncService:
                 "message": "No new fills to sync"
             }
 
-        # 3. BNB-Preis für Fee-Konvertierung abrufen (falls BNB-Fees vorhanden)
-        fee_conversion_rates = self._get_fee_conversion_rates(new_fills)
+        # 3. Historische Fee-Konvertierungsraten pro Fill abrufen
+        per_fill_rates = self._get_per_fill_fee_conversion_rates(new_fills)
 
-        # 4. Ledger Events persistieren
+        # 4. Ledger Events persistieren (mit fee_eur_value)
         created_events = []
         for fill in new_fills:
-            event_db = self._persist_ledger_event(db, user_id, fill)
-            created_events.append(event_db)
+            fill_rates = per_fill_rates.get(fill.id, {})
+            fee_eur_value = self._compute_fee_eur_value(fill, fill_rates)
+            event_db = self._persist_ledger_event(db, user_id, fill, fee_eur_value=fee_eur_value)
+            created_events.append((event_db, fill_rates))
 
         db.flush()
 
@@ -93,22 +95,22 @@ class SyncService:
         errors = []
 
         # Phase 1: Alle Buy-Lots erstellen
-        for event_db in created_events:
+        for event_db, fill_rates in created_events:
             if event_db.side == TradeSideEnum.BUY:
                 try:
-                    create_lot_from_buy_fill(db, user_id, event_db.id, fee_conversion_rates)
+                    create_lot_from_buy_fill(db, user_id, event_db.id, fill_rates)
                     new_lots_count += 1
                 except Exception as e:
                     errors.append(f"Error creating lot from buy fill {event_db.id}: {e}")
 
         # Phase 2: Sell-Fills chronologisch allokieren (FIFO)
         sell_events = sorted(
-            [e for e in created_events if e.side == TradeSideEnum.SELL],
-            key=lambda e: e.timestamp
+            [(e, r) for e, r in created_events if e.side == TradeSideEnum.SELL],
+            key=lambda pair: pair[0].timestamp
         )
-        for event_db in sell_events:
+        for event_db, fill_rates in sell_events:
             try:
-                result = process_sell_fill(db, user_id, event_db.id, fee_conversion_rates)
+                result = process_sell_fill(db, user_id, event_db.id, fill_rates)
                 allocations_count += len(result["allocations"])
             except Exception as e:
                 errors.append(f"Error processing sell fill {event_db.id}: {e}")
@@ -217,49 +219,98 @@ class SyncService:
 
         return new_fills
 
-    def _get_fee_conversion_rates(self, fills: List[LedgerEvent]) -> Dict[str, Decimal]:
+    def _get_per_fill_fee_conversion_rates(
+        self, fills: List[LedgerEvent]
+    ) -> Dict[str, Dict[str, Decimal]]:
         """
-        Holt Konvertierungsraten für Fee-Assets
+        Holt historische Konvertierungsraten fuer Fee-Assets pro Fill.
 
-        Prüft alle Fills und holt Preise für nicht-EUR Fee-Assets.
+        Fuer jeden Fill mit nicht-EUR/BTC Fee-Asset wird der historische
+        Preis zum Fill-Zeitpunkt abgerufen. Fills innerhalb derselben
+        Minute werden zusammengefasst (gleicher Kline-Preis).
 
         Args:
             fills: Liste von Fills
 
         Returns:
-            Dict mit Konvertierungsraten, z.B. {"BNB": Decimal("700.00")}
+            Dict[fill_id, Dict[asset, Decimal]] - Per-fill conversion rates
         """
-        fee_assets = set()
-        for fill in fills:
-            if fill.fee_asset and fill.fee_asset not in ["EUR", "BTC"]:
-                fee_assets.add(fill.fee_asset)
+        fills_needing_conversion = [
+            f for f in fills
+            if f.fee_asset and f.fee_asset not in ["EUR", "BTC"]
+        ]
 
-        rates = {}
-        for asset in fee_assets:
-            try:
-                # Hole aktuellen Preis für Asset/EUR
-                # HINWEIS: Dies ist eine Näherung, da wir den historischen Preis
-                # zum Zeitpunkt des Trades bräuchten. Für v1 akzeptabel, da:
-                # 1. Fees sind klein (~0.1% des Trade-Volumens)
-                # 2. BNB-Preis ist relativ stabil
-                # 3. Fehler ist minimal (~0.01% des Break-even)
-                # TODO v2: Historische Preise verwenden
-                symbol = f"{asset}EUR"
-                price = self.binance_service.get_current_price(symbol)
-                rates[asset] = price
-                logger.info("Using current %s/EUR price: %s for fee conversion", asset, price)
-            except Exception as e:
-                logger.warning("Could not fetch %s/EUR price: %s", asset, e)
-                # Fallback: Keine Konvertierung für dieses Asset
-                continue
+        if not fills_needing_conversion:
+            return {}
 
-        return rates
+        # Minuten-Cache: (asset, minute_key) -> price
+        minute_cache: Dict[tuple, Decimal] = {}
+        per_fill_rates: Dict[str, Dict[str, Decimal]] = {}
+
+        for fill in fills_needing_conversion:
+            asset = fill.fee_asset
+            symbol = f"{asset}EUR"
+            minute_key = fill.timestamp.strftime("%Y-%m-%d %H:%M")
+            cache_key = (asset, minute_key)
+
+            if cache_key not in minute_cache:
+                try:
+                    price = self.binance_service.get_historical_price(symbol, fill.timestamp)
+                    minute_cache[cache_key] = price
+                    logger.info(
+                        "Historical %s/EUR price at %s: %s",
+                        asset, minute_key, price
+                    )
+                except Exception as e:
+                    logger.warning(
+                        "Could not fetch historical %s/EUR price at %s: %s. Trying current price.",
+                        asset, minute_key, e
+                    )
+                    try:
+                        price = self.binance_service.get_current_price(symbol)
+                        minute_cache[cache_key] = price
+                        logger.info("Fallback: current %s/EUR price: %s", asset, price)
+                    except Exception as e2:
+                        logger.warning("Could not fetch current %s/EUR price either: %s", asset, e2)
+                        continue
+
+            if cache_key in minute_cache:
+                per_fill_rates[fill.id] = {asset: minute_cache[cache_key]}
+
+        return per_fill_rates
+
+    @staticmethod
+    def _compute_fee_eur_value(
+        fill: LedgerEvent, fee_conversion_rates: Dict[str, Decimal]
+    ) -> Decimal | None:
+        """
+        Berechnet den EUR-Wert der Fee fuer ein Fill-Event.
+
+        Args:
+            fill: LedgerEvent
+            fee_conversion_rates: Konvertierungsraten fuer diesen Fill
+
+        Returns:
+            EUR-Wert der Fee, oder None wenn keine Fee oder kein Konvertierungskurs
+        """
+        if not fill.fee_amount or fill.fee_amount == 0:
+            return None
+
+        if fill.fee_asset == "EUR":
+            return fill.fee_amount
+        elif fill.fee_asset == "BTC" and fill.price:
+            return fill.fee_amount * fill.price
+        elif fill.fee_asset and fill.fee_asset in fee_conversion_rates:
+            return fill.fee_amount * fee_conversion_rates[fill.fee_asset]
+
+        return None
 
     def _persist_ledger_event(
         self,
         db: Session,
         user_id: str,
-        event: LedgerEvent
+        event: LedgerEvent,
+        fee_eur_value: Decimal | None = None,
     ) -> LedgerEventDB:
         """
         Persistiert LedgerEvent in DB
@@ -268,6 +319,7 @@ class SyncService:
             db: Database Session
             user_id: User ID
             event: LedgerEvent (Domain Model)
+            fee_eur_value: Vorberechneter EUR-Wert der Fee
 
         Returns:
             Persistiertes LedgerEventDB
@@ -284,6 +336,7 @@ class SyncService:
             side=TradeSideEnum[event.side.value] if event.side else None,
             fee_asset=event.fee_asset,
             fee_amount=event.fee_amount,
+            fee_eur_value=fee_eur_value,
             source=EventSourceEnum[event.source.value],
             source_id=event.source_id,
             note=event.note,

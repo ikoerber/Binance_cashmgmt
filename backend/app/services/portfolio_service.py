@@ -151,6 +151,7 @@ def _db_event_to_domain(event_db: LedgerEventDB) -> LedgerEvent:
         side=TradeSide[event_db.side.value] if event_db.side else None,
         fee_asset=event_db.fee_asset,
         fee_amount=event_db.fee_amount,
+        fee_eur_value=event_db.fee_eur_value,
         source=EventSource[event_db.source.value],
         source_id=event_db.source_id,
         note=event_db.note,

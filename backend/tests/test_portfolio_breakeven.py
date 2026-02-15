@@ -313,3 +313,95 @@ def test_portfolio_state_unrealized_pnl():
 
     # Erwartet: (45000 * 0.01) - 500 = -50 EUR Verlust
     assert unrealized_loss == Decimal("-50.00")
+
+
+def test_portfolio_buy_with_bnb_fee():
+    """Test: Buy mit BNB Fee - EUR-Wert der Fee erhoeht Kostenbasis"""
+    events = [
+        LedgerEvent(
+            id="1",
+            type=EventType.TRADE_FILL,
+            timestamp=datetime(2024, 1, 1, 12, 0),
+            asset="BTC",
+            amount=Decimal("0.01"),
+            symbol="BTCEUR",
+            price=Decimal("50000.00"),
+            side=TradeSide.BUY,
+            fee_asset="BNB",
+            fee_amount=Decimal("0.001"),
+            fee_eur_value=Decimal("0.70"),  # 0.001 BNB * 700 EUR/BNB
+            source=EventSource.BINANCE,
+        )
+    ]
+
+    portfolio = compute_portfolio_from_ledger(events)
+
+    # Erwartet:
+    # - qty = 0.01 BTC (BNB fee reduziert BTC-Menge NICHT)
+    # - cost = 500.00 + 0.70 = 500.70 EUR
+    # - break_even = 500.70 / 0.01 = 50070.00
+    assert portfolio.btc_qty == Decimal("0.01")
+    assert portfolio.btc_cost_basis_eur == Decimal("500.70")
+    assert portfolio.break_even == Decimal("50070.00")
+
+
+def test_portfolio_buy_with_bnb_fee_no_eur_value():
+    """Test: Buy mit BNB Fee ohne fee_eur_value - graceful degradation"""
+    events = [
+        LedgerEvent(
+            id="1",
+            type=EventType.TRADE_FILL,
+            timestamp=datetime(2024, 1, 1, 12, 0),
+            asset="BTC",
+            amount=Decimal("0.01"),
+            symbol="BTCEUR",
+            price=Decimal("50000.00"),
+            side=TradeSide.BUY,
+            fee_asset="BNB",
+            fee_amount=Decimal("0.001"),
+            # fee_eur_value ist None (historische Daten nicht verfuegbar)
+            source=EventSource.BINANCE,
+        )
+    ]
+
+    portfolio = compute_portfolio_from_ledger(events)
+
+    # Ohne fee_eur_value wird BNB-Fee ignoriert (graceful degradation)
+    assert portfolio.btc_qty == Decimal("0.01")
+    assert portfolio.btc_cost_basis_eur == Decimal("500.00")
+
+
+def test_portfolio_sell_with_bnb_fee():
+    """Test: Sell mit BNB Fee - EUR-Wert der Fee reduziert Erloes"""
+    events = [
+        LedgerEvent(
+            id="1",
+            type=EventType.TRADE_FILL,
+            timestamp=datetime(2024, 1, 1, 12, 0),
+            asset="BTC",
+            amount=Decimal("0.01"),
+            price=Decimal("50000.00"),
+            side=TradeSide.BUY,
+            source=EventSource.BINANCE,
+        ),
+        LedgerEvent(
+            id="2",
+            type=EventType.TRADE_FILL,
+            timestamp=datetime(2024, 1, 2, 12, 0),
+            asset="BTC",
+            amount=Decimal("0.01"),
+            price=Decimal("55000.00"),
+            side=TradeSide.SELL,
+            fee_asset="BNB",
+            fee_amount=Decimal("0.001"),
+            fee_eur_value=Decimal("0.70"),
+            source=EventSource.BINANCE,
+        ),
+    ]
+
+    portfolio = compute_portfolio_from_ledger(events)
+
+    # Erlos: 550.00 - 0.70 (BNB fee) = 549.30
+    # Kosten: 500.00
+    # P&L: 49.30
+    assert portfolio.realized_pnl_eur == Decimal("49.30")

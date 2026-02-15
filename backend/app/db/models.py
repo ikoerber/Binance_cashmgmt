@@ -127,6 +127,7 @@ class LedgerEventDB(Base):
 
     fee_asset = Column(String, nullable=True)
     fee_amount = Column(Numeric(precision=20, scale=10), nullable=True)
+    fee_eur_value = Column(Numeric(precision=20, scale=10), nullable=True)  # Vorberechneter EUR-Wert der Fee
 
     source = Column(SQLEnum(EventSourceEnum), nullable=False)
     source_id = Column(String, nullable=True, index=True)  # Binance tradeId/orderId
