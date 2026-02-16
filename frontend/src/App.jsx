@@ -6,6 +6,7 @@ import Reconciliation from './components/Reconciliation';
 import Settings from './components/Settings';
 import MacroSignal from './components/MacroSignal';
 import Sentiment from './components/Sentiment';
+import Orderblock from './components/Orderblock';
 import { useLivePrice } from './hooks/useLivePrice';
 import { getServerIp } from './api/client';
 import './App.css';
@@ -84,6 +85,12 @@ function AppContent() {
             Sentiment
           </button>
           <button
+            className={currentView === 'orderblock' ? 'active' : ''}
+            onClick={() => setCurrentView('orderblock')}
+          >
+            Orderblock
+          </button>
+          <button
             className={currentView === 'reconciliation' ? 'active' : ''}
             onClick={() => setCurrentView('reconciliation')}
           >
@@ -115,6 +122,9 @@ function AppContent() {
         )}
         {currentView === 'sentiment' && (
           <Sentiment userId={userId} />
+        )}
+        {currentView === 'orderblock' && (
+          <Orderblock userId={userId} />
         )}
         {currentView === 'reconciliation' && (
           <Reconciliation userId={userId} />

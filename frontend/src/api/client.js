@@ -170,6 +170,51 @@ export const getSentiment = async (userId, symbol = 'BTCEUR') => {
   return response.data;
 };
 
+// Orderblock API
+export const detectOrderblocks = async (userId, { symbol = 'BTCEUR', interval, months = 6, config } = {}) => {
+  const response = await apiClient.post(`/api/orderblock/${userId}/detect`, {
+    symbol,
+    interval,
+    months,
+    config,
+  });
+  return response.data;
+};
+
+export const getOrderblockZones = async (userId, { symbol = 'BTCEUR', interval = '4h', state } = {}) => {
+  const response = await apiClient.get(`/api/orderblock/${userId}/zones`, {
+    params: { symbol, interval, state },
+  });
+  return response.data;
+};
+
+export const getOrderblockZoneDetail = async (userId, zoneId) => {
+  const response = await apiClient.get(`/api/orderblock/${userId}/zones/${zoneId}`);
+  return response.data;
+};
+
+export const runOrderblockBacktest = async (userId, { symbol = 'BTCEUR', interval, months = 6, config } = {}) => {
+  const response = await apiClient.post(`/api/orderblock/${userId}/backtest`, {
+    symbol,
+    interval,
+    months,
+    config,
+  });
+  return response.data;
+};
+
+export const getOrderblockBacktestRuns = async (userId, symbol = null) => {
+  const response = await apiClient.get(`/api/orderblock/${userId}/backtest/runs`, {
+    params: { symbol },
+  });
+  return response.data;
+};
+
+export const getOrderblockBacktestRunDetail = async (userId, runId) => {
+  const response = await apiClient.get(`/api/orderblock/${userId}/backtest/runs/${runId}`);
+  return response.data;
+};
+
 // Server IP API
 export const getServerIp = async () => {
   const response = await apiClient.get('/api/server-ip');
