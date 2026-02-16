@@ -71,6 +71,15 @@ class MitigationPolicy(Enum):
     ZONE_TOUCH = "ZONE_TOUCH"
 
 
+class OBCategory(Enum):
+    """AlbaTherium-Klassifikation: struktureller Kontext eines Orderblocks."""
+
+    EXTREME = "EXTREME"  # Erster/tiefster OB zwischen Major Low und Major High
+    DECISIONAL = "DECISIONAL"  # Juengster OB unterhalb des aktuellen IDM
+    SMT = "SMT"  # Smart Money Trap: alle OBs zwischen Extreme und Decisional
+    UNCLASSIFIED = "UNCLASSIFIED"  # OBs ausserhalb der Major-Struktur
+
+
 # ---------------------------------------------------------------------------
 # Dataclasses
 # ---------------------------------------------------------------------------
@@ -103,6 +112,7 @@ class OBConfig:
     zscore_lookback: int = 50
     zscore_threshold: Decimal = Decimal("2.0")
     max_holding_candles: int = 200  # Triple Barrier Zeitlimit (0=deaktiviert)
+    impulse_window: int = 5  # Max Kerzen nach OB fuer Displacement/FVG/BOS (AlbaTherium)
 
 
 @dataclass
@@ -125,6 +135,16 @@ class FairValueGap:
     gap_top: Decimal
     gap_bottom: Decimal
     direction: OBDirection
+
+
+@dataclass
+class InducementLevel:
+    """Inducement (IDM): Liquiditaetslevel aus dem letzten Pullback vor einem Swing High."""
+
+    index: int
+    timestamp: datetime
+    price: Decimal
+    associated_swing_high_index: int  # Der Swing High den dieser Pullback vorausgeht
 
 
 @dataclass
@@ -156,6 +176,7 @@ class Orderblock:
     impact_efficiency_ratio: Decimal = Decimal("0")
     conviction_score: Decimal = Decimal("0")
     is_high_conviction_zscore: bool = False  # Spec 4.3: volume_zscore > zscore_threshold
+    category: str = "UNCLASSIFIED"  # OBCategory: EXTREME/DECISIONAL/SMT/UNCLASSIFIED
     mitigated_at: Optional[datetime] = None
     invalidated_at: Optional[datetime] = None
 
@@ -212,12 +233,30 @@ def compute_atr(candles: List[Candle], length: int) -> List[Optional[Decimal]]:
 # ---------------------------------------------------------------------------
 
 
+def _is_inside_bar(candles: List[Candle], index: int) -> bool:
+    """
+    Inside Bar: High(i) <= High(i-1) AND Low(i) >= Low(i-1).
+
+    Inside Bars etablieren keine neuen Preisextreme und werden
+    bei der Swing-Erkennung uebersprungen (AlbaTherium).
+    """
+    if index <= 0:
+        return False
+    return (
+        candles[index].high <= candles[index - 1].high
+        and candles[index].low >= candles[index - 1].low
+    )
+
+
 def find_swing_points(candles: List[Candle], fractal_n: int) -> List[SwingPoint]:
     """
-    Fraktal Swing Highs/Lows.
+    Fraktal Swing Highs/Lows mit Inside-Bar-Filterung.
 
     Swing High bei Index i: High(i) > High(j) fuer alle j in [i-n..i-1] und [i+1..i+n]
     Swing Low bei Index i: Low(i) < Low(j) fuer alle j in [i-n..i-1] und [i+1..i+n]
+
+    Inside Bars (Kerzen innerhalb der Range der Vorgaengerkerze) werden
+    uebersprungen, da sie keine neuen Preisextreme etablieren (AlbaTherium).
 
     confirmed_at_index = i + fractal_n (rechte Seite bestaetigt den Swing).
     Zeitkonsistent: Swing wird erst bei confirmed_at_index sichtbar.
@@ -226,6 +265,9 @@ def find_swing_points(candles: List[Candle], fractal_n: int) -> List[SwingPoint]
     n = len(candles)
 
     for i in range(fractal_n, n - fractal_n):
+        # Inside Bars uebersprungen (AlbaTherium)
+        if _is_inside_bar(candles, i):
+            continue
         # Swing High Check
         is_swing_high = True
         for j in range(1, fractal_n + 1):
@@ -673,7 +715,7 @@ def detect_orderblocks(
 
     orderblocks: List[Orderblock] = []
 
-    for i in range(config.atr_length + 1, n - 3):
+    for i in range(config.atr_length + 1, n - config.impulse_window):
         # ATR muss verfuegbar sein
         atr_at_ob = atr_values[i]
         if atr_at_ob is None:
@@ -706,6 +748,9 @@ def detect_orderblocks(
             if ob is not None:
                 orderblocks.append(ob)
 
+    # Post-Processing: AlbaTherium-Klassifikation (Extreme/Decisional/SMT)
+    orderblocks = classify_orderblocks(orderblocks, all_swings, candles)
+
     return orderblocks
 
 
@@ -719,7 +764,7 @@ def _try_validate_ob(
 ) -> Optional[Orderblock]:
     """Versucht einen einzelnen OB-Kandidaten durch alle 5 Phasen zu validieren."""
     n = len(candles)
-    impulse_end = min(ob_index + 4, n)  # OB + max 3 Folgekerzen
+    impulse_end = min(ob_index + 1 + config.impulse_window, n)
 
     # --- Phase 2: Displacement Check ---
     displacement_threshold = config.atr_multiplier * atr_at_ob
@@ -745,7 +790,7 @@ def _try_validate_ob(
         return None
 
     # --- Phase 3: FVG Check ---
-    fvgs = find_fvgs(candles, ob_index + 1, config.fvg_window, direction)
+    fvgs = find_fvgs(candles, ob_index + 1, config.impulse_window, direction)
     if not fvgs:
         return None
 
@@ -810,7 +855,7 @@ def _try_validate_ob(
     else:
         vol_zscore = Decimal("0")
 
-    vol_weight = compute_volume_weight(candles, ob_index)
+    vol_weight = compute_volume_weight(candles, ob_index, impulse_count=config.impulse_window)
 
     # Volume Percentile (Cont: robust gegen Heavy Tails)
     vol_percentile = compute_volume_percentile(
@@ -868,6 +913,159 @@ def _try_validate_ob(
         conviction_score=conv_score,
         is_high_conviction_zscore=is_hc_zscore,
     )
+
+
+# ---------------------------------------------------------------------------
+# Inducement (IDM) Tracking (AlbaTherium)
+# ---------------------------------------------------------------------------
+
+
+def find_inducement_levels(
+    swings: List[SwingPoint],
+) -> List[InducementLevel]:
+    """
+    Findet Inducement-Levels aus der Swing-Struktur.
+
+    Fuer jeden Swing High ist der IDM der tiefste Swing Low zwischen
+    dem vorherigen Swing High (oder Start) und diesem Swing High.
+    Repraesentiert den letzten Pullback-Tiefpunkt vor dem Push zum neuen High.
+
+    Returns: Inducement-Levels sortiert nach Index.
+    """
+    inducements: List[InducementLevel] = []
+
+    highs = sorted([s for s in swings if s.is_high], key=lambda s: s.index)
+    lows = sorted([s for s in swings if not s.is_high], key=lambda s: s.index)
+
+    for i, sh in enumerate(highs):
+        prev_high_idx = highs[i - 1].index if i > 0 else 0
+
+        between_lows = [sl for sl in lows if prev_high_idx < sl.index < sh.index]
+
+        if between_lows:
+            idm_swing = min(between_lows, key=lambda sl: sl.price)
+            inducements.append(
+                InducementLevel(
+                    index=idm_swing.index,
+                    timestamp=idm_swing.timestamp,
+                    price=idm_swing.price,
+                    associated_swing_high_index=sh.index,
+                )
+            )
+
+    return inducements
+
+
+# ---------------------------------------------------------------------------
+# OB-Klassifikation (AlbaTherium: Extreme / Decisional / SMT)
+# ---------------------------------------------------------------------------
+
+
+def classify_orderblocks(
+    zones: List[Orderblock],
+    swings: List[SwingPoint],
+    candles: List[Candle],
+) -> List[Orderblock]:
+    """
+    Post-Processing: Klassifiziert erkannte OBs in strukturelle Kategorien.
+
+    Identifiziert aus der Swing-Struktur:
+    - Major High: Hoechster Swing High im Datensatz
+    - Major Low: Tiefster Swing Low im Datensatz
+    - IDM: Aktuelles Inducement-Level
+
+    Klassifikationsregeln (AlbaTherium):
+    - EXTREME: Tiefster Bullish-OB (bzw. hoechster Bearish-OB) zwischen
+      Major Low und Major High — Ursprung der Hauptbewegung
+    - DECISIONAL: Juengster OB unterhalb des aktuellen IDM —
+      institutioneller Re-Entry vor dem finalen Push
+    - SMT: Alle anderen OBs zwischen Extreme und Decisional —
+      Trapping-Zonen (Smart Money Trap)
+    - UNCLASSIFIED: OBs ausserhalb der Major-Struktur
+
+    Pure Funktion: gleicher Input → gleiches Ergebnis.
+    """
+    if not zones or not swings:
+        return zones
+
+    swing_highs = [s for s in swings if s.is_high]
+    swing_lows = [s for s in swings if not s.is_high]
+
+    if not swing_highs or not swing_lows:
+        return zones
+
+    major_high = max(swing_highs, key=lambda s: s.price)
+    major_low = min(swing_lows, key=lambda s: s.price)
+
+    inducements = find_inducement_levels(swings)
+    current_idm = inducements[-1].price if inducements else None
+
+    # --- Phase 1: OBs in der Major-Range als SMT markieren ---
+    classified: List[Orderblock] = []
+    for ob in zones:
+        cat = "UNCLASSIFIED"
+
+        if ob.direction == OBDirection.BULLISH:
+            if major_low.index <= ob.formed_at_index <= major_high.index:
+                cat = "SMT"
+        elif ob.direction == OBDirection.BEARISH:
+            # Bearish: Major High vor Major Low (Abwaertsbewegung)
+            if (
+                min(major_high.index, major_low.index)
+                <= ob.formed_at_index
+                <= max(major_high.index, major_low.index)
+            ):
+                cat = "SMT"
+
+        classified.append(
+            Orderblock(**{**ob.__dict__, "category": cat})
+        )
+
+    # --- Phase 2: EXTREME identifizieren ---
+    # Bullish: tiefster OB (naechst am Major Low)
+    bullish_in_range = [
+        ob for ob in classified
+        if ob.direction == OBDirection.BULLISH and ob.category == "SMT"
+    ]
+    if bullish_in_range:
+        extreme_id = min(bullish_in_range, key=lambda ob: ob.zone_bottom).id
+        classified = [
+            Orderblock(**{**ob.__dict__, "category": "EXTREME"})
+            if ob.id == extreme_id else ob
+            for ob in classified
+        ]
+
+    # Bearish: hoechster OB (naechst am Major High)
+    bearish_in_range = [
+        ob for ob in classified
+        if ob.direction == OBDirection.BEARISH and ob.category == "SMT"
+    ]
+    if bearish_in_range:
+        extreme_id = max(bearish_in_range, key=lambda ob: ob.zone_top).id
+        classified = [
+            Orderblock(**{**ob.__dict__, "category": "EXTREME"})
+            if ob.id == extreme_id else ob
+            for ob in classified
+        ]
+
+    # --- Phase 3: DECISIONAL identifizieren ---
+    if current_idm is not None:
+        # Bullish: juengster OB unterhalb IDM
+        below_idm = [
+            ob for ob in classified
+            if ob.direction == OBDirection.BULLISH
+            and ob.category == "SMT"
+            and ob.zone_top < current_idm
+        ]
+        if below_idm:
+            decisional_id = max(below_idm, key=lambda ob: ob.formed_at_index).id
+            classified = [
+                Orderblock(**{**ob.__dict__, "category": "DECISIONAL"})
+                if ob.id == decisional_id else ob
+                for ob in classified
+            ]
+
+    return classified
 
 
 # ---------------------------------------------------------------------------
@@ -946,6 +1144,7 @@ def update_zone_states(
                 impact_efficiency_ratio=ob.impact_efficiency_ratio,
                 conviction_score=ob.conviction_score,
                 is_high_conviction_zscore=ob.is_high_conviction_zscore,
+                category=ob.category,
                 mitigated_at=mitigated_at,
                 invalidated_at=invalidated_at,
             )

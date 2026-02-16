@@ -14,10 +14,15 @@ from app.domain.orderblock import (
     Candle,
     ConvictionLevel,
     FairValueGap,
+    InducementLevel,
+    OBCategory,
     OBConfig,
     OBDirection,
     OBState,
     Orderblock,
+    SwingPoint,
+    _is_inside_bar,
+    classify_orderblocks,
     compute_atr,
     compute_conviction_score,
     compute_impact_efficiency_ratio,
@@ -28,6 +33,7 @@ from app.domain.orderblock import (
     conviction_level_from_score,
     detect_orderblocks,
     find_fvgs,
+    find_inducement_levels,
     find_swing_points,
     update_zone_states,
     _approx_tanh,
@@ -486,7 +492,7 @@ class TestDetectOrderblocks:
         """Ein perfektes Bullish OB Szenario MUSS erkannt werden."""
         candles = self._build_perfect_bullish_ob_scenario()
         config = OBConfig(
-            atr_length=20, atr_multiplier=Decimal("2.5"), swing_fractal_n=2
+            atr_length=20, atr_multiplier=Decimal("2.5"), swing_fractal_n=2, impulse_window=3
         )
         obs = detect_orderblocks(candles, config)
 
@@ -506,7 +512,7 @@ class TestDetectOrderblocks:
         """Ein perfektes Bearish OB Szenario MUSS erkannt werden."""
         candles = self._build_perfect_bearish_ob_scenario()
         config = OBConfig(
-            atr_length=20, atr_multiplier=Decimal("2.5"), swing_fractal_n=2
+            atr_length=20, atr_multiplier=Decimal("2.5"), swing_fractal_n=2, impulse_window=3
         )
         obs = detect_orderblocks(candles, config)
 
@@ -1230,7 +1236,7 @@ class TestMultipleZonesDetection:
         candles.append(_make_candle(28, "118", "125", "116", "122", "500"))
         candles.append(_make_candle(29, "122", "124", "119", "121"))
 
-        config = OBConfig(atr_length=20, swing_fractal_n=2)
+        config = OBConfig(atr_length=20, swing_fractal_n=2, impulse_window=3)
         obs = detect_orderblocks(candles, config)
 
         # Mindestens 1 OB sollte erkannt werden
@@ -1274,3 +1280,214 @@ class TestMultipleZonesDetection:
             assert isinstance(ob.conviction_score, Decimal)
             assert isinstance(ob.atr_at_formation, Decimal)
             assert isinstance(ob.displacement_range, Decimal)
+
+
+# ---------------------------------------------------------------------------
+# AlbaTherium Enhancements: Inside Bar, Impulse Window, IDM, Classification
+# ---------------------------------------------------------------------------
+
+
+class TestInsideBarFiltering:
+    """Tests fuer Inside-Bar-Filterung in Swing-Erkennung (AlbaTherium)."""
+
+    def test_inside_bar_detected(self):
+        """Inside Bar: High <= prev.High AND Low >= prev.Low."""
+        candles = [
+            _make_candle(0, "100", "115", "90", "110"),  # Outer: H=115, L=90
+            _make_candle(1, "105", "112", "92", "108"),   # Inside: H=112<=115, L=92>=90
+        ]
+        assert _is_inside_bar(candles, 1) is True
+
+    def test_non_inside_bar(self):
+        """Kerze mit hoeherem High ist kein Inside Bar."""
+        candles = [
+            _make_candle(0, "100", "110", "90", "105"),
+            _make_candle(1, "105", "120", "95", "115"),  # H=120 > 110
+        ]
+        assert _is_inside_bar(candles, 1) is False
+
+    def test_index_0_is_never_inside_bar(self):
+        """Erste Kerze kann kein Inside Bar sein."""
+        candles = [_make_candle(0, "100", "110", "90", "105")]
+        assert _is_inside_bar(candles, 0) is False
+
+    def test_inside_bar_excluded_from_swings(self):
+        """Inside Bar an Swing-Position wird uebersprungen."""
+        candles = [
+            _make_candle(0, "100", "102", "98", "101"),
+            _make_candle(1, "101", "115", "85", "110"),   # Outer bar: H=115, L=85
+            _make_candle(2, "105", "112", "88", "108"),    # Inside bar: H=112<=115, L=88>=85
+            _make_candle(3, "108", "109", "87", "100"),
+            _make_candle(4, "100", "104", "86", "102"),
+        ]
+        swings = find_swing_points(candles, fractal_n=2)
+        inside_swings = [s for s in swings if s.index == 2]
+        assert len(inside_swings) == 0
+
+
+class TestImpulseWindow:
+    """Tests fuer konfigurierbares Impulse-Window (AlbaTherium)."""
+
+    def test_default_impulse_window_is_5(self):
+        """Default impulse_window ist 5."""
+        config = OBConfig()
+        assert config.impulse_window == 5
+
+    def test_impulse_window_in_config(self):
+        """impulse_window wird korrekt gesetzt."""
+        config = OBConfig(impulse_window=8)
+        assert config.impulse_window == 8
+
+    def test_wider_window_finds_more_or_equal_obs(self):
+        """Breiteres Fenster findet mindestens so viele OBs wie schmales."""
+        candles = _make_flat_candles(25, price="100", spread="2")
+        # Swing High
+        candles[20] = _make_candle(20, "100", "115", "99", "112")
+        candles[22] = _make_candle(22, "112", "113", "103", "105")
+        # OB-Sequenz
+        candles.append(_make_candle(25, "100", "101", "90", "91"))
+        candles.append(_make_candle(26, "91", "95", "88", "94"))
+        candles.append(_make_candle(27, "94", "100", "93", "99", "500"))
+        candles.append(_make_candle(28, "99", "108", "98", "107", "500"))
+        candles.append(_make_candle(29, "107", "120", "106", "118", "500"))
+        candles.append(_make_candle(30, "118", "122", "116", "120"))
+
+        config_narrow = OBConfig(atr_length=20, swing_fractal_n=2, impulse_window=3)
+        config_wide = OBConfig(atr_length=20, swing_fractal_n=2, impulse_window=8)
+
+        obs_narrow = detect_orderblocks(candles, config_narrow)
+        obs_wide = detect_orderblocks(candles, config_wide)
+        assert len(obs_wide) >= len(obs_narrow)
+
+
+class TestInducementLevel:
+    """Tests fuer IDM-Tracking (AlbaTherium)."""
+
+    def test_idm_found_between_swing_highs(self):
+        """IDM ist der tiefste Swing Low zwischen aufeinanderfolgenden Swing Highs."""
+        swings = [
+            SwingPoint(index=5, timestamp=BASE_TIME + timedelta(hours=5),
+                       price=Decimal("120"), is_high=True, confirmed_at_index=7),
+            SwingPoint(index=10, timestamp=BASE_TIME + timedelta(hours=10),
+                       price=Decimal("95"), is_high=False, confirmed_at_index=12),
+            SwingPoint(index=12, timestamp=BASE_TIME + timedelta(hours=12),
+                       price=Decimal("100"), is_high=False, confirmed_at_index=14),
+            SwingPoint(index=15, timestamp=BASE_TIME + timedelta(hours=15),
+                       price=Decimal("130"), is_high=True, confirmed_at_index=17),
+        ]
+        idms = find_inducement_levels(swings)
+        assert len(idms) == 1
+        assert idms[0].price == Decimal("95")
+        assert idms[0].associated_swing_high_index == 15
+
+    def test_no_swings_returns_empty(self):
+        """Leere Swing-Liste ergibt leere IDM-Liste."""
+        assert find_inducement_levels([]) == []
+
+    def test_only_highs_returns_empty(self):
+        """Nur Swing Highs ohne Lows ergeben keine IDMs."""
+        swings = [
+            SwingPoint(index=5, timestamp=BASE_TIME + timedelta(hours=5),
+                       price=Decimal("120"), is_high=True, confirmed_at_index=7),
+            SwingPoint(index=15, timestamp=BASE_TIME + timedelta(hours=15),
+                       price=Decimal("130"), is_high=True, confirmed_at_index=17),
+        ]
+        idms = find_inducement_levels(swings)
+        assert len(idms) == 0
+
+    def test_multiple_idms(self):
+        """Mehrere Swing Highs erzeugen mehrere IDMs."""
+        swings = [
+            SwingPoint(index=5, timestamp=BASE_TIME + timedelta(hours=5),
+                       price=Decimal("110"), is_high=True, confirmed_at_index=7),
+            SwingPoint(index=8, timestamp=BASE_TIME + timedelta(hours=8),
+                       price=Decimal("90"), is_high=False, confirmed_at_index=10),
+            SwingPoint(index=12, timestamp=BASE_TIME + timedelta(hours=12),
+                       price=Decimal("120"), is_high=True, confirmed_at_index=14),
+            SwingPoint(index=16, timestamp=BASE_TIME + timedelta(hours=16),
+                       price=Decimal("85"), is_high=False, confirmed_at_index=18),
+            SwingPoint(index=20, timestamp=BASE_TIME + timedelta(hours=20),
+                       price=Decimal("130"), is_high=True, confirmed_at_index=22),
+        ]
+        idms = find_inducement_levels(swings)
+        assert len(idms) == 2
+        assert idms[0].price == Decimal("90")
+        assert idms[1].price == Decimal("85")
+
+
+class TestOBClassification:
+    """Tests fuer AlbaTherium OB-Klassifikation (Post-Processing)."""
+
+    def test_empty_zones_returns_empty(self):
+        """Leere Zone-Liste wird unveraendert zurueckgegeben."""
+        result = classify_orderblocks([], [], [])
+        assert result == []
+
+    def test_no_swings_returns_unchanged(self):
+        """Ohne Swings bleibt Klassifikation unveraendert."""
+        candles = _make_flat_candles(10)
+        ob = _make_dummy_ob("ob_1", OBDirection.BULLISH, 5)
+        result = classify_orderblocks([ob], [], candles)
+        assert len(result) == 1
+        assert result[0].category == "UNCLASSIFIED"
+
+    def test_classification_is_deterministic(self):
+        """Gleicher Input ergibt gleiche Klassifikation."""
+        candles = _make_flat_candles(30)
+        swings = [
+            SwingPoint(index=5, timestamp=BASE_TIME + timedelta(hours=5),
+                       price=Decimal("80"), is_high=False, confirmed_at_index=7),
+            SwingPoint(index=15, timestamp=BASE_TIME + timedelta(hours=15),
+                       price=Decimal("120"), is_high=True, confirmed_at_index=17),
+        ]
+        obs = [
+            _make_dummy_ob("ob_1", OBDirection.BULLISH, 8, zone_bottom=Decimal("85")),
+            _make_dummy_ob("ob_2", OBDirection.BULLISH, 12, zone_bottom=Decimal("95")),
+        ]
+        c1 = classify_orderblocks(obs, swings, candles)
+        c2 = classify_orderblocks(obs, swings, candles)
+        for a, b in zip(c1, c2):
+            assert a.category == b.category
+
+    def test_category_field_on_orderblock(self):
+        """Orderblock hat category-Feld mit Default UNCLASSIFIED."""
+        ob = _make_dummy_ob("ob_test", OBDirection.BULLISH, 5)
+        assert ob.category == "UNCLASSIFIED"
+
+
+def _make_dummy_ob(
+    ob_id: str,
+    direction: OBDirection,
+    formed_at_index: int,
+    zone_top: Decimal = Decimal("110"),
+    zone_bottom: Decimal = Decimal("100"),
+) -> Orderblock:
+    """Factory fuer Test-Orderblocks (minimale Felder)."""
+    return Orderblock(
+        id=ob_id,
+        direction=direction,
+        zone_top=zone_top,
+        zone_bottom=zone_bottom,
+        equilibrium=(zone_top + zone_bottom) / 2,
+        entry_edge=zone_top if direction == OBDirection.BULLISH else zone_bottom,
+        stop_edge=zone_bottom if direction == OBDirection.BULLISH else zone_top,
+        formed_at=BASE_TIME + timedelta(hours=formed_at_index),
+        confirmed_at=BASE_TIME + timedelta(hours=formed_at_index + 2),
+        formed_at_index=formed_at_index,
+        confirmed_at_index=formed_at_index + 2,
+        state=OBState.UNMITIGATED,
+        conviction=ConvictionLevel.STANDARD,
+        volume_zscore=Decimal("1.5"),
+        volume_weight=Decimal("2.0"),
+        fvg=FairValueGap(
+            index=formed_at_index + 1,
+            timestamp=BASE_TIME + timedelta(hours=formed_at_index + 1),
+            gap_top=zone_top,
+            gap_bottom=zone_bottom,
+            direction=direction,
+        ),
+        atr_at_formation=Decimal("5.0"),
+        displacement_range=Decimal("15.0"),
+        bos_swing_price=Decimal("115.0"),
+        config=OBConfig(),
+    )

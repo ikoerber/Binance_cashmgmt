@@ -12,6 +12,7 @@ const Settings = ({ userId = 'user_123' }) => {
   const [obInterval, setObInterval] = useState('4h');
   const [obAtrMultiplier, setObAtrMultiplier] = useState('2.0');
   const [obTargetRr, setObTargetRr] = useState('2.0');
+  const [obImpulseWindow, setObImpulseWindow] = useState('5');
 
   const showMessage = (type, text) => {
     setMessage({ type, text });
@@ -31,6 +32,7 @@ const Settings = ({ userId = 'user_123' }) => {
       setObInterval(settings.ob_interval || '4h');
       setObAtrMultiplier(settings.ob_atr_multiplier ?? '2.0');
       setObTargetRr(settings.ob_target_rr ?? '2.0');
+      setObImpulseWindow(settings.ob_impulse_window ?? '5');
     }
   }, [settings]);
 
@@ -61,6 +63,11 @@ const Settings = ({ userId = 'user_123' }) => {
       showMessage('error', 'Target R:R muss zwischen 0.5 und 10.0 liegen.');
       return;
     }
+    const impulseW = parseInt(obImpulseWindow, 10);
+    if (isNaN(impulseW) || impulseW < 2 || impulseW > 20) {
+      showMessage('error', 'Impulse Window muss zwischen 2 und 20 liegen.');
+      return;
+    }
     saveMutation.mutate({
       max_order_value_eur: value,
       macro_signal_interval: macroSignalInterval,
@@ -68,6 +75,7 @@ const Settings = ({ userId = 'user_123' }) => {
       ob_interval: obInterval,
       ob_atr_multiplier: atrMult,
       ob_target_rr: targetRr,
+      ob_impulse_window: impulseW,
     });
   };
 
@@ -227,6 +235,24 @@ const Settings = ({ userId = 'user_123' }) => {
           </div>
           <div className="settings-hint">
             Ziel-Verhaeltnis Gewinn zu Risiko. 2.0 = Target ist doppelt so weit wie Stop.
+          </div>
+        </div>
+
+        <div className="settings-field">
+          <label className="settings-label">Impulse Window</label>
+          <div className="settings-input-group">
+            <input
+              type="number"
+              value={obImpulseWindow}
+              onChange={(e) => setObImpulseWindow(e.target.value)}
+              min="2"
+              max="20"
+              step="1"
+            />
+            <span className="settings-unit">Kerzen</span>
+          </div>
+          <div className="settings-hint">
+            Max. Kerzen nach Basiskerze fuer Displacement/FVG/BOS. Empfohlen: 5 (4h), 8 (1h), 3 (1d).
           </div>
         </div>
       </div>

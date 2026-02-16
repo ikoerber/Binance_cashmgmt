@@ -367,6 +367,7 @@ class OrderblockZoneDB(Base):
     impact_efficiency_ratio = Column(Numeric(precision=20, scale=10), nullable=True)
     conviction_score = Column(Numeric(precision=10, scale=4), nullable=True)
     is_high_conviction_zscore = Column(Boolean, nullable=False, server_default="0")
+    category = Column(String, nullable=True, server_default="UNCLASSIFIED")
 
     atr_at_formation = Column(Numeric(precision=20, scale=10), nullable=False)
     displacement_range = Column(Numeric(precision=20, scale=10), nullable=False)
@@ -446,6 +447,7 @@ class UserSettingsDB(Base):
     ob_interval = Column(String, nullable=True)
     ob_atr_multiplier = Column(Numeric(precision=10, scale=4), nullable=True)
     ob_target_rr = Column(Numeric(precision=10, scale=4), nullable=True)
+    ob_impulse_window = Column(Numeric(precision=5, scale=0), nullable=True)
 
     created_at = Column(DateTime, nullable=False, default=_utcnow)
     updated_at = Column(DateTime, nullable=False, default=_utcnow, onupdate=_utcnow)

@@ -22,6 +22,7 @@ class SettingsUpdate(BaseModel):
     ob_interval: Optional[str] = Field(default="4h")
     ob_atr_multiplier: Optional[float] = Field(default=2.0, ge=0.5, le=10.0)
     ob_target_rr: Optional[float] = Field(default=2.0, ge=0.5, le=10.0)
+    ob_impulse_window: Optional[int] = Field(default=5, ge=2, le=20)
 
 
 VALID_STRATEGIES = {"FIFO", "LIFO", "HIGHEST_COST"}
@@ -37,6 +38,7 @@ def _settings_to_dict(settings: UserSettingsDB) -> dict:
         "ob_interval": settings.ob_interval or "4h",
         "ob_atr_multiplier": float(settings.ob_atr_multiplier) if settings.ob_atr_multiplier is not None else 2.0,
         "ob_target_rr": float(settings.ob_target_rr) if settings.ob_target_rr is not None else 2.0,
+        "ob_impulse_window": int(settings.ob_impulse_window) if settings.ob_impulse_window is not None else 5,
     }
 
 
@@ -47,6 +49,7 @@ DEFAULTS = {
     "ob_interval": "4h",
     "ob_atr_multiplier": 2.0,
     "ob_target_rr": 2.0,
+    "ob_impulse_window": 5,
 }
 
 
@@ -108,6 +111,7 @@ def update_settings(
         settings.ob_interval = body.ob_interval
         settings.ob_atr_multiplier = Decimal(str(body.ob_atr_multiplier)) if body.ob_atr_multiplier is not None else None
         settings.ob_target_rr = Decimal(str(body.ob_target_rr)) if body.ob_target_rr is not None else None
+        settings.ob_impulse_window = body.ob_impulse_window
         settings.updated_at = utcnow()
     else:
         settings = UserSettingsDB(
@@ -119,6 +123,7 @@ def update_settings(
             ob_interval=body.ob_interval,
             ob_atr_multiplier=Decimal(str(body.ob_atr_multiplier)) if body.ob_atr_multiplier is not None else None,
             ob_target_rr=Decimal(str(body.ob_target_rr)) if body.ob_target_rr is not None else None,
+            ob_impulse_window=body.ob_impulse_window,
             created_at=utcnow(),
             updated_at=utcnow(),
         )

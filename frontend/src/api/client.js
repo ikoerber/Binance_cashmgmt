@@ -171,8 +171,8 @@ export const getSentiment = async (userId, symbol = 'BTCEUR') => {
 };
 
 // Orderblock API
-export const detectOrderblocks = async (userId, { symbol = 'BTCEUR', interval, months = 6, config } = {}) => {
-  const response = await apiClient.post(`/api/orderblock/${userId}/detect`, {
+export const analyzeOrderblocks = async (userId, { symbol = 'BTCEUR', interval, months = 6, config } = {}) => {
+  const response = await apiClient.post(`/api/orderblock/${userId}/analyze`, {
     symbol,
     interval,
     months,
@@ -188,17 +188,9 @@ export const getOrderblockZones = async (userId, { symbol = 'BTCEUR', interval =
   return response.data;
 };
 
-export const getOrderblockZoneDetail = async (userId, zoneId) => {
-  const response = await apiClient.get(`/api/orderblock/${userId}/zones/${zoneId}`);
-  return response.data;
-};
-
-export const runOrderblockBacktest = async (userId, { symbol = 'BTCEUR', interval, months = 6, config } = {}) => {
-  const response = await apiClient.post(`/api/orderblock/${userId}/backtest`, {
-    symbol,
-    interval,
-    months,
-    config,
+export const deleteOrderblockZones = async (userId, { symbol = 'BTCEUR', interval = '4h' } = {}) => {
+  const response = await apiClient.delete(`/api/orderblock/${userId}/zones`, {
+    params: { symbol, interval },
   });
   return response.data;
 };
@@ -206,6 +198,13 @@ export const runOrderblockBacktest = async (userId, { symbol = 'BTCEUR', interva
 export const getOrderblockBacktestRuns = async (userId, symbol = null) => {
   const response = await apiClient.get(`/api/orderblock/${userId}/backtest/runs`, {
     params: { symbol },
+  });
+  return response.data;
+};
+
+export const getOrderblockCandles = async (userId, { symbol = 'BTCEUR', interval = '4h', zoneId, startTime, endTime, contextCandles = 80 } = {}) => {
+  const response = await apiClient.get(`/api/orderblock/${userId}/candles`, {
+    params: { symbol, interval, zone_id: zoneId, start_time: startTime, end_time: endTime, context_candles: contextCandles },
   });
   return response.data;
 };

@@ -120,7 +120,7 @@ class OrderblockDataService:
         )
         return candles
 
-    def detect_zones(
+    def analyze(
         self,
         symbol: str,
         interval: str,
@@ -128,94 +128,66 @@ class OrderblockDataService:
         config: Optional[OBConfig] = None,
     ) -> dict:
         """
-        Detection ausfuehren: Fetch → detect → state update → serialize.
+        Combined Detection + Backtest: Fetch → detect → state update → simulate → metrics.
 
-        Returns: Dict mit zones, config, meta.
+        Ein einziger Aufruf auf denselben Kerzen garantiert konsistente Ergebnisse
+        zwischen Zonen-Liste und Backtest-Metriken.
+
+        Returns: Dict mit zones, raw_zones, metrics, trades, config, meta.
         """
         if config is None:
             config = OBConfig()
 
         candles = self.fetch_candles(symbol, interval, months=months)
 
-        if not candles:
-            return {
-                "zones": [],
-                "config": _serialize_config(config),
-                "meta": {
-                    "symbol": symbol,
-                    "interval": interval,
-                    "months": months,
-                    "candle_count": 0,
-                },
-            }
-
-        # Detection (pure Domain-Logik)
-        zones = detect_orderblocks(candles, config)
-        zones = update_zone_states(zones, candles)
-
-        return {
-            "zones": [_serialize_zone(z) for z in zones],
-            "raw_zones": zones,
+        empty = {
+            "zones": [],
+            "raw_zones": [],
+            "metrics": {},
+            "trades": [],
             "config": _serialize_config(config),
             "meta": {
                 "symbol": symbol,
                 "interval": interval,
                 "months": months,
-                "candle_count": len(candles),
-                "data_start": candles[0].timestamp.isoformat(),
-                "data_end": candles[-1].timestamp.isoformat(),
+                "candle_count": 0,
             },
         }
 
-    def run_backtest(
-        self,
-        symbol: str,
-        interval: str,
-        months: int = 6,
-        config: Optional[OBConfig] = None,
-    ) -> dict:
-        """
-        Backtest ausfuehren: Fetch → detect → simulate → metrics → serialize.
-
-        Returns: Dict mit metrics, trades, zones, config, meta.
-        """
-        if config is None:
-            config = OBConfig()
-
-        candles = self.fetch_candles(symbol, interval, months=months)
-
         if not candles:
-            return {
-                "metrics": {},
-                "trades": [],
-                "zones": [],
-                "config": _serialize_config(config),
-                "meta": {
-                    "symbol": symbol,
-                    "interval": interval,
-                    "months": months,
-                    "candle_count": 0,
-                },
-            }
+            return empty
 
-        # Backtest (pure Domain-Logik)
+        # Combined: Detection + Simulation (pure Domain-Logik, gleiche Kerzen)
         result = run_backtest(candles, config, timeframe=interval, symbol=symbol)
 
         return {
             "result": result,
+            "zones": [_serialize_zone(z) for z in result.zones],
+            "raw_zones": result.zones,
             "metrics": _serialize_metrics(result),
             "trades": [_serialize_trade(t) for t in result.trades],
-            "zones": [_serialize_zone(z) for z in result.zones],
             "config": _serialize_config(config),
             "meta": {
                 "symbol": symbol,
                 "interval": interval,
                 "months": months,
                 "candle_count": result.candle_count,
-                "data_start": result.data_start.isoformat(),
-                "data_end": result.data_end.isoformat(),
+                "data_start": _utc_iso(result.data_start),
+                "data_end": _utc_iso(result.data_end),
             },
         }
+
+    # ─── Public: Window-basierter Fetch (fuer Chart-Endpoint) ───
+
+    def fetch_candles_for_window(
+        self,
+        symbol: str,
+        interval: str,
+        start_time: datetime,
+        end_time: datetime,
+    ) -> List[Candle]:
+        """Fetcht Klines fuer ein explizites Zeitfenster (kein Month-Cache)."""
+        return self._fetch_klines_paginated(symbol, interval, start_time, end_time)
 
     # ─── Private: Kline Fetch ───
 
@@ -292,6 +264,27 @@ class OrderblockDataService:
 # ─── Serialisierung ───
 
 
+def _serialize_candle_for_chart(candle: Candle) -> dict:
+    """Candle → lightweight-charts Format (time als Unix-Sekunden, Werte als float)."""
+    # Naive datetime ist intern UTC → explizit markieren, damit .timestamp() korrekt rechnet
+    utc_dt = candle.timestamp.replace(tzinfo=timezone.utc)
+    return {
+        "time": int(utc_dt.timestamp()),
+        "open": float(candle.open),
+        "high": float(candle.high),
+        "low": float(candle.low),
+        "close": float(candle.close),
+        "volume": float(candle.volume),
+    }
+
+
+def _utc_iso(dt: Optional[datetime]) -> Optional[str]:
+    """Naive datetime (intern UTC) → ISO-String mit Z-Suffix fuer Frontend."""
+    if dt is None:
+        return None
+    return dt.isoformat() + "Z"
+
+
 def _serialize_zone(zone: Orderblock) -> dict:
     """Serialisiert einen Orderblock fuer API-Response."""
     return {
@@ -304,12 +297,10 @@ def _serialize_zone(zone: Orderblock) -> dict:
         "equilibrium": str(zone.equilibrium),
         "entry_edge": str(zone.entry_edge),
         "stop_edge": str(zone.stop_edge),
-        "formed_at": zone.formed_at.isoformat(),
-        "confirmed_at": zone.confirmed_at.isoformat(),
-        "mitigated_at": zone.mitigated_at.isoformat() if zone.mitigated_at else None,
-        "invalidated_at": (
-            zone.invalidated_at.isoformat() if zone.invalidated_at else None
-        ),
+        "formed_at": _utc_iso(zone.formed_at),
+        "confirmed_at": _utc_iso(zone.confirmed_at),
+        "mitigated_at": _utc_iso(zone.mitigated_at),
+        "invalidated_at": _utc_iso(zone.invalidated_at),
         "volume_zscore": str(zone.volume_zscore),
         "volume_weight": str(zone.volume_weight),
         "volume_percentile": str(zone.volume_percentile),
@@ -317,6 +308,7 @@ def _serialize_zone(zone: Orderblock) -> dict:
         "impact_efficiency_ratio": str(zone.impact_efficiency_ratio),
         "conviction_score": str(zone.conviction_score),
         "is_high_conviction_zscore": zone.is_high_conviction_zscore,
+        "category": getattr(zone, "category", "UNCLASSIFIED"),
         "atr_at_formation": str(zone.atr_at_formation),
         "displacement_range": str(zone.displacement_range),
         "bos_swing_price": str(zone.bos_swing_price),
@@ -337,6 +329,7 @@ def _serialize_config(config: OBConfig) -> dict:
         "zscore_lookback": config.zscore_lookback,
         "zscore_threshold": str(config.zscore_threshold),
         "max_holding_candles": config.max_holding_candles,
+        "impulse_window": config.impulse_window,
     }
 
 
@@ -411,10 +404,8 @@ def _serialize_trade(trade) -> dict:
         "stop_edge": str(trade.stop_edge),
         "target": str(trade.target),
         "entry_price": str(trade.entry_price),
-        "entry_timestamp": trade.entry_timestamp.isoformat(),
-        "exit_timestamp": (
-            trade.exit_timestamp.isoformat() if trade.exit_timestamp else None
-        ),
+        "entry_timestamp": _utc_iso(trade.entry_timestamp),
+        "exit_timestamp": _utc_iso(trade.exit_timestamp),
         "outcome": trade.outcome.value,
         "penetration_depth_pct": str(trade.penetration_depth_pct),
         "holding_duration_candles": trade.holding_duration_candles,
