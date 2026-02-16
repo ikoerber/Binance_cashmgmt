@@ -170,4 +170,10 @@ export const getSentiment = async (userId, symbol = 'BTCEUR') => {
   return response.data;
 };
 
+// Server IP API
+export const getServerIp = async () => {
+  const response = await apiClient.get('/api/server-ip');
+  return response.data;
+};
+
 export default apiClient;

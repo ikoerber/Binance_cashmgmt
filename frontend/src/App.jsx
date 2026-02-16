@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
 import Dashboard from './components/Dashboard';
 import LotsTable from './components/LotsTable';
 import Reconciliation from './components/Reconciliation';
@@ -7,6 +7,7 @@ import Settings from './components/Settings';
 import MacroSignal from './components/MacroSignal';
 import Sentiment from './components/Sentiment';
 import { useLivePrice } from './hooks/useLivePrice';
+import { getServerIp } from './api/client';
 import './App.css';
 
 const queryClient = new QueryClient({
@@ -24,6 +25,14 @@ function AppContent() {
   
   // Live BTC/EUR Preis
   const { price: marketPrice, loading: priceLoading, lastUpdate } = useLivePrice('BTCEUR', 10000);
+
+  // Server Public IP (für Binance Whitelisting)
+  const { data: serverIpData } = useQuery({
+    queryKey: ['server-ip'],
+    queryFn: getServerIp,
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
 
   return (
     <div className="App">
@@ -114,6 +123,13 @@ function AppContent() {
           <Settings userId={userId} />
         )}
       </div>
+
+      <footer className="app-footer">
+        <span>BTC/EUR Cashflow Management v0.1.0</span>
+        {serverIpData?.ip && (
+          <span className="footer-ip">Server IP: {serverIpData.ip}</span>
+        )}
+      </footer>
     </div>
   );
 }

@@ -195,10 +195,10 @@ def compute_daily_performance(
         realized_pnl_today_eur=realized_pnl_today,
         buys_count_today=len(buys),
         buys_volume_btc_today=sum((e.amount for e in buys), Decimal("0")),
-        buys_volume_eur_today=sum((e.amount * e.price for e in buys), Decimal("0")),
+        buys_volume_eur_today=sum((e.amount * (e.price or Decimal("0")) for e in buys), Decimal("0")),
         sells_count_today=len(sells),
         sells_volume_btc_today=sum((e.amount for e in sells), Decimal("0")),
-        sells_volume_eur_today=sum((e.amount * e.price for e in sells), Decimal("0")),
+        sells_volume_eur_today=sum((e.amount * (e.price or Decimal("0")) for e in sells), Decimal("0")),
         unrealized_pnl_start_of_day_eur=unrealized_sod,
         unrealized_pnl_current_eur=unrealized_now,
     )

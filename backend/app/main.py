@@ -75,3 +75,14 @@ def root():
 def health():
     """Health Check Endpoint"""
     return {"status": "healthy"}
+
+
+@app.get("/api/server-ip")
+def server_ip():
+    """Gibt die öffentliche IP des Servers zurück (für Binance IP-Whitelisting)"""
+    import urllib.request
+    try:
+        ip = urllib.request.urlopen("https://api.ipify.org", timeout=5).read().decode()
+        return {"ip": ip}
+    except Exception:
+        return {"ip": None}

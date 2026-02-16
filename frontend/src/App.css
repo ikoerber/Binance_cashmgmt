@@ -65,6 +65,25 @@ code {
     monospace;
 }
 
+/* Footer */
+.app-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 40px;
+  background: #1e293b;
+  color: #94a3b8;
+  font-size: 12px;
+  border-top: 1px solid #334155;
+}
+
+.footer-ip {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, monospace;
+  background: #334155;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .navbar {

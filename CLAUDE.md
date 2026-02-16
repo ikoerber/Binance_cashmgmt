@@ -30,6 +30,7 @@ BTC/EUR Cashflow-Management & Automation App für Binance Spot Trading. Ledger-b
 - Komponenten-Aufspaltung: LotFilters, OpenOrdersPanel, SimulationModal, PairingExistingTab
 - Dependencies gepinnt auf exakte Versionen in `requirements.txt`
 - Alternative Sell Allocation Strategien (FIFO, LIFO, HIGHEST_COST) konfigurierbar in Settings
+- Historische Fee-Umrechnung: BNB-Fees per Binance Klines API zum Fill-Zeitpunkt konvertiert (statt aktuellem Preis), `fee_eur_value` auf LedgerEvent persistiert, Portfolio BNB-Fee-Handling konsistent mit Lot-Ebene
 
 **Offen (Iteration 4-5):**
 - Auto-Order Automation (Trigger-basiert)
@@ -69,8 +70,8 @@ cashmgnt/
 │   │   │   ├── macro_signal.py        # Makro-Faktoren Analyse + Richtungsempfehlung
 │   │   │   └── sentiment.py           # Sentiment v3: 5-Pillar Scoring, Dispersion, Volatility Scaling
 │   │   ├── services/                  # DB-Integration, Binance API
-│   │   │   ├── binance.py            # Binance API Client
-│   │   │   ├── sync_service.py       # Fills importieren
+│   │   │   ├── binance.py            # Binance API Client (inkl. get_historical_price via Klines API)
+│   │   │   ├── sync_service.py       # Fills importieren (historische Fee-Konvertierung pro Fill)
 │   │   │   ├── lot_service.py        # Lot CRUD + FIFO
 │   │   │   ├── order_service.py      # Order-Erstellung (TAKE_PROFIT_LIMIT)
 │   │   │   ├── order_tracking_service.py # Order State Lifecycle
@@ -315,7 +316,7 @@ API Routes (thin)  →  Services (DB + Binance)  →  Domain (pure, no I/O)
 
 | Tabelle | Beschreibung |
 |---------|--------------|
-| `ledger_events` | Append-only Event-Log (TRADE_FILL, FEE, DEPOSIT, WITHDRAWAL, EXTERNAL_CASHFLOW, ADJUSTMENT) |
+| `ledger_events` | Append-only Event-Log (TRADE_FILL, FEE, DEPOSIT, WITHDRAWAL, EXTERNAL_CASHFLOW, ADJUSTMENT), inkl. `fee_eur_value` (vorberechneter EUR-Wert der Fee fuer BNB/andere Assets) |
 | `trade_lots` | BTC-Positionen (1 pro Buy-Fill): qty_initial, qty_open, cost_eur, break_even, status, auto_order |
 | `sell_allocations` | FIFO Zuordnung: sell_fill_id, lot_id, qty_allocated, realized_pnl_eur |
 | `orders` | Order-Tracking: client_order_id, binance_order_id, price, stop_price, linked_lot_id, linked_pairing_id |
@@ -337,6 +338,7 @@ API Routes (thin)  →  Services (DB + Binance)  →  Domain (pure, no I/O)
 10. **Max Order-Wert** - Order-Erstellung abgelehnt wenn `qty * price > max_order_value_eur` (konfigurierbar via Settings)
 11. **Test-Isolation** - Tests verwenden `TEST_BINANCE_API_KEY` + Testnet, nie Produktions-Keys
 12. **Sentiment Scoring** - Korrelationsbasierte Gewichte (nicht gleich), Dispersion als Confidence, Volatility als Scaling - stetige piecewise-linear Multiplikatoren (keine Buckets/Cliff-Effekte)
+13. **Fee-Konvertierung** - BNB/andere Fees werden zum historischen Preis (Binance Klines, 1min) zum Fill-Zeitpunkt umgerechnet. `fee_eur_value` wird auf LedgerEvent persistiert. Fallback: aktueller Preis → Skip. Portfolio und Lots konsistent.
 
 ## Styling-Konventionen (Frontend)
 
@@ -353,8 +355,8 @@ API Routes (thin)  →  Services (DB + Binance)  →  Domain (pure, no I/O)
 
 ## Testing
 
-**Backend (14 Testdateien):**
-- `test_portfolio_breakeven.py` - WAC, Fees, Partial Sells
+**Backend (15 Testdateien):**
+- `test_portfolio_breakeven.py` - WAC, Fees, Partial Sells, BNB-Fee via fee_eur_value
 - `test_lots_fifo.py` - FIFO Allocation Deterministik
 - `test_lots_strategies.py` - LIFO, HIGHEST_COST, Strategy-Routing, Overflow-Strategien (18 Tests)
 - `test_lots_lot_specific.py` - Lot-spezifische Targets
@@ -367,6 +369,7 @@ API Routes (thin)  →  Services (DB + Binance)  →  Domain (pure, no I/O)
 - `test_csv_import.py` - CSV Import Validierung
 - `test_timezone_handling.py` - Timezone Edge Cases
 - `test_macro_signal.py` - Makro-Signal Berechnung
+- `test_historical_price.py` - Historische Fee-Konvertierung: BinanceService.get_historical_price(), Per-Fill Rates, Minuten-Cache, Fallback, _compute_fee_eur_value (13 Tests)
 - `test_sentiment_v3.py` - Sentiment v3: Pillar Dispersion, Funding Scoring, Piecewise Multiplier, Volatility Scaling, Recommendation (45+ Tests)
 
 **Test-Konfiguration (`tests/conftest.py`):**
@@ -540,7 +543,6 @@ Krypto-spezifische Stimmungsanalyse, komplementaer zum MacroSignal (Makro-Richtu
 ---
 
 ## 4. Offene Punkte
-- Fee-Umrechnung: Fill-Preis vs separate Preisquelle
 - Aggregierte Pairing-Orders (v1.1+)
 - Frontend-Tests (Vitest)
 - Auto-Order Trigger-Logik
