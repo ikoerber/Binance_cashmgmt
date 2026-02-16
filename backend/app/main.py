@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from app.db.database import init_db, create_tables
-from app.api.routes import portfolio, lots, sync, pairing, orders, reconciliation, cashflow, settings, macro, sentiment
+from app.api.routes import portfolio, lots, sync, pairing, orders, reconciliation, cashflow, settings, macro, sentiment, orderblock
 
 
 @asynccontextmanager
@@ -59,6 +59,7 @@ app.include_router(cashflow.router)
 app.include_router(settings.router)
 app.include_router(macro.router)
 app.include_router(sentiment.router)
+app.include_router(orderblock.router)
 
 
 @app.get("/")

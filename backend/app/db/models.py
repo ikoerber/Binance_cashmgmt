@@ -312,6 +312,121 @@ class PairingItemDB(Base):
     )
 
 
+class OBDirectionEnum(str, enum.Enum):
+    BULLISH = "BULLISH"
+    BEARISH = "BEARISH"
+
+
+class OBStateEnum(str, enum.Enum):
+    UNMITIGATED = "UNMITIGATED"
+    MITIGATED = "MITIGATED"
+    INVALID = "INVALID"
+
+
+class OBConvictionEnum(str, enum.Enum):
+    """Deprecated: Conviction wird jetzt als String gespeichert (4-stufig)."""
+    LOW = "LOW"
+    STANDARD = "STANDARD"
+    HIGH = "HIGH"
+    INSTITUTIONAL = "INSTITUTIONAL"
+
+
+class OrderblockZoneDB(Base):
+    """
+    Orderblock Zone - Erkannte institutionelle Preiszone.
+
+    Persistiert Detection-Ergebnisse inkl. State-Transitionen.
+    """
+    __tablename__ = "orderblock_zones"
+
+    id = Column(String, primary_key=True)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+
+    symbol = Column(String, nullable=False)
+    interval = Column(String, nullable=False)
+
+    direction = Column(SQLEnum(OBDirectionEnum), nullable=False)
+    state = Column(SQLEnum(OBStateEnum), nullable=False)
+    conviction = Column(String, nullable=False)
+
+    zone_top = Column(Numeric(precision=20, scale=10), nullable=False)
+    zone_bottom = Column(Numeric(precision=20, scale=10), nullable=False)
+    equilibrium = Column(Numeric(precision=20, scale=10), nullable=False)
+    entry_edge = Column(Numeric(precision=20, scale=10), nullable=False)
+    stop_edge = Column(Numeric(precision=20, scale=10), nullable=False)
+
+    formed_at = Column(DateTime, nullable=False)
+    confirmed_at = Column(DateTime, nullable=False)
+    mitigated_at = Column(DateTime, nullable=True)
+    invalidated_at = Column(DateTime, nullable=True)
+
+    volume_zscore = Column(Numeric(precision=10, scale=4), nullable=False)
+    volume_weight = Column(Numeric(precision=10, scale=4), nullable=False)
+    volume_percentile = Column(Numeric(precision=10, scale=4), nullable=True)
+    ofi_divergence = Column(Numeric(precision=20, scale=10), nullable=True)
+    impact_efficiency_ratio = Column(Numeric(precision=20, scale=10), nullable=True)
+    conviction_score = Column(Numeric(precision=10, scale=4), nullable=True)
+    is_high_conviction_zscore = Column(Boolean, nullable=False, server_default="0")
+
+    atr_at_formation = Column(Numeric(precision=20, scale=10), nullable=False)
+    displacement_range = Column(Numeric(precision=20, scale=10), nullable=False)
+    bos_swing_price = Column(Numeric(precision=20, scale=10), nullable=False)
+
+    config_json = Column(JSON, nullable=False)
+
+    created_at = Column(DateTime, nullable=False, default=_utcnow)
+    updated_at = Column(DateTime, nullable=False, default=_utcnow, onupdate=_utcnow)
+
+    __table_args__ = (
+        Index("idx_ob_zones_user_symbol_interval", "user_id", "symbol", "interval"),
+        Index("idx_ob_zones_user_state", "user_id", "state"),
+        Index("idx_ob_zones_formed_at", "formed_at"),
+    )
+
+
+class BacktestRunDB(Base):
+    """
+    Backtest Run - Persistiertes Backtest-Ergebnis.
+
+    Speichert Konfiguration, Metriken und einzelne Trades als JSON.
+    """
+    __tablename__ = "backtest_runs"
+
+    id = Column(String, primary_key=True)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+
+    symbol = Column(String, nullable=False)
+    interval = Column(String, nullable=False)
+
+    data_start = Column(DateTime, nullable=False)
+    data_end = Column(DateTime, nullable=False)
+    candle_count = Column(Numeric(precision=10, scale=0), nullable=False)
+
+    total_zones = Column(Numeric(precision=10, scale=0), nullable=False)
+    total_trades = Column(Numeric(precision=10, scale=0), nullable=False)
+    hits = Column(Numeric(precision=10, scale=0), nullable=False)
+    misses = Column(Numeric(precision=10, scale=0), nullable=False)
+    hit_rate = Column(Numeric(precision=10, scale=4), nullable=True)
+
+    avg_penetration_depth_pct = Column(Numeric(precision=10, scale=4), nullable=True)
+    avg_holding_duration_candles = Column(Numeric(precision=10, scale=4), nullable=True)
+
+    high_conviction_count = Column(Numeric(precision=10, scale=0), nullable=True)
+    high_conviction_hit_rate = Column(Numeric(precision=10, scale=4), nullable=True)
+    expired_trades = Column(Numeric(precision=10, scale=0), nullable=True, server_default="0")
+    max_holding_candles = Column(Numeric(precision=10, scale=0), nullable=True)
+
+    config_json = Column(JSON, nullable=False)
+    metrics_json = Column(JSON, nullable=False)
+    trades_json = Column(JSON, nullable=False)
+
+    created_at = Column(DateTime, nullable=False, default=_utcnow)
+
+    __table_args__ = (
+        Index("idx_backtest_user_symbol", "user_id", "symbol"),
+    )
+
+
 class UserSettingsDB(Base):
     """
     User Settings - Konfigurierbare Parameter pro User
@@ -326,6 +441,11 @@ class UserSettingsDB(Base):
     max_order_value_eur = Column(Numeric(precision=20, scale=2), nullable=False, server_default="1000")
     macro_signal_interval = Column(String, nullable=False, server_default="15")
     sell_allocation_strategy = Column(String, nullable=False, server_default="FIFO")
+
+    # Orderblock Detection Settings
+    ob_interval = Column(String, nullable=True)
+    ob_atr_multiplier = Column(Numeric(precision=10, scale=4), nullable=True)
+    ob_target_rr = Column(Numeric(precision=10, scale=4), nullable=True)
 
     created_at = Column(DateTime, nullable=False, default=_utcnow)
     updated_at = Column(DateTime, nullable=False, default=_utcnow, onupdate=_utcnow)

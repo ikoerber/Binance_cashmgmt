@@ -9,6 +9,9 @@ const Settings = ({ userId = 'user_123' }) => {
   const [maxOrderValueEur, setMaxOrderValueEur] = useState('');
   const [macroSignalInterval, setMacroSignalInterval] = useState('15');
   const [sellAllocationStrategy, setSellAllocationStrategy] = useState('FIFO');
+  const [obInterval, setObInterval] = useState('4h');
+  const [obAtrMultiplier, setObAtrMultiplier] = useState('2.0');
+  const [obTargetRr, setObTargetRr] = useState('2.0');
 
   const showMessage = (type, text) => {
     setMessage({ type, text });
@@ -25,6 +28,9 @@ const Settings = ({ userId = 'user_123' }) => {
       setMaxOrderValueEur(settings.max_order_value_eur);
       setMacroSignalInterval(settings.macro_signal_interval || '15');
       setSellAllocationStrategy(settings.sell_allocation_strategy || 'FIFO');
+      setObInterval(settings.ob_interval || '4h');
+      setObAtrMultiplier(settings.ob_atr_multiplier ?? '2.0');
+      setObTargetRr(settings.ob_target_rr ?? '2.0');
     }
   }, [settings]);
 
@@ -45,10 +51,23 @@ const Settings = ({ userId = 'user_123' }) => {
       showMessage('error', 'Bitte einen gueltigen Wert > 0 eingeben.');
       return;
     }
+    const atrMult = parseFloat(obAtrMultiplier);
+    if (isNaN(atrMult) || atrMult < 0.5 || atrMult > 10) {
+      showMessage('error', 'ATR Multiplikator muss zwischen 0.5 und 10.0 liegen.');
+      return;
+    }
+    const targetRr = parseFloat(obTargetRr);
+    if (isNaN(targetRr) || targetRr < 0.5 || targetRr > 10) {
+      showMessage('error', 'Target R:R muss zwischen 0.5 und 10.0 liegen.');
+      return;
+    }
     saveMutation.mutate({
       max_order_value_eur: value,
       macro_signal_interval: macroSignalInterval,
       sell_allocation_strategy: sellAllocationStrategy,
+      ob_interval: obInterval,
+      ob_atr_multiplier: atrMult,
+      ob_target_rr: targetRr,
     });
   };
 
@@ -145,6 +164,69 @@ const Settings = ({ userId = 'user_123' }) => {
             LIFO: Neueste Lots zuerst schliessen.
             Hoechste Kosten: Lots mit hoechstem Break-even zuerst (minimiert realisierte Gewinne).
             Gilt nur fuer Verkaeufe ohne explizite Lot-/Pairing-Zuordnung.
+          </div>
+        </div>
+      </div>
+
+      <div className="settings-section">
+        <h3>Orderblock Detection</h3>
+
+        <div className="settings-field">
+          <label className="settings-label">Timeframe</label>
+          <div className="settings-interval-group">
+            {[
+              { value: '1h', label: '1h' },
+              { value: '4h', label: '4h' },
+              { value: '1d', label: '1d' },
+            ].map(({ value, label }) => (
+              <button
+                key={value}
+                className={`interval-btn ${obInterval === value ? 'interval-active' : ''}`}
+                onClick={() => setObInterval(value)}
+                type="button"
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className="settings-hint">
+            Kerzen-Zeitrahmen fuer Orderblock-Erkennung. 4h bietet das beste Verhaeltnis aus Signalqualitaet und Rauschen.
+          </div>
+        </div>
+
+        <div className="settings-field">
+          <label className="settings-label">ATR Multiplikator</label>
+          <div className="settings-input-group">
+            <input
+              type="number"
+              value={obAtrMultiplier}
+              onChange={(e) => setObAtrMultiplier(e.target.value)}
+              min="0.5"
+              max="10"
+              step="0.5"
+            />
+            <span className="settings-unit">x ATR</span>
+          </div>
+          <div className="settings-hint">
+            Mindest-Displacement fuer OB-Validierung. Hoeher = weniger, aber staerkere Zonen.
+          </div>
+        </div>
+
+        <div className="settings-field">
+          <label className="settings-label">Target Risk:Reward</label>
+          <div className="settings-input-group">
+            <input
+              type="number"
+              value={obTargetRr}
+              onChange={(e) => setObTargetRr(e.target.value)}
+              min="0.5"
+              max="10"
+              step="0.5"
+            />
+            <span className="settings-unit">R:R</span>
+          </div>
+          <div className="settings-hint">
+            Ziel-Verhaeltnis Gewinn zu Risiko. 2.0 = Target ist doppelt so weit wie Stop.
           </div>
         </div>
       </div>

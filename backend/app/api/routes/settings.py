@@ -1,8 +1,10 @@
 """Settings API Endpoints"""
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from decimal import Decimal
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import uuid
 
 from app.db.database import get_db
@@ -16,9 +18,14 @@ class SettingsUpdate(BaseModel):
     max_order_value_eur: float
     macro_signal_interval: str = "15"
     sell_allocation_strategy: str = "FIFO"
+    # Orderblock Detection
+    ob_interval: Optional[str] = Field(default="4h")
+    ob_atr_multiplier: Optional[float] = Field(default=2.0, ge=0.5, le=10.0)
+    ob_target_rr: Optional[float] = Field(default=2.0, ge=0.5, le=10.0)
 
 
 VALID_STRATEGIES = {"FIFO", "LIFO", "HIGHEST_COST"}
+VALID_OB_INTERVALS = {"1h", "4h", "1d"}
 
 
 def _settings_to_dict(settings: UserSettingsDB) -> dict:
@@ -27,6 +34,9 @@ def _settings_to_dict(settings: UserSettingsDB) -> dict:
         "max_order_value_eur": float(settings.max_order_value_eur),
         "macro_signal_interval": settings.macro_signal_interval,
         "sell_allocation_strategy": settings.sell_allocation_strategy,
+        "ob_interval": settings.ob_interval or "4h",
+        "ob_atr_multiplier": float(settings.ob_atr_multiplier) if settings.ob_atr_multiplier is not None else 2.0,
+        "ob_target_rr": float(settings.ob_target_rr) if settings.ob_target_rr is not None else 2.0,
     }
 
 
@@ -34,6 +44,9 @@ DEFAULTS = {
     "max_order_value_eur": 1000.0,
     "macro_signal_interval": "15",
     "sell_allocation_strategy": "FIFO",
+    "ob_interval": "4h",
+    "ob_atr_multiplier": 2.0,
+    "ob_target_rr": 2.0,
 }
 
 
@@ -78,6 +91,11 @@ def update_settings(
             status_code=400,
             detail=f"sell_allocation_strategy muss einer von {sorted(VALID_STRATEGIES)} sein"
         )
+    if body.ob_interval and body.ob_interval not in VALID_OB_INTERVALS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"ob_interval muss einer von {sorted(VALID_OB_INTERVALS)} sein"
+        )
 
     settings = db.query(UserSettingsDB).filter(
         UserSettingsDB.user_id == user_id
@@ -87,6 +105,9 @@ def update_settings(
         settings.max_order_value_eur = Decimal(str(body.max_order_value_eur))
         settings.macro_signal_interval = body.macro_signal_interval
         settings.sell_allocation_strategy = body.sell_allocation_strategy
+        settings.ob_interval = body.ob_interval
+        settings.ob_atr_multiplier = Decimal(str(body.ob_atr_multiplier)) if body.ob_atr_multiplier is not None else None
+        settings.ob_target_rr = Decimal(str(body.ob_target_rr)) if body.ob_target_rr is not None else None
         settings.updated_at = utcnow()
     else:
         settings = UserSettingsDB(
@@ -95,6 +116,9 @@ def update_settings(
             max_order_value_eur=Decimal(str(body.max_order_value_eur)),
             macro_signal_interval=body.macro_signal_interval,
             sell_allocation_strategy=body.sell_allocation_strategy,
+            ob_interval=body.ob_interval,
+            ob_atr_multiplier=Decimal(str(body.ob_atr_multiplier)) if body.ob_atr_multiplier is not None else None,
+            ob_target_rr=Decimal(str(body.ob_target_rr)) if body.ob_target_rr is not None else None,
             created_at=utcnow(),
             updated_at=utcnow(),
         )
