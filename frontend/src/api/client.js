@@ -165,22 +165,6 @@ export const updateSettings = async (userId, settings) => {
   return response.data;
 };
 
-// Macro Signal API
-export const getMacroSignals = async (interval = '15') => {
-  const response = await apiClient.get('/api/macro/signals', {
-    params: { interval },
-  });
-  return response.data;
-};
-
-// Sentiment API
-export const getSentiment = async (userId, symbol = 'BTCEUR') => {
-  const response = await apiClient.get(`/api/sentiment/${userId}/current`, {
-    params: { symbol },
-  });
-  return response.data;
-};
-
 // Combined Score API
 export const getCombinedScore = async (userId, interval = '15', symbol = 'BTCEUR') => {
   const response = await apiClient.get(`/api/combined/${userId}/score`, {

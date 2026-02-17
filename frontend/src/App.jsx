@@ -4,8 +4,6 @@ import Dashboard from './components/Dashboard';
 import LotsTable from './components/LotsTable';
 import Reconciliation from './components/Reconciliation';
 import Settings from './components/Settings';
-import MacroSignal from './components/MacroSignal';
-import Sentiment from './components/Sentiment';
 import Orderblock from './components/Orderblock';
 import CombinedScore from './components/CombinedScore';
 import { WebSocketProvider, useLivePrice } from './contexts/WebSocketContext';
@@ -16,8 +14,6 @@ import './App.css';
 // Memoize Komponenten, die nicht vom Preis abhaengen
 const MemoReconciliation = memo(Reconciliation);
 const MemoSettings = memo(Settings);
-const MemoMacroSignal = memo(MacroSignal);
-const MemoSentiment = memo(Sentiment);
 const MemoOrderblock = memo(Orderblock);
 const MemoCombinedScore = memo(CombinedScore);
 
@@ -94,18 +90,6 @@ function AppContent() {
             📋 TradeLots
           </button>
           <button
-            className={currentView === 'macro' ? 'active' : ''}
-            onClick={() => setCurrentView('macro')}
-          >
-            Makro-Signal
-          </button>
-          <button
-            className={currentView === 'sentiment' ? 'active' : ''}
-            onClick={() => setCurrentView('sentiment')}
-          >
-            Sentiment
-          </button>
-          <button
             className={currentView === 'combined' ? 'active' : ''}
             onClick={() => setCurrentView('combined')}
           >
@@ -143,12 +127,6 @@ function AppContent() {
         )}
         {currentView === 'lots' && (
           <LotsTable userId={userId} marketPrice={marketPrice || 50000} />
-        )}
-        {currentView === 'macro' && (
-          <MemoMacroSignal userId={userId} />
-        )}
-        {currentView === 'sentiment' && (
-          <MemoSentiment userId={userId} />
         )}
         {currentView === 'combined' && (
           <MemoCombinedScore userId={userId} />

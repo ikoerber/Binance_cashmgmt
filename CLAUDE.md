@@ -21,8 +21,9 @@ BTC/EUR Cashflow-Management & Automation App für Binance Spot Trading. Ledger-b
 - Reconciliation-Service + Reconciliation-UI (3 Sektionen: Orders, Balances, Fills)
 - Settings-Seite (max_order_value_eur konfigurierbar)
 - Live BTC/EUR Preis via Binance API
-- Makro-Signal Dashboard (4 Faktoren, konfigurierbar, Richtungsempfehlung)
-- Sentiment Engine v3 (5 Pillars, korrelationsgewichtete Aggregation, Dispersion + Volatility Scaling)
+- Makro-Signal Backend (4 Faktoren, konfigurierbar, Richtungsempfehlung)
+- Sentiment Engine v3 Backend (5 Pillars, korrelationsgewichtete Aggregation, Dispersion + Volatility Scaling)
+- Combined Score Dashboard: Vereint MacroSignal (Richtung, 60%) und Sentiment (Sizing, 40%) zu einheitlicher Handlungsempfehlung mit Unified Score (-100 bis +100), ersetzt eigenstaendige MacroSignal- und Sentiment-Seiten
 - CSV Import (Binance Spot Order History)
 - API-Key Authentication (Header `X-API-Key`, konfigurierbar via `API_KEY` in `.env`)
 - Transaction-Safety: SQLAlchemy Auto-Commit/Rollback via `yield`-Pattern
@@ -103,6 +104,7 @@ cashmgnt/
 │   │   │       ├── settings.py       # GET/PUT /api/settings/{user_id}
 │   │   │       ├── macro.py          # GET /api/macro/...
 │   │   │       ├── sentiment.py     # GET /api/sentiment/{user_id}/current
+│   │   │       ├── combined.py     # GET /api/combined/{user_id}/score (MacroSignal + Sentiment)
 │   │   │       └── orderblock.py    # POST analyze, GET/DELETE zones, GET backtest runs/candles
 │   ├── scripts/
 │   │   ├── backtest_sentiment.py     # Backtesting: v1/v2/v3 Sentiment vs. 2000+ Tage historische Daten
@@ -115,8 +117,8 @@ cashmgnt/
 │
 └── frontend/
     ├── src/
-    │   ├── App.jsx                    # Routing: Dashboard | TradeLots | Reconciliation | Settings | Makro-Signal | Sentiment | Orderblocks | API Docs
-    │   ├── api/client.js              # Axios: Portfolio, Lots, Orders, Pairing, Sync, Reconciliation, Settings, Sentiment, Orderblocks
+    │   ├── App.jsx                    # Routing: Dashboard | TradeLots | Combined Score | Orderblocks | Reconciliation | Settings | API Docs
+    │   ├── api/client.js              # Axios: Portfolio, Lots, Orders, Pairing, Sync, Reconciliation, Settings, Combined Score, Orderblocks
     │   ├── components/
     │   │   ├── Dashboard.jsx          # 8 KPI-Kacheln (Break-even, P&L, BTC, EUR)
     │   │   ├── LotsTable.jsx          # Trade-Cockpit: Tabelle, Sort, Checkboxen, Pairing-Integration
@@ -127,21 +129,23 @@ cashmgnt/
     │   │   ├── SimulationModal.jsx    # Simulation Preview Overlay (presentational)
     │   │   ├── Reconciliation.jsx     # 3 Sektionen: Orders, Balances, Fills + Diskrepanzen
     │   │   ├── Settings.jsx           # Konfigurierbare Parameter (max_order_value_eur)
-    │   │   ├── MacroSignal.jsx        # Makro-Signal Dashboard (4 Faktoren, Richtungsempfehlung)
-    │   │   ├── Sentiment.jsx          # Sentiment Engine Dashboard (5 Pillars, Gauge, Empfehlung)
+    │   │   ├── CombinedScore.jsx      # Combined Score: MacroSignal (60%) + Sentiment (40%), Unified Score, Sub-Signal Details
     │   │   ├── LotsTable.css
     │   │   ├── PairingPanel.css
     │   │   ├── Dashboard.css
     │   │   ├── Reconciliation.css
     │   │   ├── Settings.css
-    │   │   ├── MacroSignal.css
-    │   │   ├── Sentiment.css
+    │   │   ├── CombinedScore.css
     │   │   ├── Orderblock.jsx         # Orderblock Dashboard: Analyse, KPI-Cards, Zone-Tabelle, Backtest-Trades, Filter
     │   │   ├── OrderblockChart.jsx    # Candlestick-Chart (lightweight-charts): Zonen-Overlay, Trade-Marker, Volume
+    │   │   ├── FillNotification.jsx    # Echtzeit Fill-Benachrichtigungen via WebSocket
+    │   │   ├── FillNotification.css
     │   │   └── Orderblock.css
+    │   ├── contexts/
+    │   │   └── WebSocketContext.jsx    # WebSocket Provider + useLivePrice Hook (Echtzeit-Preis, Order- und Balance-Updates)
     │   ├── utils/
     │   │   └── formatters.js          # Shared: formatNumber, formatEUR, formatBTC, formatPct, formatDate, formatTime
-    │   └── hooks/useLivePrice.js      # Binance Ticker Polling (10s)
+    │   └── hooks/useLivePrice.js      # Binance Ticker Polling (10s, Legacy-Fallback)
     ├── package.json
     └── vite.config.js
 ```
@@ -228,6 +232,7 @@ alembic downgrade -1                      # Rollback
 | `/api/settings/{user_id}` | GET | User-Settings laden (oder Defaults) |
 | `/api/settings/{user_id}` | PUT | User-Settings speichern (upsert) |
 | `/api/sentiment/{user_id}/current` | GET | Aktueller Sentiment Score v3 (5 Pillars, Dispersion, Volatility) |
+| `/api/combined/{user_id}/score` | GET | Combined Score: MacroSignal (60%) + Sentiment (40%), Unified Score (-100 bis +100) |
 | `/api/orderblock/{user_id}/analyze` | POST | Orderblock-Erkennung + Backtest ausfuehren (Symbol, Intervall, Monate, Config) |
 | `/api/orderblock/{user_id}/zones` | GET | Erkannte Zonen laden (Filter: symbol, interval, state) |
 | `/api/orderblock/{user_id}/zones/{zone_id}` | GET | Einzelne Zone mit vollstaendiger Config |
@@ -405,18 +410,17 @@ Simuliert das Handeln an erkannten Orderblock-Zonen nach der **Triple-Barrier-Me
 - Sell-Allocation Strategie (FIFO / LIFO / Hoechste Kosten) als Button-Group
 - useQuery + useMutation fuer GET/PUT Settings-API
 
-**MacroSignal.jsx** - Makro-Signal Dashboard:
-- 4 Makro-Faktoren mit konfigurierbarer Richtungsempfehlung
-- Intervall-Auswahl (1m/5m/15m) aus User-Settings
-- Richtungseinfluss (bullish/bearish) visuell auf Indikator-Karten
-
-**Sentiment.jsx** - Sentiment Engine Dashboard:
-- Halbkreis-Gauge mit animierter Nadel (Fear ← Neutral → Greed)
-- 5 Pillar-Karten: Score (0-100), Quality-Badge, Progress-Bar mit Gradient, Raw-Value, Erklaerung
-- Empfehlungs-Karte: Action-Text + Buy-Size Multiplikator mit Breakdown (base × confidence × volatility)
-- Analyse-Grid: Pillar Agreement (Confidence %), Volatility Regime (HIGH/NORMAL/LOW mit Scaling)
-- TanStack Query mit 60s Refetch-Intervall
-- Loading/Error States, Disclaimer Footer
+**CombinedScore.jsx** - Combined Score Dashboard (ersetzt eigenstaendige MacroSignal- und Sentiment-Seiten):
+- Vereint MacroSignal (Richtung, 60%) und Sentiment (Sizing, 40%) zu Unified Score (-100 bis +100)
+- Hero Action Banner: Handlungsempfehlung (STARK LONG/LONG/NEUTRAL/SHORT/STARK SHORT) + Size-Multiplikator
+- Unified Score Bar: Visueller Indikator mit Threshold-Markierungen (-60/-30/-10/+10/+30/+60)
+- Conflict Alert: Warnung bei divergierenden Sub-Signalen (Makro vs. Sentiment)
+- MacroSignal Sub-Card: Recommendation Badge, Raw Score, Faktoren-Anzahl, Intervall, aufklappbare Faktor-Details mit Score-Bars
+- Sentiment Sub-Card: Label Badge, Composite Score, Buy-Size Multiplikator, Pillar-Anzahl, aufklappbare Pillar-Details mit Progress-Bars + Quality-Badges
+- Sentiment-Details: Pillar Agreement (Dispersion), Volatility Regime (HIGH/NORMAL/LOW mit Scaling)
+- Quality-System: Gesamtqualitaet (full/partial/degraded) + Confidence-Prozent + Einschraenkungshinweis
+- Intervall aus User-Settings (`macro_signal_interval`), Refetch 30s/45s/60s je nach Intervall
+- TanStack Query mit Settings-abhaengigem Polling
 
 **Orderblock.jsx** - Orderblock Detection Dashboard:
 - Action-Bar: Analyse starten (POST), Zonen loeschen, Intervall-/Lookback-Auswahl (1h/4h/1d, 3-24 Monate)
@@ -481,7 +485,7 @@ Simuliert das Handeln an erkannten Orderblock-Zonen nach der **Triple-Barrier-Me
   - Profit: Grün `#16a34a`, Loss: Rot `#dc2626`
   - Pairing/Akzent: Indigo `#6366f1`
   - Reconciliation: Sky-Blue `#0ea5e9`
-  - Sentiment: Teal `#0d9488` (Gauge-Gradient: Rot `#dc2626` → Slate `#64748b` → Gruen `#16a34a`)
+  - Combined Score: Action-Color dynamisch (Gruen/Slate/Rot je nach Score), Sub-Signal Cards mit Detail-Toggles
   - Orderblock: Amber `#d97706` (Bullish-Zonen: Gruen `#16a34a`, Bearish-Zonen: Rot `#dc2626`, Score-Gradient: Slate→Blue→Amber→Purple)
   - Binance-Sync: Orange `#f7931a`
   - Neutrals: Slate-Palette (`#f8fafc`, `#e2e8f0`, `#64748b`, `#1e293b`)
@@ -655,7 +659,14 @@ Zeigt: betroffene Lots, erwartete P&L, Fees, verbleibende Bestände
 - Orderblock-Parameter: Intervall, ATR-Multiplikator, Target R:R, Impulse Window
 - Erweiterbar für zukünftige Settings
 
-### 3.6 Orderblock-Screen
+### 3.6 Combined Score-Screen (ersetzt eigenstaendige Makro-Signal- und Sentiment-Seiten)
+- Hero Action Banner: Handlungsempfehlung + Size-Multiplikator + Unified Score Bar (-100 bis +100)
+- Conflict Alert bei divergierenden Sub-Signalen
+- 2 Sub-Signal Cards (MacroSignal 60%, Sentiment 40%) mit aufklappbaren Details
+- Quality-Badge + Confidence-Anzeige + Intervall-Badge aus Settings
+- Dynamische Action-Colors (Gruen/Slate/Rot)
+
+### 3.7 Orderblock-Screen
 - Action-Bar: Analyse starten, Zonen loeschen, Intervall-/Lookback-Auswahl
 - KPI-Cards: Gesamtzonen, Hit-Rate, High-Conviction-Anzahl, Avg Score
 - Filter: State, Conviction-Level, AlbaTherium-Kategorie
@@ -687,9 +698,10 @@ Krypto-spezifische Stimmungsanalyse, komplementaer zum MacroSignal (Makro-Richtu
 - Piecewise-Linear Multiplikator: 1.5x (Extreme Fear) → 1.0x (Neutral 40-60) → 0.85x (Extreme Greed)
 - Finaler Multiplikator: base × dispersion_confidence × volatility_scaling
 
-**Abgrenzung MacroSignal vs. SentimentEngine:**
+**Abgrenzung MacroSignal vs. SentimentEngine (Backend-Module, im Frontend vereint via Combined Score):**
 - MacroSignal: Kurzfristige Richtung (1m/5m/15m), Score -2 bis +2
 - SentimentEngine: Mittelfristiges Position-Sizing (taeglich/rollierend), Score 0-100
+- Combined Score: Unified Score (-100 bis +100), Gewichtung Makro 60% + Sentiment 40%
 
 ---
 
@@ -702,7 +714,7 @@ Institutionelle Preiszonen-Erkennung fuer die Identifikation hochreaktiver Unter
 - **Sentiment Engine**: Mittelfristiges Position-Sizing (taeglich) — "Wie gross sollte meine Position sein?"
 - **Orderblock Engine**: Praeziselevel-Identifikation (Stunden bis Tage) — "Bei welchem Preis reagiert der Markt?"
 
-Die drei Module sind komplementaer: MacroSignal bestimmt die Richtung, Sentiment die Groesse, Orderblocks den optimalen Einstiegspreis.
+Die drei Module sind komplementaer: MacroSignal bestimmt die Richtung, Sentiment die Groesse, Orderblocks den optimalen Einstiegspreis. MacroSignal und Sentiment werden im Frontend ueber den Combined Score vereint dargestellt.
 
 #### 2.6.1 Detection: 5-Phasen-Validierung
 
@@ -766,7 +778,7 @@ Persistierbar pro User in Settings (`ob_interval`, `ob_atr_multiplier`, `ob_targ
 
 | Prio | Item | Bewertung | Abhaengigkeiten |
 |------|------|-----------|-----------------|
-| 1 | **Auto-Order Automation** (Trigger-basiert) | **HOCH** — Groesster operativer Hebel. Trigger-System ("Sell bei Break-even + X%") reduziert manuellen Aufwand massiv. Kernfeature fuer Automatisierungsgrad. | Hardening (Prio 4) vor Produktiveinsatz |
+| 1 | **Auto-Order Automation** (Trigger-basiert) | **HOCH** — Groesster operativer Hebel. Trigger-System ("Sell bei Break-even + X%") reduziert manuellen Aufwand massiv. Kernfeature fuer Automatisierungsgrad. | Hardening (Prio 3) vor Produktiveinsatz |
 | 2 | **Sentiment History Persistierung** | **MITTEL** — `SentimentHistoryDB` Tabelle + `/api/sentiment/{user_id}/history` Endpoint. Periodische Snapshots fuer Trendanalyse und Combined-Score-Backtesting. | — |
 | 3 | **Hardening** (Monitoring, Alerting, Rate-Limit) | **MITTEL** — Health-Checks, Binance 429-Handling, Alerting bei Sync-Fehlern / Balance-Diskrepanzen. Notwendig vor produktivem Auto-Order-Einsatz. | — |
 | 4 | **Frontend-Tests** (Vitest) | **MITTEL** — 18 Backend-Testdateien, null Frontend-Tests. Regressionsrisiko steigt. Kritische Flows zuerst: Pairing-Lifecycle, Lot-Filter, Formatter-Utils. | — |
