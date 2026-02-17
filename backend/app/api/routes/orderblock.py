@@ -7,12 +7,11 @@ from decimal import Decimal
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
-from app.db.models import UserSettingsDB
-from app.domain.orderblock import OBConfig
+from app.services.orderblock_config_service import resolve_orderblock_config
 from app.services.orderblock_data_service import (
     ALLOWED_INTERVALS,
     INTERVAL_MS,
@@ -36,22 +35,83 @@ router = APIRouter(prefix="/api/orderblock", tags=["orderblock"])
 
 ALLOWED_SYMBOLS = {"BTCEUR", "BTCUSDT"}
 
+# Timeouts fuer async Operationen (Sekunden)
+_ANALYZE_TIMEOUT = 120
+_CANDLE_FETCH_TIMEOUT = 60
+
 
 # ─── Request Models ───
 
 
 class OBConfigRequest(BaseModel):
     atr_length: int = Field(default=20, ge=5, le=100)
-    atr_multiplier: float = Field(default=2.0, ge=0.5, le=10.0)
+    atr_multiplier: str = Field(default="2.0")
     fvg_window: int = Field(default=3, ge=1, le=10)
     swing_fractal_n: int = Field(default=2, ge=1, le=5)
-    target_rr: float = Field(default=2.0, ge=0.5, le=10.0)
+    target_rr: str = Field(default="2.0")
     zscore_lookback: int = Field(default=50, ge=10, le=200)
-    zscore_threshold: float = Field(default=2.0, ge=0.5, le=5.0)
+    zscore_threshold: str = Field(default="2.0")
     max_holding_candles: int = Field(default=200, ge=0, le=2000)
     impulse_window: int = Field(default=5, ge=2, le=20)
     sweep_lookback: int = Field(default=10, ge=1, le=50)
-    sweep_conviction_boost: float = Field(default=10.0, ge=0.0, le=30.0)
+    sweep_conviction_boost: str = Field(default="10.0")
+
+    @field_validator(
+        "atr_multiplier", "target_rr", "zscore_threshold", "sweep_conviction_boost",
+        mode="before",
+    )
+    @classmethod
+    def coerce_to_string(cls, v) -> str:
+        """Akzeptiert float/int/str, konvertiert zu String (Decimal-String-Transport)."""
+        if isinstance(v, (int, float)):
+            return str(v)
+        return v
+
+    @field_validator(
+        "atr_multiplier", "target_rr", "zscore_threshold", "sweep_conviction_boost",
+        mode="after",
+    )
+    @classmethod
+    def validate_decimal_string(cls, v: str) -> str:
+        try:
+            d = Decimal(v)
+        except Exception:
+            raise ValueError(f"Wert '{v}' ist keine gueltige Dezimalzahl")
+        if d.is_nan() or d.is_infinite():
+            raise ValueError("Wert muss eine endliche Zahl sein (kein NaN/Infinity)")
+        return v
+
+    @field_validator("atr_multiplier", mode="after")
+    @classmethod
+    def validate_atr_range(cls, v: str) -> str:
+        d = Decimal(v)
+        if not (Decimal("0.5") <= d <= Decimal("10.0")):
+            raise ValueError("atr_multiplier muss zwischen 0.5 und 10.0 liegen")
+        return v
+
+    @field_validator("target_rr", mode="after")
+    @classmethod
+    def validate_rr_range(cls, v: str) -> str:
+        d = Decimal(v)
+        if not (Decimal("0.5") <= d <= Decimal("10.0")):
+            raise ValueError("target_rr muss zwischen 0.5 und 10.0 liegen")
+        return v
+
+    @field_validator("zscore_threshold", mode="after")
+    @classmethod
+    def validate_zscore_range(cls, v: str) -> str:
+        d = Decimal(v)
+        if not (Decimal("0.5") <= d <= Decimal("5.0")):
+            raise ValueError("zscore_threshold muss zwischen 0.5 und 5.0 liegen")
+        return v
+
+    @field_validator("sweep_conviction_boost", mode="after")
+    @classmethod
+    def validate_sweep_range(cls, v: str) -> str:
+        d = Decimal(v)
+        if not (Decimal("0") <= d <= Decimal("30.0")):
+            raise ValueError("sweep_conviction_boost muss zwischen 0.0 und 30.0 liegen")
+        return v
 
 
 class AnalyzeRequest(BaseModel):
@@ -80,71 +140,6 @@ def _validate_interval(interval: str) -> None:
         )
 
 
-def _load_user_ob_settings(db: Session, user_id: str) -> dict:
-    """Laedt Orderblock-Settings des Users (oder leeres Dict)."""
-    settings = db.query(UserSettingsDB).filter(
-        UserSettingsDB.user_id == user_id
-    ).first()
-    if settings is None:
-        return {}
-    result = {}
-    if settings.ob_interval is not None:
-        result["interval"] = settings.ob_interval
-    if settings.ob_atr_multiplier is not None:
-        result["atr_multiplier"] = settings.ob_atr_multiplier
-    if settings.ob_target_rr is not None:
-        result["target_rr"] = settings.ob_target_rr
-    if settings.ob_impulse_window is not None:
-        result["impulse_window"] = int(settings.ob_impulse_window)
-    return result
-
-
-def _build_config(
-    req_config: Optional[OBConfigRequest],
-    user_settings: dict,
-) -> OBConfig:
-    """
-    3-Tier Config: Request > User-Settings > OBConfig-Defaults.
-
-    Request-Config ueberschreibt alles. Ohne Request werden User-Settings
-    als Fallback fuer atr_multiplier und target_rr verwendet.
-    """
-    if req_config is not None:
-        return OBConfig(
-            atr_length=req_config.atr_length,
-            atr_multiplier=Decimal(str(req_config.atr_multiplier)),
-            fvg_window=req_config.fvg_window,
-            swing_fractal_n=req_config.swing_fractal_n,
-            target_rr=Decimal(str(req_config.target_rr)),
-            zscore_lookback=req_config.zscore_lookback,
-            zscore_threshold=Decimal(str(req_config.zscore_threshold)),
-            max_holding_candles=req_config.max_holding_candles,
-            impulse_window=req_config.impulse_window,
-            sweep_lookback=req_config.sweep_lookback,
-            sweep_conviction_boost=Decimal(str(req_config.sweep_conviction_boost)),
-        )
-
-    # Kein expliziter Config -> User-Settings als Fallback
-    defaults = OBConfig()
-    atr_mult = user_settings.get("atr_multiplier", defaults.atr_multiplier)
-    target_rr = user_settings.get("target_rr", defaults.target_rr)
-    impulse_window = user_settings.get("impulse_window", defaults.impulse_window)
-
-    return OBConfig(
-        atr_multiplier=Decimal(str(atr_mult)),
-        target_rr=Decimal(str(target_rr)),
-        impulse_window=int(impulse_window),
-    )
-
-
-def _resolve_interval(
-    request_interval: Optional[str],
-    user_settings: dict,
-) -> str:
-    """Interval: Request > User-Setting > Default '4h'."""
-    if request_interval is not None:
-        return request_interval
-    return user_settings.get("interval", "4h")
 
 
 # ─── Endpoints ───
@@ -170,26 +165,35 @@ async def analyze_orderblocks(
     """
     _validate_symbol(request.symbol)
 
-    user_settings = _load_user_ob_settings(db, user_id)
-    interval = _resolve_interval(request.interval, user_settings)
+    config, interval = resolve_orderblock_config(
+        db, user_id, request.config, request.interval,
+    )
     _validate_interval(interval)
 
-    config = _build_config(request.config, user_settings)
     service = get_orderblock_data_service()
 
     try:
-        result_data = await asyncio.to_thread(
-            service.analyze,
-            symbol=request.symbol,
-            interval=interval,
-            months=request.months,
-            config=config,
+        result_data = await asyncio.wait_for(
+            asyncio.to_thread(
+                service.analyze,
+                symbol=request.symbol,
+                interval=interval,
+                months=request.months,
+                config=config,
+            ),
+            timeout=_ANALYZE_TIMEOUT,
         )
-    except Exception as e:
-        logger.error("Orderblock Analyse fehlgeschlagen: %s", e)
+    except asyncio.TimeoutError:
+        logger.error("Orderblock Analyse Timeout (%ds) fuer user=%s, symbol=%s", _ANALYZE_TIMEOUT, user_id, request.symbol)
+        raise HTTPException(
+            status_code=504,
+            detail=f"Analyse-Timeout ({_ANALYZE_TIMEOUT}s). Kuerzeren Lookback oder groesseres Intervall waehlen.",
+        )
+    except Exception:
+        logger.exception("Orderblock Analyse fehlgeschlagen fuer user=%s, symbol=%s", user_id, request.symbol)
         raise HTTPException(
             status_code=502,
-            detail=f"Analyse fehlgeschlagen (Binance API oder Detection): {e}",
+            detail="Analyse fehlgeschlagen. Bitte Parameter pruefen.",
         )
 
     # Zonen persistieren
@@ -239,8 +243,12 @@ def get_orderblock_zones(
             detail="State muss UNMITIGATED, MITIGATED oder INVALID sein.",
         )
 
-    zones = get_zones(db, user_id, symbol, interval, state)
-    return {"zones": zones, "count": len(zones)}
+    try:
+        zones = get_zones(db, user_id, symbol, interval, state)
+        return {"zones": zones, "count": len(zones)}
+    except Exception:
+        logger.exception("Orderblock zones failed for user=%s", user_id)
+        raise HTTPException(status_code=500, detail="Interner Serverfehler")
 
 
 @router.get("/{user_id}/zones/{zone_id}")
@@ -250,10 +258,16 @@ def get_orderblock_zone_detail(
     db: Session = Depends(get_db),
 ):
     """Einzelne Zone mit vollstaendigen Details laden."""
-    zone = get_zone_detail(db, zone_id, user_id=user_id)
-    if zone is None:
-        raise HTTPException(status_code=404, detail="Zone nicht gefunden.")
-    return zone
+    try:
+        zone = get_zone_detail(db, zone_id, user_id=user_id)
+        if zone is None:
+            raise HTTPException(status_code=404, detail="Zone nicht gefunden.")
+        return zone
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Orderblock zone detail failed for zone=%s", zone_id)
+        raise HTTPException(status_code=500, detail="Interner Serverfehler")
 
 
 @router.delete("/{user_id}/zones")
@@ -267,8 +281,12 @@ def delete_orderblock_zones(
     _validate_symbol(symbol)
     _validate_interval(interval)
 
-    deleted = delete_all_zones(db, user_id, symbol, interval)
-    return {"deleted": deleted}
+    try:
+        deleted = delete_all_zones(db, user_id, symbol, interval)
+        return {"deleted": deleted}
+    except Exception:
+        logger.exception("Orderblock zone delete failed for user=%s", user_id)
+        raise HTTPException(status_code=500, detail="Interner Serverfehler")
 
 
 @router.get("/{user_id}/backtest/runs")
@@ -281,8 +299,12 @@ def get_orderblock_backtest_runs(
     if symbol:
         _validate_symbol(symbol)
 
-    runs = get_backtest_runs(db, user_id, symbol)
-    return {"runs": runs, "count": len(runs)}
+    try:
+        runs = get_backtest_runs(db, user_id, symbol)
+        return {"runs": runs, "count": len(runs)}
+    except Exception:
+        logger.exception("Orderblock backtest runs failed for user=%s", user_id)
+        raise HTTPException(status_code=500, detail="Interner Serverfehler")
 
 
 @router.get("/{user_id}/backtest/runs/{run_id}")
@@ -292,10 +314,16 @@ def get_orderblock_backtest_run_detail(
     db: Session = Depends(get_db),
 ):
     """Einzelnen Backtest-Run mit Metriken und Trades laden."""
-    run = get_backtest_run(db, run_id, user_id=user_id)
-    if run is None:
-        raise HTTPException(status_code=404, detail="Backtest-Run nicht gefunden.")
-    return run
+    try:
+        run = get_backtest_run(db, run_id, user_id=user_id)
+        if run is None:
+            raise HTTPException(status_code=404, detail="Backtest-Run nicht gefunden.")
+        return run
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Orderblock backtest run detail failed for run=%s", run_id)
+        raise HTTPException(status_code=500, detail="Interner Serverfehler")
 
 
 @router.get("/{user_id}/candles")
@@ -323,19 +351,23 @@ async def get_orderblock_candles(
 
     interval_ms = INTERVAL_MS[interval]
 
+    from datetime import timezone as _tz
+
+    def _parse_iso_to_naive_utc(iso_str: str) -> datetime:
+        """Parsed ISO-String zu naive-UTC datetime (konsistente Konvertierung)."""
+        return datetime.fromisoformat(
+            iso_str.replace("Z", "+00:00")
+        ).astimezone(_tz.utc).replace(tzinfo=None)
+
     if start_time and end_time:
         # Modus 2: Explizites Zeitfenster mit Kontext-Padding
         try:
-            start_dt = datetime.fromisoformat(
-                start_time.replace("Z", "+00:00")
-            ).replace(tzinfo=None)
-            end_dt = datetime.fromisoformat(
-                end_time.replace("Z", "+00:00")
-            ).replace(tzinfo=None)
-        except ValueError as e:
+            start_dt = _parse_iso_to_naive_utc(start_time)
+            end_dt = _parse_iso_to_naive_utc(end_time)
+        except ValueError:
             raise HTTPException(
                 status_code=400,
-                detail=f"Ungueltiges Datumsformat: {e}",
+                detail="Ungueltiges Datumsformat. ISO-Format erwartet.",
             )
         padding_ms = 20 * interval_ms
         start_dt = start_dt - timedelta(milliseconds=padding_ms)
@@ -346,9 +378,7 @@ async def get_orderblock_candles(
         if zone is None:
             raise HTTPException(status_code=404, detail="Zone nicht gefunden.")
         formed_at_str = zone.get("formed_at", "")
-        formed_dt = datetime.fromisoformat(
-            formed_at_str.replace("Z", "+00:00")
-        ).replace(tzinfo=None)
+        formed_dt = _parse_iso_to_naive_utc(formed_at_str)
         window_ms = context_candles * interval_ms
         start_dt = formed_dt - timedelta(milliseconds=window_ms)
         end_dt = formed_dt + timedelta(milliseconds=window_ms)
@@ -360,18 +390,27 @@ async def get_orderblock_candles(
 
     service = get_orderblock_data_service()
     try:
-        candles = await asyncio.to_thread(
-            service.fetch_candles_for_window,
-            symbol=symbol,
-            interval=interval,
-            start_time=start_dt,
-            end_time=end_dt,
+        candles = await asyncio.wait_for(
+            asyncio.to_thread(
+                service.fetch_candles_for_window,
+                symbol=symbol,
+                interval=interval,
+                start_time=start_dt,
+                end_time=end_dt,
+            ),
+            timeout=_CANDLE_FETCH_TIMEOUT,
         )
-    except Exception as e:
-        logger.error("Candle-Fetch fehlgeschlagen: %s", e)
+    except asyncio.TimeoutError:
+        logger.error("Candle-Fetch Timeout (%ds) fuer user=%s, symbol=%s", _CANDLE_FETCH_TIMEOUT, user_id, symbol)
+        raise HTTPException(
+            status_code=504,
+            detail=f"Candle-Fetch Timeout ({_CANDLE_FETCH_TIMEOUT}s). Kleineres Zeitfenster waehlen.",
+        )
+    except Exception:
+        logger.exception("Candle-Fetch fehlgeschlagen fuer user=%s, symbol=%s", user_id, symbol)
         raise HTTPException(
             status_code=502,
-            detail=f"Candle-Daten konnten nicht geladen werden: {e}",
+            detail="Candle-Daten konnten nicht geladen werden.",
         )
 
     return {

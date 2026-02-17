@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
+from app.constants import BINANCE_ORDER_STATUS_MAP
 from app.services.binance import BinanceService
 from app.services.order_tracking_service import OrderTrackingService
 from app.services.pairing_service import get_pairing_by_id, lock_pairing, execute_pairing
@@ -48,6 +49,10 @@ def compute_pairing_order_params(
         Dict mit aggregierten Binance-Order-Parametern
     """
     if custom_sell_price is not None:
+        if custom_sell_price.is_nan() or custom_sell_price.is_infinite():
+            raise ValueError("custom_sell_price darf nicht NaN oder Infinity sein")
+        if custom_sell_price <= 0:
+            raise ValueError("custom_sell_price muss groesser als 0 sein")
         target_price_rounded = custom_sell_price.quantize(Decimal("0.01"))
     else:
         target_price = market_price * (Decimal("1") + fee_buffer_pct)
@@ -88,16 +93,6 @@ class OrderService:
 
     Idempotent: clientOrderId verhindert Doppel-Orders
     """
-
-    # Binance Status → interner Status
-    _BINANCE_STATUS_MAP = {
-        "NEW": "OPEN",
-        "PARTIALLY_FILLED": "PARTIALLY_FILLED",
-        "FILLED": "FILLED",
-        "CANCELED": "CANCELLED",
-        "REJECTED": "REJECTED",
-        "EXPIRED": "EXPIRED",
-    }
 
     def __init__(self, binance_service: BinanceService):
         self.binance_service = binance_service
@@ -143,6 +138,9 @@ class OrderService:
         if lot_db.qty_btc_open <= 0:
             raise ValueError(f"Lot {lot_id} has no open quantity")
 
+        if not lot_db.qty_btc_initial or lot_db.qty_btc_initial <= 0:
+            raise ValueError(f"Lot {lot_id} has invalid initial quantity")
+
         # Zielpreis berechnen
         break_even = lot_db.cost_eur / lot_db.qty_btc_initial
 
@@ -165,7 +163,7 @@ class OrderService:
         version = "v1"
         safe_user_id = re.sub(r'[^a-zA-Z0-9_-]', '', user_id)
         safe_lot_id = re.sub(r'[^a-zA-Z0-9_-]', '', lot_id)
-        client_order_id = f"{safe_user_id}_{safe_lot_id}_{int(target_price)}_{int(qty_btc * 100000)}_{version}"[:36]  # Max 36 chars
+        client_order_id = f"{safe_user_id}_{safe_lot_id}_{int(target_price)}_{int(qty_btc_rounded * Decimal('100000'))}_{version}"[:36]  # Max 36 chars
 
         # 1. Max Order Value pruefen
         order_value = qty_btc_rounded * target_price_rounded
@@ -206,9 +204,9 @@ class OrderService:
                 side="SELL",
                 type="TAKE_PROFIT_LIMIT",
                 timeInForce="GTC",  # Good Till Cancel
-                quantity=float(qty_btc_rounded),
-                price=float(target_price_rounded),
-                stopPrice=float(target_price_rounded),
+                quantity=str(qty_btc_rounded),
+                price=str(target_price_rounded),
+                stopPrice=str(target_price_rounded),
                 newClientOrderId=client_order_id
             )
 
@@ -231,25 +229,34 @@ class OrderService:
 
         except Exception as e:
             # 5. Verifikation: Existiert die Order trotzdem auf Binance?
-            verified = self._verify_order_on_binance(db, order_id, client_order_id)
+            try:
+                verified = self._verify_order_on_binance(db, order_id, client_order_id)
+            except Exception:
+                verified = None
+
             if verified:
                 return {
                     "status": "success",
-                    "warning": f"Order verified on Binance after local error: {str(e)}",
+                    "warning": "Order verified on Binance after local error",
                     "order": verified,
                     "lot_id": lot_id,
                     "break_even": str(break_even),
                     "target_margin_pct": str(margin),
                 }
 
-            # Order existiert nicht auf Binance → REJECTED
-            self.order_tracking.update_order_status(
-                db,
-                order_id=order_id,
-                status="REJECTED",
-                error_message=str(e)
-            )
-            raise ValueError(f"Failed to create order: {str(e)}")
+            # Order existiert nicht auf Binance → REJECTED + Rollback
+            try:
+                self.order_tracking.update_order_status(
+                    db,
+                    order_id=order_id,
+                    status="REJECTED",
+                    error_message=f"Binance API error: {type(e).__name__}"
+                )
+            except Exception:
+                logger.exception("Failed to mark order %s as REJECTED", order_id)
+                db.rollback()
+            logger.error("Order creation failed for lot %s: %s", lot_id, e)
+            raise ValueError("Order-Erstellung auf Binance fehlgeschlagen")
 
     def create_limit_sell_for_pairing(
         self,
@@ -280,6 +287,13 @@ class OrderService:
         Raises:
             ValueError: Bei Fehlern
         """
+        # 0. Validate custom_sell_price
+        if custom_sell_price is not None:
+            if custom_sell_price.is_nan() or custom_sell_price.is_infinite():
+                raise ValueError("custom_sell_price darf nicht NaN oder Infinity sein")
+            if custom_sell_price <= 0:
+                raise ValueError("custom_sell_price muss groesser als 0 sein")
+
         # 1. Load pairing
         pairing_domain = get_pairing_by_id(db, user_id, pairing_id)
         if not pairing_domain:
@@ -364,9 +378,9 @@ class OrderService:
                 side="SELL",
                 type="TAKE_PROFIT_LIMIT",
                 timeInForce="GTC",
-                quantity=float(total_qty_rounded),
-                price=float(target_price_rounded),
-                stopPrice=float(target_price_rounded),
+                quantity=str(total_qty_rounded),
+                price=str(target_price_rounded),
+                stopPrice=str(target_price_rounded),
                 newClientOrderId=client_order_id
             )
 
@@ -390,9 +404,10 @@ class OrderService:
                     db,
                     order_id=order_id,
                     status="REJECTED",
-                    error_message=str(e)
+                    error_message=f"Binance API error: {type(e).__name__}"
                 )
-                raise ValueError(f"Failed to place order on Binance: {str(e)}")
+                logger.error("Pairing order creation failed for pairing %s: %s", pairing_id, e)
+                raise ValueError("Order-Erstellung auf Binance fehlgeschlagen")
 
         # 8. Mark pairing as EXECUTED
         try:
@@ -439,7 +454,7 @@ class OrderService:
             )
 
             binance_status = binance_order.get("status", "")
-            internal_status = self._BINANCE_STATUS_MAP.get(binance_status)
+            internal_status = BINANCE_ORDER_STATUS_MAP.get(binance_status)
 
             if not internal_status:
                 return None
@@ -507,7 +522,8 @@ class OrderService:
                 "symbol": result["symbol"]
             }
         except Exception as e:
-            raise ValueError(f"Failed to cancel order: {str(e)}")
+            logger.error("Failed to cancel order %s: %s", order_id, e)
+            raise ValueError("Order-Stornierung auf Binance fehlgeschlagen")
 
     def get_open_orders(
         self,
@@ -526,4 +542,5 @@ class OrderService:
             orders = self.binance_service.client.get_open_orders(symbol=symbol)
             return orders
         except Exception as e:
-            raise ValueError(f"Failed to get open orders: {str(e)}")
+            logger.error("Failed to get open orders for symbol %s: %s", symbol, e)
+            raise ValueError("Offene Orders konnten nicht abgerufen werden")

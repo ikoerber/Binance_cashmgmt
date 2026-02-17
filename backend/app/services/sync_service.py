@@ -18,7 +18,51 @@ logger = logging.getLogger(__name__)
 from app.services.binance import BinanceService
 from app.services.lot_service import create_lot_from_buy_fill, process_sell_fill
 from app.domain.models import LedgerEvent, TradeSide, EventType
+from app.domain.lots import compute_fee_eur_value
 from app.db.models import LedgerEventDB, EventTypeEnum, EventSourceEnum, TradeSideEnum
+
+
+def persist_ledger_event(
+    db: Session,
+    user_id: str,
+    event: LedgerEvent,
+    fee_eur_value: Decimal | None = None,
+) -> LedgerEventDB:
+    """
+    Persistiert ein LedgerEvent (Domain Model) als LedgerEventDB in der Datenbank.
+
+    Gemeinsam genutzt von SyncService und CSV-Import.
+
+    Args:
+        db: Database Session
+        user_id: User ID
+        event: LedgerEvent (Domain Model)
+        fee_eur_value: Vorberechneter EUR-Wert der Fee
+
+    Returns:
+        Persistiertes LedgerEventDB
+    """
+    event_db = LedgerEventDB(
+        id=event.id,
+        user_id=user_id,
+        type=EventTypeEnum[event.type.value],
+        timestamp=event.timestamp,
+        asset=event.asset,
+        amount=event.amount,
+        symbol=event.symbol,
+        price=event.price,
+        side=TradeSideEnum[event.side.value] if event.side else None,
+        fee_asset=event.fee_asset,
+        fee_amount=event.fee_amount,
+        fee_eur_value=fee_eur_value,
+        source=EventSourceEnum[event.source.value],
+        source_id=event.source_id,
+        note=event.note,
+        raw_payload=event.raw_payload,
+    )
+
+    db.add(event_db)
+    return event_db
 
 
 class SyncService:
@@ -79,7 +123,9 @@ class SyncService:
         created_events = []
         for fill in new_fills:
             fill_rates = per_fill_rates.get(fill.id, {})
-            fee_eur_value = self._compute_fee_eur_value(fill, fill_rates)
+            fee_eur_value = compute_fee_eur_value(
+                fill.fee_amount, fill.fee_asset, fill.price, fill_rates if fill_rates else None
+            )
             event_db = self._persist_ledger_event(db, user_id, fill, fee_eur_value=fee_eur_value)
             created_events.append((event_db, fill_rates))
 
@@ -110,6 +156,7 @@ class SyncService:
             [(e, r) for e, r in created_events if e.side == TradeSideEnum.SELL],
             key=lambda pair: pair[0].timestamp
         )
+        fifo_aborted = False
         for event_db, fill_rates in sell_events:
             try:
                 result = process_sell_fill(db, user_id, event_db.id, fill_rates)
@@ -121,9 +168,15 @@ class SyncService:
                     "Remaining sells skipped to preserve FIFO invariant.",
                     event_db.id, user_id
                 )
+                fifo_aborted = True
                 break  # FIFO-Invariante schuetzen: nicht weitermachen
 
-        status = "success" if not errors else "partial_success"
+        if fifo_aborted:
+            status = "fifo_error"
+        elif errors:
+            status = "partial_success"
+        else:
+            status = "success"
         return {
             "status": status,
             "new_fills": len(new_fills),
@@ -279,39 +332,18 @@ class SyncService:
                         minute_cache[cache_key] = price
                         logger.info("Fallback: current %s/EUR price: %s", asset, price)
                     except Exception as e2:
-                        logger.warning("Could not fetch current %s/EUR price either: %s", asset, e2)
+                        logger.error(
+                            "Fee-Konvertierung fehlgeschlagen fuer %s/EUR bei %s "
+                            "(historisch + aktuell). fee_eur_value wird None — "
+                            "Fee geht in Portfolio-Berechnung verloren. Fill: %s",
+                            asset, minute_key, fill.id,
+                        )
                         continue
 
             if cache_key in minute_cache:
                 per_fill_rates[fill.id] = {asset: minute_cache[cache_key]}
 
         return per_fill_rates
-
-    @staticmethod
-    def _compute_fee_eur_value(
-        fill: LedgerEvent, fee_conversion_rates: Dict[str, Decimal]
-    ) -> Decimal | None:
-        """
-        Berechnet den EUR-Wert der Fee fuer ein Fill-Event.
-
-        Args:
-            fill: LedgerEvent
-            fee_conversion_rates: Konvertierungsraten fuer diesen Fill
-
-        Returns:
-            EUR-Wert der Fee, oder None wenn keine Fee oder kein Konvertierungskurs
-        """
-        if not fill.fee_amount or fill.fee_amount == 0:
-            return None
-
-        if fill.fee_asset == "EUR":
-            return fill.fee_amount
-        elif fill.fee_asset == "BTC" and fill.price:
-            return fill.fee_amount * fill.price
-        elif fill.fee_asset and fill.fee_asset in fee_conversion_rates:
-            return fill.fee_amount * fee_conversion_rates[fill.fee_asset]
-
-        return None
 
     def _persist_ledger_event(
         self,
@@ -320,36 +352,5 @@ class SyncService:
         event: LedgerEvent,
         fee_eur_value: Decimal | None = None,
     ) -> LedgerEventDB:
-        """
-        Persistiert LedgerEvent in DB
-
-        Args:
-            db: Database Session
-            user_id: User ID
-            event: LedgerEvent (Domain Model)
-            fee_eur_value: Vorberechneter EUR-Wert der Fee
-
-        Returns:
-            Persistiertes LedgerEventDB
-        """
-        event_db = LedgerEventDB(
-            id=event.id,
-            user_id=user_id,
-            type=EventTypeEnum[event.type.value],
-            timestamp=event.timestamp,
-            asset=event.asset,
-            amount=event.amount,
-            symbol=event.symbol,
-            price=event.price,
-            side=TradeSideEnum[event.side.value] if event.side else None,
-            fee_asset=event.fee_asset,
-            fee_amount=event.fee_amount,
-            fee_eur_value=fee_eur_value,
-            source=EventSourceEnum[event.source.value],
-            source_id=event.source_id,
-            note=event.note,
-            raw_payload=event.raw_payload,
-        )
-
-        db.add(event_db)
-        return event_db
+        """Delegiert an die modul-level persist_ledger_event Funktion."""
+        return persist_ledger_event(db, user_id, event, fee_eur_value)

@@ -432,7 +432,7 @@ def test_verify_order_not_on_binance_marks_rejected(db_session, test_user, test_
     order_service = OrderService(mock_binance)
 
     # 2. Aufruf sollte ValueError raisen
-    with pytest.raises(ValueError, match="Failed to create order"):
+    with pytest.raises(ValueError, match="Order-Erstellung auf Binance fehlgeschlagen"):
         order_service.create_limit_sell_for_lot(
             db_session, test_user.id, test_lot.id
         )
@@ -443,4 +443,4 @@ def test_verify_order_not_on_binance_marks_rejected(db_session, test_user, test_
     ).first()
     assert order_db is not None
     assert order_db.status == OrderStatusEnum.REJECTED
-    assert "Insufficient balance" in order_db.error_message
+    assert "Binance API error" in order_db.error_message

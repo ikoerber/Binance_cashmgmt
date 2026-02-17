@@ -90,6 +90,16 @@ def sync_all_fills(
             total_new_lots += result["new_lots"]
             total_allocations += result["allocations"]
 
+            if result.get("status") == "fifo_error":
+                return {
+                    "status": "fifo_error",
+                    "message": f"FIFO allocation error after {total_new_fills} fills. Remaining batches skipped.",
+                    "new_fills": total_new_fills,
+                    "new_lots": total_new_lots,
+                    "allocations": total_allocations,
+                    "errors": result.get("errors", []),
+                }
+
             if result["new_fills"] == 0:
                 break
 

@@ -11,7 +11,6 @@ from typing import List, Tuple
 from dataclasses import replace
 
 logger = logging.getLogger(__name__)
-import uuid
 
 from .models import (
     LedgerEvent,
@@ -22,6 +21,8 @@ from .models import (
     LotStatus,
     AllocationStrategy,
 )
+from app.constants import MIN_BTC_PRECISION
+from app.utils.fee_conversion import compute_fee_eur_value  # noqa: F401 — Re-Export fuer Abwaertskompatibilitaet
 
 
 def create_trade_lot_from_buy_fill(
@@ -68,16 +69,22 @@ def create_trade_lot_from_buy_fill(
     elif fill_event.fee_asset == "EUR" and fill_event.fee_amount:
         # Fee in EUR: zusätzliche EUR-Kosten
         cost_eur += fill_event.fee_amount
-    elif fill_event.fee_asset == "BNB" and fill_event.fee_amount:
-        # Fee in BNB: EUR-Gegenwert zu Kosten addieren
-        if fee_conversion_rates and "BNB" in fee_conversion_rates:
-            bnb_eur_price = fee_conversion_rates["BNB"]
-            fee_eur_value = fill_event.fee_amount * bnb_eur_price
+    elif fill_event.fee_amount and fill_event.fee_asset:
+        # Fee in BNB oder anderem Asset: EUR-Gegenwert zu Kosten addieren
+        # Prioritaet: 1. Vorberechneter fee_eur_value (persistiert), 2. Konvertierungsraten
+        fee_eur_value = fill_event.fee_eur_value
+        if fee_eur_value is None:
+            fee_eur_value = compute_fee_eur_value(
+                fill_event.fee_amount, fill_event.fee_asset,
+                fill_event.price, fee_conversion_rates,
+            )
+        if fee_eur_value is not None:
             cost_eur += fee_eur_value
         else:
-            logger.warning("BNB fee detected but no conversion rate provided for fill %s", fill_event.id)
-    elif fill_event.fee_amount and fill_event.fee_asset not in ["EUR", "BTC", "BNB"]:
-        logger.warning("Unhandled fee asset %s for fill %s", fill_event.fee_asset, fill_event.id)
+            logger.warning(
+                "BNB/other fee lost: fill=%s, fee=%s %s — no conversion rate available",
+                fill_event.id, fill_event.fee_amount, fill_event.fee_asset,
+            )
 
     lot = TradeLot(
         id=f"lot_{fill_event.id}",
@@ -114,15 +121,24 @@ def _compute_net_proceeds_per_btc(
         total_fee_eur = sell_event.fee_amount
     elif sell_event.fee_asset == "BTC" and sell_event.fee_amount and sell_event.price:
         total_fee_eur = sell_event.fee_amount * sell_event.price
-    elif sell_event.fee_asset == "BNB" and sell_event.fee_amount:
-        if fee_conversion_rates and "BNB" in fee_conversion_rates:
-            bnb_eur_price = fee_conversion_rates["BNB"]
-            total_fee_eur = sell_event.fee_amount * bnb_eur_price
+    elif sell_event.fee_amount and sell_event.fee_asset:
+        # Prioritaet: 1. Vorberechneter fee_eur_value, 2. Konvertierungsraten
+        fee_eur = sell_event.fee_eur_value
+        if fee_eur is None:
+            fee_eur = compute_fee_eur_value(
+                sell_event.fee_amount, sell_event.fee_asset,
+                sell_event.price, fee_conversion_rates,
+            )
+        if fee_eur is not None:
+            total_fee_eur = fee_eur
         else:
-            logger.warning("BNB fee detected but no conversion rate provided for sell %s", sell_event.id)
+            logger.warning(
+                "BNB/other fee lost on sell: fill=%s, fee=%s %s — no conversion rate available",
+                sell_event.id, sell_event.fee_amount, sell_event.fee_asset,
+            )
 
     # Fee anteilig auf BTC verteilen
-    fee_per_btc = total_fee_eur / sell_event.amount if sell_event.amount > 0 else Decimal("0")
+    fee_per_btc = total_fee_eur / sell_event.amount if sell_event.amount > MIN_BTC_PRECISION else Decimal("0")
     return sell_proceeds_per_btc - fee_per_btc
 
 
@@ -148,7 +164,7 @@ def _allocate_qty_to_lots(
     updated_lots = []
 
     for lot in lots:
-        if qty_to_allocate <= Decimal("0.00000001"):
+        if qty_to_allocate <= MIN_BTC_PRECISION:
             updated_lots.append(lot)
             continue
 
@@ -171,7 +187,7 @@ def _allocate_qty_to_lots(
 
         new_qty_open = lot.qty_btc_open - qty_from_this_lot
 
-        if new_qty_open <= Decimal("0.00000001"):
+        if new_qty_open <= MIN_BTC_PRECISION:
             new_qty_open = Decimal("0")
             new_status = LotStatus.CLOSED
         elif new_qty_open < lot.qty_btc_initial:
@@ -249,7 +265,7 @@ def allocate_sell_with_strategy(
         sell_event, sorted_lots, sell_event.amount, net_proceeds_per_btc
     )
 
-    if remaining > Decimal("0.00000001"):
+    if remaining > MIN_BTC_PRECISION:
         raise ValueError(
             f"Not enough open lots to allocate sell. "
             f"Remaining: {remaining} BTC"
@@ -309,7 +325,7 @@ def allocate_sell_to_lot(
     if sell_event.price is None or sell_event.amount is None:
         raise ValueError("Sell fill must have price and amount")
 
-    if target_lot.qty_btc_open <= Decimal("0"):
+    if target_lot.qty_btc_open <= MIN_BTC_PRECISION:
         raise ValueError(f"Target lot {target_lot.id} has no open quantity")
 
     net_proceeds_per_btc = _compute_net_proceeds_per_btc(sell_event, fee_conversion_rates)
@@ -320,7 +336,7 @@ def allocate_sell_to_lot(
     )
 
     # Phase 2: Overflow nach overflow_strategy auf restliche Lots
-    if remaining > Decimal("0.00000001"):
+    if remaining > MIN_BTC_PRECISION:
         overflow_lots = _sort_lots_by_strategy(
             [lot for lot in remaining_open_lots if lot.id != target_lot.id],
             overflow_strategy,
@@ -329,7 +345,7 @@ def allocate_sell_to_lot(
             sell_event, overflow_lots, remaining, net_proceeds_per_btc
         )
 
-        if still_remaining > Decimal("0.00000001"):
+        if still_remaining > MIN_BTC_PRECISION:
             raise ValueError(
                 f"Not enough open lots to allocate sell. "
                 f"Remaining: {still_remaining} BTC"
@@ -362,3 +378,8 @@ def calculate_lot_target_price(
     margin = lot.target_margin_pct if lot.target_margin_pct is not None else target_margin_pct
 
     return lot.break_even * (Decimal("1") + margin) * (Decimal("1") + fee_buffer_pct)
+
+
+
+# compute_fee_eur_value ist nach app.utils.fee_conversion verschoben.
+# Re-Export via Import oben fuer Abwaertskompatibilitaet.

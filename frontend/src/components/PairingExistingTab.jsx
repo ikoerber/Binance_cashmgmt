@@ -15,18 +15,21 @@ import {
   deletePairing,
 } from '../api/client';
 import { formatNumber, formatEUR } from '../utils/formatters';
+import { useAppState } from '../contexts/AppStateContext';
 import SimulationModal from './SimulationModal';
 
-const PairingExistingTab = ({ userId, marketPrice, onHighlightLots, showMessage }) => {
+const PairingExistingTab = ({ onHighlightLots, showMessage }) => {
+  const { userId, marketPrice } = useAppState();
   const queryClient = useQueryClient();
 
   const [existingStatusFilter, setExistingStatusFilter] = useState(null);
   const [showExecuted, setShowExecuted] = useState(false);
 
-  const [simulationData, setSimulationData] = useState(null);
+  // Simulation-State pro Pairing (verhindert Race Conditions bei parallelen Simulationen)
+  const [simulationsByPairingId, setSimulationsByPairingId] = useState({});
+  const [activePairingId, setActivePairingId] = useState(null);
   const [showSimulationModal, setShowSimulationModal] = useState(false);
   const [simulatingPairingId, setSimulatingPairingId] = useState(null);
-  const [customSellPrice, setCustomSellPrice] = useState(null);
 
   // ─── Query ───
 
@@ -70,8 +73,8 @@ const PairingExistingTab = ({ userId, marketPrice, onHighlightLots, showMessage 
       queryClient.invalidateQueries({ queryKey: ['lots'] });
       queryClient.invalidateQueries({ queryKey: ['portfolio'] });
       queryClient.invalidateQueries({ queryKey: ['orders'] });
-      setSimulationData(null);
-      setCustomSellPrice(null);
+      setSimulationsByPairingId({});
+      setActivePairingId(null);
       const lotCount = data?.lot_count || 0;
       showMessage('success', `Pairing ausgefuehrt: 1 Order (${lotCount} Lots aggregiert) auf Binance platziert`);
     },
@@ -84,7 +87,8 @@ const PairingExistingTab = ({ userId, marketPrice, onHighlightLots, showMessage 
     mutationFn: (pairingId) => deletePairing(userId, pairingId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pairings'] });
-      setSimulationData(null);
+      setSimulationsByPairingId({});
+      setActivePairingId(null);
       showMessage('success', 'Pairing gelöscht');
     },
     onError: (error) => {
@@ -98,8 +102,11 @@ const PairingExistingTab = ({ userId, marketPrice, onHighlightLots, showMessage 
     setSimulatingPairingId(pairingId);
     try {
       const result = await simulatePairing(userId, pairingId, marketPrice, 0.001, 0.002, sellPrice);
-      setSimulationData({ ...result, pairing_id: pairingId });
-      setCustomSellPrice(sellPrice);
+      setSimulationsByPairingId(prev => ({
+        ...prev,
+        [pairingId]: { data: { ...result, pairing_id: pairingId }, sellPrice },
+      }));
+      setActivePairingId(pairingId);
       setShowSimulationModal(true);
     } catch (error) {
       showMessage('error', error.response?.data?.detail || error.message);
@@ -109,17 +116,18 @@ const PairingExistingTab = ({ userId, marketPrice, onHighlightLots, showMessage 
   };
 
   const handleResimulate = async (newPrice) => {
-    if (!simulationData?.pairing_id) return;
-    await handleSimulate(simulationData.pairing_id, newPrice);
+    if (!activePairingId) return;
+    await handleSimulate(activePairingId, newPrice);
   };
 
   const handleExecute = (pairingId) => {
-    if (!simulationData || simulationData.pairing_id !== pairingId) {
+    const sim = simulationsByPairingId[pairingId];
+    if (!sim) {
       showMessage('error', 'Bitte zuerst Simulation durchführen!');
       return;
     }
     if (window.confirm('Pairing wirklich ausführen? Orders werden auf Binance platziert.')) {
-      executeMutation.mutate({ pairingId, sellPrice: customSellPrice });
+      executeMutation.mutate({ pairingId, sellPrice: sim.sellPrice });
     }
   };
 
@@ -213,7 +221,7 @@ const PairingExistingTab = ({ userId, marketPrice, onHighlightLots, showMessage 
                   <>
                     <button
                       className="btn-simulate"
-                      onClick={() => handleSimulate(p.id, simulationData?.pairing_id === p.id ? customSellPrice : null)}
+                      onClick={() => handleSimulate(p.id, simulationsByPairingId[p.id]?.sellPrice || null)}
                       disabled={simulatingPairingId === p.id}
                     >
                       {simulatingPairingId === p.id ? 'Simuliere...' : 'Simulation'}
@@ -242,7 +250,7 @@ const PairingExistingTab = ({ userId, marketPrice, onHighlightLots, showMessage 
                   <>
                     <button
                       className="btn-simulate"
-                      onClick={() => handleSimulate(p.id, simulationData?.pairing_id === p.id ? customSellPrice : null)}
+                      onClick={() => handleSimulate(p.id, simulationsByPairingId[p.id]?.sellPrice || null)}
                       disabled={simulatingPairingId === p.id}
                     >
                       {simulatingPairingId === p.id ? 'Simuliere...' : 'Simulation ansehen'}
@@ -273,9 +281,9 @@ const PairingExistingTab = ({ userId, marketPrice, onHighlightLots, showMessage 
         );
       })()}
 
-      {simulationData && showSimulationModal && (
+      {activePairingId && simulationsByPairingId[activePairingId] && showSimulationModal && (
         <SimulationModal
-          simulationData={simulationData}
+          simulationData={simulationsByPairingId[activePairingId].data}
           onClose={() => setShowSimulationModal(false)}
           onResimulate={handleResimulate}
         />

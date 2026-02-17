@@ -1,4 +1,5 @@
 """Settings API Endpoints"""
+import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -11,17 +12,19 @@ from app.db.database import get_db
 from app.db.models import UserSettingsDB
 from app.domain.models import utcnow
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
 
 class SettingsUpdate(BaseModel):
-    max_order_value_eur: float
+    max_order_value_eur: str
     macro_signal_interval: str = "15"
     sell_allocation_strategy: str = "FIFO"
     # Orderblock Detection
     ob_interval: Optional[str] = Field(default="4h")
-    ob_atr_multiplier: Optional[float] = Field(default=2.0, ge=0.5, le=10.0)
-    ob_target_rr: Optional[float] = Field(default=2.0, ge=0.5, le=10.0)
+    ob_atr_multiplier: Optional[str] = Field(default="2.0")
+    ob_target_rr: Optional[str] = Field(default="2.0")
     ob_impulse_window: Optional[int] = Field(default=5, ge=2, le=20)
 
 
@@ -63,17 +66,21 @@ def get_settings(
 
     Gibt gespeicherte Settings oder Defaults zurueck.
     """
-    settings = db.query(UserSettingsDB).filter(
-        UserSettingsDB.user_id == user_id
-    ).first()
+    try:
+        settings = db.query(UserSettingsDB).filter(
+            UserSettingsDB.user_id == user_id
+        ).first()
 
-    if settings:
-        return _settings_to_dict(settings)
+        if settings:
+            return _settings_to_dict(settings)
 
-    return {
-        "user_id": user_id,
-        **DEFAULTS,
-    }
+        return {
+            "user_id": user_id,
+            **DEFAULTS,
+        }
+    except Exception:
+        logger.exception("Settings GET failed for user=%s", user_id)
+        raise HTTPException(status_code=500, detail="Interner Serverfehler")
 
 
 @router.put("/{user_id}")
@@ -85,8 +92,38 @@ def update_settings(
     """
     Settings fuer User speichern (upsert).
     """
-    if body.max_order_value_eur <= 0:
+    # Decimal-Validierung fuer String-Felder
+    try:
+        max_val = Decimal(body.max_order_value_eur)
+    except Exception:
+        raise HTTPException(status_code=400, detail="max_order_value_eur muss eine gueltige Zahl sein")
+    if max_val.is_nan() or max_val.is_infinite():
+        raise HTTPException(status_code=400, detail="max_order_value_eur darf nicht NaN oder Infinity sein")
+    if max_val <= 0:
         raise HTTPException(status_code=400, detail="max_order_value_eur muss > 0 sein")
+
+    ob_atr_mult = None
+    if body.ob_atr_multiplier is not None:
+        try:
+            ob_atr_mult = Decimal(body.ob_atr_multiplier)
+        except Exception:
+            raise HTTPException(status_code=400, detail="ob_atr_multiplier muss eine gueltige Zahl sein")
+        if ob_atr_mult.is_nan() or ob_atr_mult.is_infinite():
+            raise HTTPException(status_code=400, detail="ob_atr_multiplier darf nicht NaN oder Infinity sein")
+        if not (Decimal("0.5") <= ob_atr_mult <= Decimal("10.0")):
+            raise HTTPException(status_code=400, detail="ob_atr_multiplier muss zwischen 0.5 und 10.0 liegen")
+
+    ob_rr = None
+    if body.ob_target_rr is not None:
+        try:
+            ob_rr = Decimal(body.ob_target_rr)
+        except Exception:
+            raise HTTPException(status_code=400, detail="ob_target_rr muss eine gueltige Zahl sein")
+        if ob_rr.is_nan() or ob_rr.is_infinite():
+            raise HTTPException(status_code=400, detail="ob_target_rr darf nicht NaN oder Infinity sein")
+        if not (Decimal("0.5") <= ob_rr <= Decimal("10.0")):
+            raise HTTPException(status_code=400, detail="ob_target_rr muss zwischen 0.5 und 10.0 liegen")
+
     if body.macro_signal_interval not in ("1", "5", "15"):
         raise HTTPException(status_code=400, detail="macro_signal_interval muss '1', '5' oder '15' sein")
     if body.sell_allocation_strategy not in VALID_STRATEGIES:
@@ -100,36 +137,43 @@ def update_settings(
             detail=f"ob_interval muss einer von {sorted(VALID_OB_INTERVALS)} sein"
         )
 
-    settings = db.query(UserSettingsDB).filter(
-        UserSettingsDB.user_id == user_id
-    ).first()
+    try:
+        # Row-Level Lock: verhindert Lost Updates bei konkurrierenden Requests
+        settings = db.query(UserSettingsDB).filter(
+            UserSettingsDB.user_id == user_id
+        ).with_for_update().first()
 
-    if settings:
-        settings.max_order_value_eur = Decimal(str(body.max_order_value_eur))
-        settings.macro_signal_interval = body.macro_signal_interval
-        settings.sell_allocation_strategy = body.sell_allocation_strategy
-        settings.ob_interval = body.ob_interval
-        settings.ob_atr_multiplier = Decimal(str(body.ob_atr_multiplier)) if body.ob_atr_multiplier is not None else None
-        settings.ob_target_rr = Decimal(str(body.ob_target_rr)) if body.ob_target_rr is not None else None
-        settings.ob_impulse_window = body.ob_impulse_window
-        settings.updated_at = utcnow()
-    else:
-        settings = UserSettingsDB(
-            id=str(uuid.uuid4()),
-            user_id=user_id,
-            max_order_value_eur=Decimal(str(body.max_order_value_eur)),
-            macro_signal_interval=body.macro_signal_interval,
-            sell_allocation_strategy=body.sell_allocation_strategy,
-            ob_interval=body.ob_interval,
-            ob_atr_multiplier=Decimal(str(body.ob_atr_multiplier)) if body.ob_atr_multiplier is not None else None,
-            ob_target_rr=Decimal(str(body.ob_target_rr)) if body.ob_target_rr is not None else None,
-            ob_impulse_window=body.ob_impulse_window,
-            created_at=utcnow(),
-            updated_at=utcnow(),
-        )
-        db.add(settings)
+        if settings:
+            settings.max_order_value_eur = max_val
+            settings.macro_signal_interval = body.macro_signal_interval
+            settings.sell_allocation_strategy = body.sell_allocation_strategy
+            settings.ob_interval = body.ob_interval
+            settings.ob_atr_multiplier = ob_atr_mult
+            settings.ob_target_rr = ob_rr
+            settings.ob_impulse_window = body.ob_impulse_window
+            settings.updated_at = utcnow()
+        else:
+            settings = UserSettingsDB(
+                id=str(uuid.uuid4()),
+                user_id=user_id,
+                max_order_value_eur=max_val,
+                macro_signal_interval=body.macro_signal_interval,
+                sell_allocation_strategy=body.sell_allocation_strategy,
+                ob_interval=body.ob_interval,
+                ob_atr_multiplier=ob_atr_mult,
+                ob_target_rr=ob_rr,
+                ob_impulse_window=body.ob_impulse_window,
+                created_at=utcnow(),
+                updated_at=utcnow(),
+            )
+            db.add(settings)
 
-    db.commit()
-    db.refresh(settings)
+        db.commit()
+        db.refresh(settings)
 
-    return _settings_to_dict(settings)
+        return _settings_to_dict(settings)
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Settings PUT failed for user=%s", user_id)
+        raise HTTPException(status_code=500, detail="Interner Serverfehler")

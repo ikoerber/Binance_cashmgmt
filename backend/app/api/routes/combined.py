@@ -41,11 +41,17 @@ async def get_combined_score(
 
     try:
         service = get_combined_score_service()
-        return await asyncio.to_thread(
-            service.get_combined_score,
-            interval_minutes=int(interval),
-            symbol=symbol,
+        return await asyncio.wait_for(
+            asyncio.to_thread(
+                service.get_combined_score,
+                interval_minutes=int(interval),
+                symbol=symbol,
+            ),
+            timeout=30,
         )
+    except asyncio.TimeoutError:
+        logger.error("Combined Score Timeout fuer symbol=%s", symbol)
+        raise HTTPException(status_code=504, detail="Combined Score Timeout")
     except Exception:
         logger.exception("Combined Score Berechnung fehlgeschlagen")
         raise HTTPException(status_code=500, detail="Interner Serverfehler")

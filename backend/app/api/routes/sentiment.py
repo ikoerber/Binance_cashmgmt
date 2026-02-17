@@ -1,9 +1,12 @@
 """Sentiment API Endpoint (v3)"""
 import asyncio
+import logging
 
 from fastapi import APIRouter, HTTPException, Query
 
 from app.services.sentiment_data_service import get_sentiment_data_service
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/sentiment", tags=["sentiment"])
 
@@ -12,7 +15,7 @@ ALLOWED_SYMBOLS = {"BTCEUR", "BTCUSDT"}
 
 @router.get("/{user_id}/current")
 async def get_sentiment_current(
-    user_id: str,
+    user_id: str,  # noqa: ARG001 — Path-Param fuer API-Konsistenz + Logging (reserviert fuer Sentiment-History)
     symbol: str = Query(
         default="BTCEUR",
         description="Trading-Paar fuer Kline-Daten",
@@ -20,6 +23,9 @@ async def get_sentiment_current(
 ):
     """
     Liefert den aktuellen Sentiment Score (v3).
+
+    user_id ist im Pfad fuer API-Konsistenz mit anderen Endpoints und Logging.
+    Sentiment-Daten sind aktuell nicht user-spezifisch (reserviert fuer Sentiment-History).
 
     Berechnet aus 5 Pillars (Correlation-gewichtet):
     - Fear & Greed Index (28%) - Alternative.me
@@ -38,5 +44,15 @@ async def get_sentiment_current(
             status_code=400,
             detail=f"Symbol nicht unterstuetzt. Erlaubt: {', '.join(sorted(ALLOWED_SYMBOLS))}",
         )
-    service = get_sentiment_data_service()
-    return await asyncio.to_thread(service.get_sentiment, symbol=symbol)
+    try:
+        service = get_sentiment_data_service()
+        return await asyncio.wait_for(
+            asyncio.to_thread(service.get_sentiment, symbol=symbol),
+            timeout=30,
+        )
+    except asyncio.TimeoutError:
+        logger.error("Sentiment Timeout fuer user=%s, symbol=%s", user_id, symbol)
+        raise HTTPException(status_code=504, detail="Sentiment-Berechnung Timeout")
+    except Exception:
+        logger.exception("Sentiment endpoint failed for user=%s", user_id)
+        raise HTTPException(status_code=500, detail="Interner Serverfehler")

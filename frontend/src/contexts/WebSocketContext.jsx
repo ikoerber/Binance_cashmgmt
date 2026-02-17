@@ -45,7 +45,7 @@ export const WebSocketProvider = ({ userId = 'user_123', children }) => {
       return;
     }
 
-    const url = `${WS_BASE_URL}/ws/${userId}/stream?X-API-Key=${encodeURIComponent(API_KEY)}`;
+    const url = `${WS_BASE_URL}/ws/${userId}/stream`;
     let ws;
     try {
       ws = new WebSocket(url);
@@ -56,12 +56,15 @@ export const WebSocketProvider = ({ userId = 'user_123', children }) => {
     }
 
     ws.onopen = () => {
-      console.log('WebSocket verbunden');
-      setConnected(true);
-      reconnectAttempts.current = 0;
-
-      // User Data Channel subscriben (Phase 2)
-      ws.send(JSON.stringify({ action: 'subscribe', channel: 'user_data' }));
+      // First-Message-Auth: API-Key als Nachricht statt URL-Parameter
+      if (API_KEY) {
+        ws.send(JSON.stringify({ action: 'auth', api_key: API_KEY }));
+      } else {
+        // Kein API-Key konfiguriert — direkt subscriben
+        setConnected(true);
+        reconnectAttempts.current = 0;
+        ws.send(JSON.stringify({ action: 'subscribe', channel: 'user_data' }));
+      }
     };
 
     ws.onmessage = (event) => {
@@ -69,6 +72,19 @@ export const WebSocketProvider = ({ userId = 'user_123', children }) => {
         const data = JSON.parse(event.data);
 
         switch (data.type) {
+          case 'auth_ok':
+            console.log('WebSocket authentifiziert');
+            setConnected(true);
+            reconnectAttempts.current = 0;
+            // Nach erfolgreicher Auth: User Data Channel subscriben
+            wsRef.current?.send(JSON.stringify({ action: 'subscribe', channel: 'user_data' }));
+            break;
+
+          case 'auth_error':
+            console.error('WebSocket Auth fehlgeschlagen:', data.detail);
+            wsRef.current?.close(4001, 'Auth failed');
+            return;
+
           case 'price_update':
             setPrice(parseFloat(data.price));
             setPriceLastUpdate(new Date(data.timestamp));

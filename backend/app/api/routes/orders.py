@@ -30,8 +30,8 @@ def get_order_tracking_service(binance: BinanceService = Depends(get_binance_ser
 def create_order_for_lot(
     user_id: str,
     lot_id: str,
-    target_margin_pct: float = Query(0.05, description="Zielmarge (z.B. 0.05 für 5%)"),
-    fee_buffer_pct: float = Query(0.002, description="Fee-Puffer (z.B. 0.002 für 0.2%)"),
+    target_margin_pct: str = Query("0.05", description="Zielmarge (z.B. '0.05' fuer 5%)"),
+    fee_buffer_pct: str = Query("0.002", description="Fee-Puffer (z.B. '0.002' fuer 0.2%)"),
     db: Session = Depends(get_db),
     order_service: OrderService = Depends(get_order_service)
 ):
@@ -41,8 +41,8 @@ def create_order_for_lot(
     Args:
         user_id: User ID
         lot_id: TradeLot ID
-        target_margin_pct: Zielmarge (Default: 5%)
-        fee_buffer_pct: Fee-Puffer (Default: 0.2%)
+        target_margin_pct: Zielmarge als String (Default: '0.05' fuer 5%)
+        fee_buffer_pct: Fee-Puffer als String (Default: '0.002' fuer 0.2%)
         db: Database Session (injected)
         order_service: Order Service (injected)
 
@@ -50,8 +50,11 @@ def create_order_for_lot(
         Order-Details
     """
     try:
-        target_margin = Decimal(str(target_margin_pct))
-        fee_buffer = Decimal(str(fee_buffer_pct))
+        try:
+            target_margin = Decimal(target_margin_pct)
+            fee_buffer = Decimal(fee_buffer_pct)
+        except Exception:
+            raise ValueError("target_margin_pct und fee_buffer_pct muessen gueltige Dezimalzahlen sein")
 
         result = order_service.create_limit_sell_for_lot(
             db,
@@ -63,7 +66,8 @@ def create_order_for_lot(
 
         return result
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.warning("Order creation validation error for user=%s, lot=%s: %s", user_id, lot_id, e)
+        raise HTTPException(status_code=400, detail="Order-Erstellung fehlgeschlagen. Bitte Parameter pruefen.")
     except Exception as e:
         logger.exception("Orders endpoint failed")
         raise HTTPException(status_code=500, detail="Interner Serverfehler")
@@ -96,32 +100,47 @@ def get_open_orders(
         raise HTTPException(status_code=500, detail="Interner Serverfehler")
 
 
-@router.delete("/{order_id}")
+@router.delete("/{user_id}/{order_id}")
 def cancel_order(
+    user_id: str,
     order_id: int,
     symbol: str = Query("BTCEUR", description="Trading Pair"),
     db: Session = Depends(get_db),
-    order_service: OrderService = Depends(get_order_service)
+    order_service: OrderService = Depends(get_order_service),
+    tracking_service: OrderTrackingService = Depends(get_order_tracking_service)
 ):
     """
     Cancelt eine Order auf Binance und aktualisiert lokale DB
 
     Args:
+        user_id: User ID
         order_id: Binance Order ID
         symbol: Trading Pair (Default: BTCEUR)
         db: Database Session (injected)
         order_service: Order Service (injected)
+        tracking_service: Order Tracking Service (injected)
 
     Returns:
         Cancel-Result
     """
     try:
+        # Autorisierung: Order muss dem User gehoeren
+        from app.db.models import OrderDB
+        order_db = db.query(OrderDB).filter(
+            OrderDB.binance_order_id == str(order_id),
+            OrderDB.user_id == user_id,
+        ).first()
+        if not order_db:
+            raise HTTPException(status_code=404, detail="Order nicht gefunden")
+
         result = order_service.cancel_order(db, symbol, order_id)
         return result
+    except HTTPException:
+        raise
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logger.exception("Orders endpoint failed")
+        raise HTTPException(status_code=400, detail="Order-Stornierung fehlgeschlagen")
+    except Exception:
+        logger.exception("Orders cancel failed for user=%s, order=%s", user_id, order_id)
         raise HTTPException(status_code=500, detail="Interner Serverfehler")
 
 
@@ -155,10 +174,6 @@ def list_orders(
         Liste von Orders
     """
     try:
-        # Auto-Sync: Wenn OPEN Orders abgefragt werden, vorher Binance-Status prüfen
-        if status and status.upper() in ("OPEN", "PARTIALLY_FILLED"):
-            tracking_service.sync_open_order_statuses(db, user_id)
-
         orders = tracking_service.get_orders_for_user(
             db,
             user_id,
@@ -183,6 +198,25 @@ def list_orders(
         }
     except Exception as e:
         logger.exception("Orders endpoint failed")
+        raise HTTPException(status_code=500, detail="Interner Serverfehler")
+
+
+@router.post("/{user_id}/sync-status")
+def sync_order_statuses(
+    user_id: str,
+    db: Session = Depends(get_db),
+    tracking_service: OrderTrackingService = Depends(get_order_tracking_service)
+):
+    """
+    Synchronisiert offene Order-Status mit Binance.
+
+    Expliziter POST-Endpoint (statt implizitem Sync im GET).
+    """
+    try:
+        tracking_service.sync_open_order_statuses(db, user_id)
+        return {"status": "synced", "user_id": user_id}
+    except Exception:
+        logger.exception("Order status sync failed for user=%s", user_id)
         raise HTTPException(status_code=500, detail="Interner Serverfehler")
 
 
