@@ -439,3 +439,79 @@ class TestIntervalComputation:
         btc_score_1m = result_1m.scores[0].score
         btc_score_15m = result_15m.scores[0].score
         assert btc_score_1m >= btc_score_15m
+
+
+# ---------------------------------------------------------------------------
+# Tests: Extrahierte Hilfs-Berechnungen
+# ---------------------------------------------------------------------------
+
+class TestComputeChangePct:
+    """Tests fuer compute_change_pct (DRY-Extraktion)."""
+
+    def test_positive_change(self):
+        from app.domain.macro_signal import compute_change_pct
+        result = compute_change_pct(Decimal("105"), Decimal("100"))
+        assert result == Decimal("5")
+
+    def test_negative_change(self):
+        from app.domain.macro_signal import compute_change_pct
+        result = compute_change_pct(Decimal("95"), Decimal("100"))
+        assert result == Decimal("-5")
+
+    def test_none_current(self):
+        from app.domain.macro_signal import compute_change_pct
+        assert compute_change_pct(None, Decimal("100")) is None
+
+    def test_none_previous(self):
+        from app.domain.macro_signal import compute_change_pct
+        assert compute_change_pct(Decimal("100"), None) is None
+
+    def test_zero_previous(self):
+        from app.domain.macro_signal import compute_change_pct
+        assert compute_change_pct(Decimal("100"), Decimal("0")) is None
+
+
+class TestComputeDerivedEurUsd:
+    """Tests fuer compute_derived_eur_usd (Kreuzrate)."""
+
+    def test_basic_cross_rate(self):
+        from app.domain.macro_signal import compute_derived_eur_usd
+        curr, prev = compute_derived_eur_usd(
+            btc_eur=Decimal("55000"),
+            btc_usdt=Decimal("57000"),
+            btc_eur_prev=Decimal("54000"),
+            btc_usdt_prev=Decimal("56000"),
+        )
+        assert curr is not None
+        assert prev is not None
+        assert curr == Decimal("55000") / Decimal("57000")
+
+    def test_none_when_btc_usdt_zero(self):
+        from app.domain.macro_signal import compute_derived_eur_usd
+        curr, prev = compute_derived_eur_usd(
+            btc_eur=Decimal("55000"),
+            btc_usdt=Decimal("0"),
+            btc_eur_prev=None,
+            btc_usdt_prev=None,
+        )
+        assert curr is None
+
+    def test_none_inputs(self):
+        from app.domain.macro_signal import compute_derived_eur_usd
+        curr, prev = compute_derived_eur_usd(None, None, None, None)
+        assert curr is None
+        assert prev is None
+
+
+class TestComputeYieldSpread:
+    """Tests fuer compute_yield_spread."""
+
+    def test_basic_spread(self):
+        from app.domain.macro_signal import compute_yield_spread
+        result = compute_yield_spread(Decimal("4.5"), Decimal("2.3"))
+        assert result == Decimal("2.2")
+
+    def test_none_input(self):
+        from app.domain.macro_signal import compute_yield_spread
+        assert compute_yield_spread(Decimal("4.5"), None) is None
+        assert compute_yield_spread(None, Decimal("2.3")) is None

@@ -428,3 +428,121 @@ class TestComputeSentimentV3:
             history_vol=[Decimal("0.8")] * 90,
         )
         assert Decimal("0") <= result.composite_score <= Decimal("100")
+
+
+# ---------------------------------------------------------------------------
+# Tests: compute_kline_indicators (extrahiert aus Service-Layer)
+# ---------------------------------------------------------------------------
+
+class TestComputeKlineIndicators:
+    """Tests fuer pure Kline-Indikatoren-Berechnung."""
+
+    def test_returns_none_with_insufficient_data(self):
+        from app.domain.sentiment import compute_kline_indicators
+        result = compute_kline_indicators(
+            closes=[Decimal("100")] * 10,
+            volumes=[Decimal("1")] * 10,
+            taker_buy_vols=[Decimal("0.5")] * 10,
+        )
+        assert result is None
+
+    def test_basic_indicators_with_50_closes(self):
+        from app.domain.sentiment import compute_kline_indicators
+        closes = [Decimal(str(100 + i)) for i in range(55)]
+        volumes = [Decimal("1000")] * 55
+        taker_buy_vols = [Decimal("600")] * 55
+
+        result = compute_kline_indicators(closes, volumes, taker_buy_vols)
+        assert result is not None
+        assert result.current_price == closes[-1]
+        assert result.sma50 is not None
+        assert result.sma200 is None  # nur 55 Closes
+        assert result.dist_50dma_pct is not None
+        assert result.taker_ratio_7d is not None
+
+    def test_sma200_available_with_200_closes(self):
+        from app.domain.sentiment import compute_kline_indicators
+        closes = [Decimal(str(50000 + i * 10)) for i in range(201)]
+        volumes = [Decimal("100")] * 201
+        taker_buy_vols = [Decimal("60")] * 201
+
+        result = compute_kline_indicators(closes, volumes, taker_buy_vols)
+        assert result is not None
+        assert result.sma200 is not None
+
+    def test_volume_ratio_with_21_values(self):
+        from app.domain.sentiment import compute_kline_indicators
+        closes = [Decimal("50000")] * 55
+        volumes = [Decimal("100")] * 54 + [Decimal("200")]  # letzter doppelt
+        taker_buy_vols = [Decimal("60")] * 55
+
+        result = compute_kline_indicators(closes, volumes, taker_buy_vols)
+        assert result is not None
+        assert result.vol_ratio is not None
+        assert result.vol_ratio == Decimal("200") / Decimal("100")
+
+    def test_price_change_pct(self):
+        from app.domain.sentiment import compute_kline_indicators
+        closes = [Decimal("50000")] * 54 + [Decimal("51000")]
+        volumes = [Decimal("100")] * 55
+        taker_buy_vols = [Decimal("60")] * 55
+
+        result = compute_kline_indicators(closes, volumes, taker_buy_vols)
+        assert result is not None
+        assert result.price_change_pct == Decimal("2")  # 1000/50000*100
+
+
+# ---------------------------------------------------------------------------
+# Tests: compute_historical_pillar_scores
+# ---------------------------------------------------------------------------
+
+class TestComputeHistoricalPillarScores:
+    """Tests fuer historische Pillar-Score-Berechnung."""
+
+    def test_basic_computation(self):
+        from app.domain.sentiment import compute_historical_pillar_scores
+        n = 210
+        closes = [Decimal(str(50000 + i * 10)) for i in range(n)]
+        volumes = [Decimal("100")] * n
+        taker_buy_vols = [Decimal("60")] * n
+
+        scores = compute_historical_pillar_scores(closes, volumes, taker_buy_vols, start_idx=200)
+        assert len(scores.dma_distances) > 0
+        assert len(scores.volume_ratios) > 0
+        assert len(scores.taker_ratios) > 0
+        assert len(scores.daily_returns) > 0
+
+    def test_empty_with_start_beyond_range(self):
+        from app.domain.sentiment import compute_historical_pillar_scores
+        closes = [Decimal("100")] * 50
+        volumes = [Decimal("10")] * 50
+        taker_buy_vols = [Decimal("5")] * 50
+
+        scores = compute_historical_pillar_scores(closes, volumes, taker_buy_vols, start_idx=100)
+        assert scores.dma_distances == []
+        assert scores.volume_ratios == []
+        assert scores.taker_ratios == []
+        assert scores.daily_returns == []
+
+
+# ---------------------------------------------------------------------------
+# Tests: compute_daily_return
+# ---------------------------------------------------------------------------
+
+class TestComputeDailyReturn:
+    """Tests fuer taegliche Rendite-Berechnung."""
+
+    def test_positive_return(self):
+        from app.domain.sentiment import compute_daily_return
+        result = compute_daily_return(Decimal("51000"), Decimal("50000"))
+        assert result == Decimal("0.02")
+
+    def test_negative_return(self):
+        from app.domain.sentiment import compute_daily_return
+        result = compute_daily_return(Decimal("49000"), Decimal("50000"))
+        assert result == Decimal("-0.02")
+
+    def test_zero_yesterday_returns_none(self):
+        from app.domain.sentiment import compute_daily_return
+        result = compute_daily_return(Decimal("50000"), Decimal("0"))
+        assert result is None

@@ -834,6 +834,182 @@ def compute_sentiment_v2(
     )
 
 
+# ---------------------------------------------------------------------------
+# Kline-Indikatoren (extrahiert aus sentiment_data_service)
+# ---------------------------------------------------------------------------
+
+@dataclass
+class KlineIndicators:
+    """Technische Indikatoren berechnet aus OHLCV-Daten."""
+    current_price: Decimal
+    sma50: Optional[Decimal]
+    sma200: Optional[Decimal]
+    dist_50dma_pct: Optional[Decimal]
+    vol_ratio: Optional[Decimal]
+    price_change_pct: Optional[Decimal]
+    taker_ratio_7d: Optional[Decimal]
+
+
+def compute_kline_indicators(
+    closes: List[Decimal],
+    volumes: List[Decimal],
+    taker_buy_vols: List[Decimal],
+) -> Optional[KlineIndicators]:
+    """
+    Berechnet technische Indikatoren aus OHLCV-Daten (pure, kein I/O).
+
+    Benoetigt mindestens 50 Closes fuer SMA50.
+    SMA200 nur verfuegbar bei >= 200 Closes.
+
+    Args:
+        closes: Close-Preise (chronologisch)
+        volumes: Volumina (chronologisch)
+        taker_buy_vols: Taker-Buy-Volumina (chronologisch)
+
+    Returns:
+        KlineIndicators oder None bei unzureichenden Daten
+    """
+    if len(closes) < 50:
+        return None
+
+    current_price = closes[-1]
+
+    # SMAs
+    sma50 = sum(closes[-50:]) / Decimal("50")
+    sma200 = sum(closes[-200:]) / Decimal("200") if len(closes) >= 200 else None
+
+    # Distance to 50-DMA
+    dist_50dma_pct = (
+        ((current_price - sma50) / sma50) * Decimal("100") if sma50 > 0 else None
+    )
+
+    # Volume Ratio (heute vs 20-Tage-Durchschnitt)
+    vol_ratio = None
+    if len(volumes) >= 21:
+        vol_20d = sum(volumes[-21:-1]) / Decimal("20")
+        if vol_20d > 0:
+            vol_ratio = volumes[-1] / vol_20d
+
+    # Price Change (heute vs gestern)
+    price_change_pct = None
+    if len(closes) >= 2 and closes[-2] > 0:
+        price_change_pct = ((closes[-1] - closes[-2]) / closes[-2]) * Decimal("100")
+
+    # Taker Ratio (7d Durchschnitt)
+    taker_ratio_7d = _compute_taker_ratio_7d(
+        volumes[-7:] if len(volumes) >= 7 else volumes,
+        taker_buy_vols[-7:] if len(taker_buy_vols) >= 7 else taker_buy_vols,
+    )
+
+    return KlineIndicators(
+        current_price=current_price,
+        sma50=sma50,
+        sma200=sma200,
+        dist_50dma_pct=dist_50dma_pct,
+        vol_ratio=vol_ratio,
+        price_change_pct=price_change_pct,
+        taker_ratio_7d=taker_ratio_7d,
+    )
+
+
+def _compute_taker_ratio_7d(
+    volumes: List[Decimal],
+    taker_buy_vols: List[Decimal],
+) -> Optional[Decimal]:
+    """Berechnet 7-Tage-Durchschnitt des Taker Buy/Sell Ratio."""
+    ratios = []
+    for i in range(len(volumes)):
+        sell_vol = volumes[i] - taker_buy_vols[i]
+        if sell_vol > 0:
+            ratios.append(taker_buy_vols[i] / sell_vol)
+    if len(ratios) < 3:
+        return None
+    return sum(ratios) / Decimal(str(len(ratios)))
+
+
+@dataclass
+class HistoricalPillarScores:
+    """Rolling-Window Pillar-Scores fuer Percentile-Initialisierung."""
+    dma_distances: List[Decimal]
+    volume_ratios: List[Decimal]
+    taker_ratios: List[Decimal]
+    daily_returns: List[Decimal]
+
+
+def compute_historical_pillar_scores(
+    closes: List[Decimal],
+    volumes: List[Decimal],
+    taker_buy_vols: List[Decimal],
+    start_idx: int,
+) -> HistoricalPillarScores:
+    """
+    Berechnet historische Pillar-Scores ueber einen Kerzen-Range (pure, kein I/O).
+
+    Fuer Percentile-Initialisierung: Berechnet DMA-Distance, Volume-Ratio,
+    Taker-Ratio und Daily-Returns ab start_idx.
+
+    Args:
+        closes: Close-Preise (chronologisch)
+        volumes: Volumina (chronologisch)
+        taker_buy_vols: Taker-Buy-Volumina (chronologisch)
+        start_idx: Start-Index (typisch: max(200, len-90))
+
+    Returns:
+        HistoricalPillarScores mit 4 Listen
+    """
+    dma_distances: List[Decimal] = []
+    volume_ratios: List[Decimal] = []
+    taker_ratios: List[Decimal] = []
+    daily_returns: List[Decimal] = []
+
+    for i in range(start_idx, len(closes)):
+        # DMA Distance
+        if i >= 50:
+            sma50 = sum(closes[i - 49 : i + 1]) / Decimal("50")
+            if sma50 > 0:
+                dma_distances.append(
+                    ((closes[i] - sma50) / sma50) * Decimal("100")
+                )
+
+        # Volume Ratio
+        if i >= 21:
+            vol_20d = sum(volumes[i - 20 : i]) / Decimal("20")
+            if vol_20d > 0:
+                volume_ratios.append(volumes[i] / vol_20d)
+
+        # Taker Ratio
+        window_vols = volumes[max(0, i - 6) : i + 1]
+        window_taker = taker_buy_vols[max(0, i - 6) : i + 1]
+        tr = _compute_taker_ratio_7d(window_vols, window_taker)
+        if tr is not None:
+            taker_ratios.append(tr)
+
+        # Daily Returns
+        if i >= 1 and closes[i - 1] > 0:
+            daily_returns.append((closes[i] - closes[i - 1]) / closes[i - 1])
+
+    return HistoricalPillarScores(
+        dma_distances=dma_distances,
+        volume_ratios=volume_ratios,
+        taker_ratios=taker_ratios,
+        daily_returns=daily_returns,
+    )
+
+
+def compute_daily_return(
+    close_today: Decimal,
+    close_yesterday: Decimal,
+) -> Optional[Decimal]:
+    """Berechnet taegliche Rendite. None wenn close_yesterday <= 0."""
+    if close_yesterday <= 0:
+        return None
+    return (close_today - close_yesterday) / close_yesterday
+
+
+# ---------------------------------------------------------------------------
+# v1 Legacy: Score Velocity / Regime Switch
+# ---------------------------------------------------------------------------
+
 def compute_score_velocity(
     score_history: List[Decimal],
     lookback: int = 7,

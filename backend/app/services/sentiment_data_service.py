@@ -20,6 +20,9 @@ import requests
 
 from app.domain.sentiment import (
     SentimentResultV3,
+    compute_daily_return,
+    compute_historical_pillar_scores,
+    compute_kline_indicators,
     compute_sentiment_v3,
 )
 from app.services.binance_public_client import CachedValue, get_binance_public_client
@@ -215,42 +218,12 @@ class SentimentDataService:
         volumes = [Decimal(str(k[5])) for k in klines]
         taker_buy_vols = [Decimal(str(k[9])) for k in klines]
 
-        current_price = closes[-1]
-
-        # SMAs
-        sma50 = sum(closes[-50:]) / Decimal("50")
-        sma200 = sum(closes[-200:]) / Decimal("200") if len(closes) >= 200 else None
-
-        # Distance to 50-DMA
-        dist_50dma_pct = (
-            ((current_price - sma50) / sma50) * Decimal("100") if sma50 > 0 else None
-        )
-
-        # Volume Ratio (heute vs 20-Tage-Durchschnitt)
-        vol_ratio = None
-        if len(volumes) >= 21:
-            vol_20d = sum(volumes[-21:-1]) / Decimal("20")
-            if vol_20d > 0:
-                vol_ratio = volumes[-1] / vol_20d
-
-        # Price Change (heute vs gestern)
-        price_change_pct = None
-        if len(closes) >= 2 and closes[-2] > 0:
-            price_change_pct = ((closes[-1] - closes[-2]) / closes[-2]) * Decimal("100")
-
-        # Taker Ratio (7d Durchschnitt)
-        taker_ratios = []
-        for i in range(max(0, len(klines) - 7), len(klines)):
-            sell_vol = volumes[i] - taker_buy_vols[i]
-            if sell_vol > 0:
-                taker_ratios.append(taker_buy_vols[i] / sell_vol)
-        taker_ratio_7d = (
-            sum(taker_ratios) / Decimal(str(len(taker_ratios)))
-            if len(taker_ratios) >= 3
-            else None
-        )
+        indicators = compute_kline_indicators(closes, volumes, taker_buy_vols)
+        if indicators is None:
+            return {}
 
         # Aktuellen Ticker-Preis holen (genauer als Kline-Close)
+        current_price = indicators.current_price
         try:
             current_price = client.get_ticker_price(symbol)
         except Exception:
@@ -258,12 +231,12 @@ class SentimentDataService:
 
         return {
             "current_price": current_price,
-            "sma50": sma50,
-            "sma200": sma200,
-            "dist_50dma_pct": dist_50dma_pct,
-            "vol_ratio": vol_ratio,
-            "price_change_pct": price_change_pct,
-            "taker_ratio_7d": taker_ratio_7d,
+            "sma50": indicators.sma50,
+            "sma200": indicators.sma200,
+            "dist_50dma_pct": indicators.dist_50dma_pct,
+            "vol_ratio": indicators.vol_ratio,
+            "price_change_pct": indicators.price_change_pct,
+            "taker_ratio_7d": indicators.taker_ratio_7d,
             "closes": closes,
         }
 
@@ -325,36 +298,13 @@ class SentimentDataService:
 
             # Ab Tag 200 (nach Warmup) die letzten 90 Tage in Historien fuellen
             start = max(200, len(closes) - PERCENTILE_WINDOW)
-            for i in range(start, len(closes)):
-                # DMA Distance
-                if i >= 50:
-                    sma50 = sum(closes[i - 49 : i + 1]) / Decimal("50")
-                    if sma50 > 0:
-                        self._hist_dma.append(
-                            ((closes[i] - sma50) / sma50) * Decimal("100")
-                        )
-
-                # Volume Ratio
-                if i >= 21:
-                    vol_20d = sum(volumes[i - 20 : i]) / Decimal("20")
-                    if vol_20d > 0:
-                        self._hist_vol.append(volumes[i] / vol_20d)
-
-                # Taker Ratio
-                taker_ratios = []
-                for j in range(max(0, i - 6), i + 1):
-                    sell = volumes[j] - taker_buy_vols[j]
-                    if sell > 0:
-                        taker_ratios.append(taker_buy_vols[j] / sell)
-                if len(taker_ratios) >= 3:
-                    avg = sum(taker_ratios) / Decimal(str(len(taker_ratios)))
-                    self._hist_taker.append(avg)
-
-                # Daily Returns
-                if i >= 1 and closes[i - 1] > 0:
-                    self._daily_returns.append(
-                        (closes[i] - closes[i - 1]) / closes[i - 1]
-                    )
+            scores = compute_historical_pillar_scores(
+                closes, volumes, taker_buy_vols, start
+            )
+            self._hist_dma.extend(scores.dma_distances)
+            self._hist_vol.extend(scores.volume_ratios)
+            self._hist_taker.extend(scores.taker_ratios)
+            self._daily_returns.extend(scores.daily_returns)
 
             logger.info(
                 "  Kline Historie: DMA=%d, Vol=%d, Taker=%d, Returns=%d",
@@ -386,8 +336,10 @@ class SentimentDataService:
 
         # Daily Return
         closes = kline_data.get("closes", [])
-        if len(closes) >= 2 and closes[-2] > 0:
-            self._daily_returns.append((closes[-1] - closes[-2]) / closes[-2])
+        if len(closes) >= 2:
+            daily_ret = compute_daily_return(closes[-1], closes[-2])
+            if daily_ret is not None:
+                self._daily_returns.append(daily_ret)
 
     # ─── Serialisierung ───
 

@@ -19,7 +19,7 @@ wobei V die Volumen der Kerzen sind. Nur OBs mit Z > threshold gelten als HIGH_C
 """
 
 from dataclasses import dataclass, replace
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from enum import Enum
 from typing import List, Optional
@@ -1340,3 +1340,58 @@ def _decimal_sqrt(value: Decimal, precision: int = 20) -> Decimal:
         x = x_new
 
     return x
+
+
+# ---------------------------------------------------------------------------
+# Binance Kline Parsing (extrahiert aus orderblock_data_service)
+# ---------------------------------------------------------------------------
+
+def parse_binance_kline(raw: list) -> Candle:
+    """
+    Transformiert Binance Kline-Array zu Candle-Objekt.
+
+    Binance Kline Format: [open_time, o, h, l, c, v, close_time, ...]
+    Timestamps werden als naive datetime (implizit UTC) gespeichert.
+
+    Args:
+        raw: Binance Kline-Array (mindestens 6 Elemente)
+
+    Returns:
+        Candle mit Decimal-Praezision
+    """
+    return Candle(
+        timestamp=datetime.fromtimestamp(
+            raw[0] / 1000, tz=timezone.utc
+        ).replace(tzinfo=None),
+        open=Decimal(str(raw[1])),
+        high=Decimal(str(raw[2])),
+        low=Decimal(str(raw[3])),
+        close=Decimal(str(raw[4])),
+        volume=Decimal(str(raw[5])),
+    )
+
+
+def annotate_zones_with_confluence(
+    zones: List["Orderblock"],
+    sentiment_score: Optional[Decimal],
+) -> None:
+    """
+    Annotiert Orderblock-Zonen mit Sentiment-Confluence (in-place).
+
+    Fuer jede Zone wird compute_sentiment_confluence() aufgerufen und
+    die Confluence-Felder gesetzt.
+
+    Args:
+        zones: Liste von Orderblock-Zonen (werden in-place modifiziert)
+        sentiment_score: Aktueller Sentiment Composite Score (0-100), oder None
+    """
+    if sentiment_score is None:
+        return
+
+    for zone in zones:
+        confluence = compute_sentiment_confluence(
+            sentiment_score, zone.direction, zone.conviction_score
+        )
+        zone.sentiment_at_detection = confluence.sentiment_at_detection
+        zone.confluence_label = confluence.confluence_label.value
+        zone.confluence_score = confluence.confluence_score

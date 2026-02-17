@@ -18,9 +18,8 @@ from app.domain.orderblock import (
     Candle,
     OBConfig,
     Orderblock,
-    compute_sentiment_confluence,
-    detect_orderblocks,
-    update_zone_states,
+    annotate_zones_with_confluence,
+    parse_binance_kline,
 )
 from app.domain.orderblock_backtest import run_backtest
 from app.services.binance_public_client import CachedValue, get_binance_public_client
@@ -149,14 +148,7 @@ class OrderblockDataService:
 
         # Sentiment Confluence: Snapshot holen und Zonen annotieren
         sentiment_score = self._fetch_sentiment_snapshot(symbol)
-        if sentiment_score is not None:
-            for zone in result.zones:
-                confluence = compute_sentiment_confluence(
-                    sentiment_score, zone.direction, zone.conviction_score
-                )
-                zone.sentiment_at_detection = confluence.sentiment_at_detection
-                zone.confluence_label = confluence.confluence_label.value
-                zone.confluence_score = confluence.confluence_score
+        annotate_zones_with_confluence(result.zones, sentiment_score)
 
         return {
             "result": result,
@@ -248,18 +240,7 @@ class OrderblockDataService:
                 break
 
             for raw in data:
-                candles.append(
-                    Candle(
-                        timestamp=datetime.fromtimestamp(
-                            raw[0] / 1000, tz=timezone.utc
-                        ).replace(tzinfo=None),
-                        open=Decimal(str(raw[1])),
-                        high=Decimal(str(raw[2])),
-                        low=Decimal(str(raw[3])),
-                        close=Decimal(str(raw[4])),
-                        volume=Decimal(str(raw[5])),
-                    )
-                )
+                candles.append(parse_binance_kline(raw))
 
             # Naechste Seite: letzter Timestamp + 1 Interval
             last_ts = data[-1][0]

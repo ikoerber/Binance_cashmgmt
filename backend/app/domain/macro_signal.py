@@ -352,3 +352,66 @@ def compute_macro_signal(indicators: dict, interval_minutes: int = 15) -> MacroS
         total_factors=4,
         interval_minutes=interval,
     )
+
+
+# ---------------------------------------------------------------------------
+# Hilfs-Berechnungen (extrahiert aus macro_data_service)
+# ---------------------------------------------------------------------------
+
+def compute_change_pct(
+    current: Optional[Decimal],
+    previous: Optional[Decimal],
+) -> Optional[Decimal]:
+    """
+    Berechnet prozentuale Veraenderung. None-safe.
+
+    Returns:
+        ((current - previous) / previous) * 100, oder None
+    """
+    if current is None or previous is None or previous == 0:
+        return None
+    return ((current - previous) / previous) * Decimal("100")
+
+
+def compute_derived_eur_usd(
+    btc_eur: Optional[Decimal],
+    btc_usdt: Optional[Decimal],
+    btc_eur_prev: Optional[Decimal],
+    btc_usdt_prev: Optional[Decimal],
+) -> tuple[Optional[Decimal], Optional[Decimal]]:
+    """
+    Berechnet EUR/USD Fallback-Kurs aus BTC-Cross-Rates.
+
+    EUR/USD = BTC/EUR / BTC/USDT (Kreuzrate)
+
+    Returns:
+        (current_eur_usd, previous_eur_usd) — jeweils Optional[Decimal]
+    """
+    current = None
+    previous = None
+    if btc_eur is not None and btc_usdt is not None and btc_usdt > 0:
+        current = btc_eur / btc_usdt
+    if (
+        btc_eur_prev is not None
+        and btc_usdt_prev is not None
+        and btc_usdt_prev > 0
+    ):
+        previous = btc_eur_prev / btc_usdt_prev
+    return current, previous
+
+
+def compute_yield_spread(
+    rate_a: Optional[Decimal],
+    rate_b: Optional[Decimal],
+) -> Optional[Decimal]:
+    """
+    Berechnet Spread (rate_a - rate_b). None-safe.
+
+    Typisch: US 2Y Yield - DE 2Y Yield.
+
+    Returns:
+        Spread als Decimal, oder None wenn ein Wert fehlt
+    """
+    if rate_a is None or rate_b is None:
+        return None
+    return rate_a - rate_b

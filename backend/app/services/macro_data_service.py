@@ -20,8 +20,11 @@ import requests
 
 from app.domain.macro_signal import (
     MacroIndicator,
-    compute_macro_signal,
     MacroSignalResult,
+    compute_change_pct,
+    compute_derived_eur_usd,
+    compute_macro_signal,
+    compute_yield_spread,
 )
 from app.services.binance_public_client import CachedValue, get_binance_public_client
 
@@ -407,11 +410,8 @@ class MacroDataService:
                 td_quality,
             )
         elif btc_eur and btc_usdt and btc_usdt > 0:
-            eur_usd_curr = btc_eur / btc_usdt
-            eur_usd_prev = (
-                (btc_eur_prev / btc_usdt_prev)
-                if (btc_eur_prev and btc_usdt_prev and btc_usdt_prev > 0)
-                else None
+            eur_usd_curr, eur_usd_prev = compute_derived_eur_usd(
+                btc_eur, btc_usdt, btc_eur_prev, btc_usdt_prev
             )
             indicators["eur_usd"] = self._make_indicator(
                 "EUR/USD",
@@ -472,16 +472,8 @@ class MacroDataService:
         us02y_prev = us02y_data.get("previous")
         de02y_prev = de02y_data.get("previous")
 
-        spread_curr = (
-            (us02y_curr - de02y_curr)
-            if (us02y_curr is not None and de02y_curr is not None)
-            else None
-        )
-        spread_prev = (
-            (us02y_prev - de02y_prev)
-            if (us02y_prev is not None and de02y_prev is not None)
-            else None
-        )
+        spread_curr = compute_yield_spread(us02y_curr, de02y_curr)
+        spread_prev = compute_yield_spread(us02y_prev, de02y_prev)
 
         spread_quality = (
             "live"
@@ -512,14 +504,11 @@ class MacroDataService:
     @staticmethod
     def _make_indicator(name, current, previous, now, source, quality):
         """Erstellt einen MacroIndicator mit berechneter change_pct."""
-        change_pct = None
-        if current is not None and previous is not None and previous != 0:
-            change_pct = ((current - previous) / previous) * Decimal("100")
         return MacroIndicator(
             name=name,
             current=current,
             previous_15m=previous,
-            change_pct=change_pct,
+            change_pct=compute_change_pct(current, previous),
             timestamp=now if current is not None else None,
             source=source,
             quality=quality,
@@ -556,9 +545,7 @@ class MacroDataService:
                 prev = best_entry[key]
                 if prev is not None and prev != 0:
                     indicator.previous_15m = prev
-                    indicator.change_pct = (
-                        (indicator.current - prev) / prev
-                    ) * Decimal("100")
+                    indicator.change_pct = compute_change_pct(indicator.current, prev)
 
     def _get_quality(self, cache_key: str, now: datetime) -> str:
         """Bestimmt Datenqualitaet basierend auf Cache-Alter."""

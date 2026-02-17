@@ -15,15 +15,14 @@ from app.domain.orderblock import (
     ConfluenceLabel,
     ConvictionLevel,
     FairValueGap,
-    InducementLevel,
     OBCategory,
     OBConfig,
     OBDirection,
     OBState,
     Orderblock,
-    SentimentConfluence,
     SwingPoint,
     _is_inside_bar,
+    annotate_zones_with_confluence,
     classify_orderblocks,
     compute_atr,
     compute_conviction_score,
@@ -39,6 +38,7 @@ from app.domain.orderblock import (
     find_fvgs,
     find_inducement_levels,
     find_swing_points,
+    parse_binance_kline,
     update_zone_states,
     _approx_tanh,
     _body_ratio,
@@ -1795,3 +1795,146 @@ class TestSentimentConfluence:
             conviction_score=Decimal("60"),
         )
         assert result.confluence_label == ConfluenceLabel.MODERATE_CONTRARIAN
+
+
+# ---------------------------------------------------------------------------
+# Tests: parse_binance_kline
+# ---------------------------------------------------------------------------
+
+
+class TestParseBinanceKline:
+    """Tests fuer parse_binance_kline() — Binance Kline-Array zu Candle."""
+
+    def test_basic_parsing(self):
+        """Standard Binance Kline-Array wird korrekt geparst."""
+        raw = [
+            1704067200000,  # 2024-01-01 00:00:00 UTC (ms)
+            "42000.50",
+            "42500.00",
+            "41800.25",
+            "42300.75",
+            "123.456",
+            1704070799999,  # close_time (ignoriert)
+            "5187654.321",  # quote_volume (ignoriert)
+            100,            # trades (ignoriert)
+            "61.728",       # taker_buy_base (ignoriert)
+            "2593827.160",  # taker_buy_quote (ignoriert)
+            "0",            # ignore
+        ]
+        candle = parse_binance_kline(raw)
+
+        assert candle.open == Decimal("42000.50")
+        assert candle.high == Decimal("42500.00")
+        assert candle.low == Decimal("41800.25")
+        assert candle.close == Decimal("42300.75")
+        assert candle.volume == Decimal("123.456")
+
+    def test_timestamp_utc_conversion(self):
+        """Timestamp wird als naive datetime (implizit UTC) gespeichert."""
+        raw = [1704067200000, "100", "110", "90", "105", "50"]
+        candle = parse_binance_kline(raw)
+
+        # 1704067200000 ms = 2024-01-01 00:00:00 UTC
+        assert candle.timestamp == datetime(2024, 1, 1, 0, 0, 0)
+        # Naive datetime (kein tzinfo)
+        assert candle.timestamp.tzinfo is None
+
+    def test_decimal_precision(self):
+        """Alle numerischen Felder sind Decimal, nicht float."""
+        raw = [1704067200000, "0.00000001", "0.00000002", "0.00000001", "0.00000001", "0.001"]
+        candle = parse_binance_kline(raw)
+
+        assert isinstance(candle.open, Decimal)
+        assert isinstance(candle.high, Decimal)
+        assert isinstance(candle.low, Decimal)
+        assert isinstance(candle.close, Decimal)
+        assert isinstance(candle.volume, Decimal)
+        assert candle.open == Decimal("0.00000001")
+
+    def test_numeric_values_converted_via_str(self):
+        """Numerische (nicht-String) Werte werden ueber str() konvertiert."""
+        raw = [1704067200000, 42000, 42500, 41800, 42300, 100]
+        candle = parse_binance_kline(raw)
+
+        assert candle.open == Decimal("42000")
+        assert candle.high == Decimal("42500")
+        assert candle.volume == Decimal("100")
+
+    def test_minimal_array_six_elements(self):
+        """Minimum 6 Elemente werden korrekt verarbeitet."""
+        raw = [1704067200000, "100", "110", "90", "105", "50"]
+        candle = parse_binance_kline(raw)
+
+        assert candle.open == Decimal("100")
+        assert candle.close == Decimal("105")
+        assert candle.volume == Decimal("50")
+
+
+# ---------------------------------------------------------------------------
+# Tests: annotate_zones_with_confluence
+# ---------------------------------------------------------------------------
+
+
+class TestAnnotateZonesWithConfluence:
+    """Tests fuer annotate_zones_with_confluence() — In-Place Annotation."""
+
+    def test_annotates_single_zone(self):
+        """Einzelne Zone wird korrekt mit Confluence annotiert."""
+        ob = _make_dummy_ob("ob_1", OBDirection.BULLISH, 5)
+        # conviction_score auf sinnvollen Wert setzen
+        ob.conviction_score = Decimal("60")
+        assert ob.sentiment_at_detection is None
+        assert ob.confluence_label is None
+        assert ob.confluence_score is None
+
+        annotate_zones_with_confluence([ob], Decimal("20"))
+
+        assert ob.sentiment_at_detection == Decimal("20")
+        assert ob.confluence_label == ConfluenceLabel.STRONG_CONTRARIAN.value
+        # 60 * 1.3 = 78 (STRONG_CONTRARIAN mult)
+        assert ob.confluence_score == Decimal("78")
+
+    def test_none_sentiment_is_noop(self):
+        """None sentiment_score fuehrt zu keiner Aenderung (early return)."""
+        ob = _make_dummy_ob("ob_1", OBDirection.BULLISH, 5)
+        annotate_zones_with_confluence([ob], None)
+
+        assert ob.sentiment_at_detection is None
+        assert ob.confluence_label is None
+        assert ob.confluence_score is None
+
+    def test_multiple_zones_annotated(self):
+        """Alle Zonen in der Liste werden annotiert."""
+        obs = [
+            _make_dummy_ob("ob_1", OBDirection.BULLISH, 5),
+            _make_dummy_ob("ob_2", OBDirection.BEARISH, 10),
+        ]
+        for ob in obs:
+            ob.conviction_score = Decimal("50")
+        annotate_zones_with_confluence(obs, Decimal("50"))
+
+        for ob in obs:
+            assert ob.sentiment_at_detection == Decimal("50")
+            assert ob.confluence_label is not None
+            assert ob.confluence_score is not None
+
+    def test_empty_zones_list(self):
+        """Leere Liste verursacht keinen Fehler."""
+        annotate_zones_with_confluence([], Decimal("50"))
+
+    def test_bearish_zone_with_fear_is_adverse(self):
+        """BEARISH Zone bei Fear-Sentiment -> ADVERSE."""
+        ob = _make_dummy_ob("ob_1", OBDirection.BEARISH, 5)
+        ob.conviction_score = Decimal("60")
+        annotate_zones_with_confluence([ob], Decimal("15"))
+
+        assert ob.confluence_label == ConfluenceLabel.ADVERSE.value
+
+    def test_in_place_mutation(self):
+        """Funktion gibt None zurueck, mutiert Zonen in-place."""
+        ob = _make_dummy_ob("ob_1", OBDirection.BULLISH, 5)
+        ob.conviction_score = Decimal("50")
+        result = annotate_zones_with_confluence([ob], Decimal("25"))
+
+        assert result is None
+        assert ob.sentiment_at_detection == Decimal("25")
