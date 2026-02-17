@@ -27,7 +27,9 @@ from sqlalchemy.orm import Session
 logger = logging.getLogger(__name__)
 
 from app.domain.models import LedgerEvent, EventType, EventSource, TradeSide
-from app.db.models import LedgerEventDB, EventTypeEnum, EventSourceEnum, TradeSideEnum
+from app.domain.lots import compute_fee_eur_value
+from app.db.models import LedgerEventDB, TradeSideEnum
+from app.services.sync_service import persist_ledger_event
 from app.services.lot_service import create_lot_from_buy_fill, process_sell_fill
 
 
@@ -216,26 +218,10 @@ def import_trading_bots_csv(
     # 3. Ledger Events persistieren (mit fee_eur_value)
     created_events = []
     for event in new_events:
-        fee_eur_value = _compute_csv_fee_eur_value(event)
-        event_db = LedgerEventDB(
-            id=event.id,
-            user_id=user_id,
-            type=EventTypeEnum[event.type.value],
-            timestamp=event.timestamp,
-            asset=event.asset,
-            amount=event.amount,
-            symbol=event.symbol,
-            price=event.price,
-            side=TradeSideEnum[event.side.value] if event.side else None,
-            fee_asset=event.fee_asset,
-            fee_amount=event.fee_amount,
-            fee_eur_value=fee_eur_value,
-            source=EventSourceEnum[event.source.value],
-            source_id=event.source_id,
-            note=event.note,
-            raw_payload=event.raw_payload,
+        fee_eur_value = compute_fee_eur_value(
+            event.fee_amount, event.fee_asset, event.price, None
         )
-        db.add(event_db)
+        event_db = persist_ledger_event(db, user_id, event, fee_eur_value)
         created_events.append(event_db)
 
     db.flush()
@@ -259,6 +245,8 @@ def import_trading_bots_csv(
             errors.append(f"Error creating lot from buy fill {event_db.id}: {e}")
 
     # Phase 2: Sell-Fills chronologisch allokieren (FIFO)
+    # FIFO Abort-on-Error: Bei Fehler wird die Schleife abgebrochen,
+    # da nachfolgende Sells auf falschen Lots allokiert wuerden.
     sell_events = sorted(
         [e for e in created_events if e.side == TradeSideEnum.SELL],
         key=lambda e: e.timestamp
@@ -268,7 +256,9 @@ def import_trading_bots_csv(
             result = process_sell_fill(db, user_id, event_db.id)
             allocations_count += len(result["allocations"])
         except Exception as e:
-            errors.append(f"Error processing sell fill {event_db.id}: {e}")
+            errors.append(f"FIFO-Abbruch bei Sell-Allocation {event_db.id}: nachfolgende Sells uebersprungen")
+            logger.exception("FIFO abort: sell allocation failed for event %s", event_db.id)
+            break
 
     status = "success" if not errors else "partial_success"
     return {
@@ -289,30 +279,3 @@ def import_trading_bots_csv(
     }
 
 
-def _compute_csv_fee_eur_value(event: LedgerEvent) -> Decimal | None:
-    """
-    Berechnet den EUR-Wert der Fee fuer ein CSV-importiertes Event.
-
-    EUR-Fee und BTC-Fee koennen direkt berechnet werden.
-    BNB/andere Fees haben keinen historischen Preis im CSV-Kontext.
-
-    Args:
-        event: LedgerEvent aus CSV-Import
-
-    Returns:
-        EUR-Wert der Fee, oder None
-    """
-    if not event.fee_amount or event.fee_amount == 0:
-        return None
-
-    if event.fee_asset == "EUR":
-        return event.fee_amount
-    elif event.fee_asset == "BTC" and event.price:
-        return event.fee_amount * event.price
-    else:
-        if event.fee_asset and event.fee_asset not in ("EUR", "BTC"):
-            logger.warning(
-                "CSV import: %s fee detected but no conversion rate available for %s",
-                event.fee_asset, event.id,
-            )
-        return None

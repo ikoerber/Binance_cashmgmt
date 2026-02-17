@@ -2,8 +2,10 @@
  * OpenOrdersPanel - Zeigt offene Sell Orders als Tabelle
  */
 import { formatEUR, formatBTC, formatDate } from '../utils/formatters';
+import { useAppState } from '../contexts/AppStateContext';
 
-const OpenOrdersPanel = ({ openOrders, marketPrice }) => {
+const OpenOrdersPanel = ({ openOrders }) => {
+  const { marketPrice } = useAppState();
   if (openOrders.length === 0) return null;
 
   return (

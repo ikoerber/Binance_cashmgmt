@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   runFullReconciliation,
@@ -7,6 +7,7 @@ import {
   reconcileFills,
 } from '../api/client';
 import { formatNumber, formatEUR, formatBTC } from '../utils/formatters';
+import { useAppState } from '../contexts/AppStateContext';
 import './Reconciliation.css';
 
 const ErrorBanner = ({ errors }) => (
@@ -139,14 +140,18 @@ const FillsSection = ({ report }) => {
   );
 };
 
-const Reconciliation = ({ userId = 'user_123' }) => {
+const Reconciliation = () => {
+  const { userId } = useAppState();
   const queryClient = useQueryClient();
   const [message, setMessage] = useState(null);
   const [lastRunTime, setLastRunTime] = useState(null);
+  const msgTimerRef = useRef(null);
+  useEffect(() => () => { if (msgTimerRef.current) clearTimeout(msgTimerRef.current); }, []);
 
   const showMessage = (type, text) => {
     setMessage({ type, text });
-    setTimeout(() => setMessage(null), 5000);
+    if (msgTimerRef.current) clearTimeout(msgTimerRef.current);
+    msgTimerRef.current = setTimeout(() => setMessage(null), 5000);
   };
 
   const onReconSuccess = () => {

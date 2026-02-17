@@ -15,6 +15,7 @@ from binance.exceptions import BinanceAPIException
 logger = logging.getLogger(__name__)
 
 from app.domain.models import LedgerEvent, EventType, EventSource, TradeSide
+from app.utils.retry import retry_on_transient_error
 
 
 class BinanceService:
@@ -23,8 +24,7 @@ class BinanceService:
 
     Resilienz:
     - Rate Limiting wird von python-binance Library gehandelt
-    - TODO: Exponential Backoff für 429/5xx
-    - TODO: Circuit Breaker
+    - Exponential Backoff fuer 429/5xx via @retry_on_transient_error
     """
 
     def __init__(self, api_key: str, api_secret: str, testnet: bool = False):
@@ -48,39 +48,66 @@ class BinanceService:
         limit: int = 1000
     ) -> List[LedgerEvent]:
         """
-        Holt Trades von Binance und konvertiert zu Ledger Events
+        Holt Trades von Binance und konvertiert zu Ledger Events.
+
+        Paginiert automatisch via fromId wenn >1000 Trades vorhanden.
 
         Args:
             symbol: Trading Pair (Default: BTCEUR)
             start_time: Optional - nur Trades nach diesem Zeitpunkt
-            limit: Max Anzahl Trades (max 1000 per API call)
+            limit: Max Anzahl Trades pro API-Call (max 1000)
 
         Returns:
-            Liste von LedgerEvents
+            Liste von LedgerEvents (chronologisch)
 
         Raises:
             BinanceAPIException: Bei API-Fehlern
         """
-        try:
-            # Binance API Call
-            params = {"symbol": symbol, "limit": limit}
-            if start_time:
-                params["startTime"] = int(start_time.timestamp() * 1000)  # Milliseconds
+        all_events = []
+        from_id = None
 
-            trades = self.client.get_my_trades(**params)
+        while True:
+            batch = self._fetch_trades_page(symbol, start_time, limit, from_id)
+            if not batch:
+                break
 
-            # Konvertiere zu LedgerEvents
-            events = []
-            for trade in trades:
-                event = self._trade_to_ledger_event(trade, symbol)
-                events.append(event)
+            all_events.extend(batch)
 
-            return events
+            # Wenn weniger als limit zurueckgegeben, sind wir fertig
+            if len(batch) < limit:
+                break
 
-        except BinanceAPIException as e:
-            # TODO: Besseres Error Handling (Retry, Circuit Breaker)
-            raise Exception(f"Binance API Error: {e.status_code} - {e.message}")
+            # Naechste Seite: fromId = letzter Trade-ID + 1
+            last_source_id = batch[-1].source_id
+            from_id = int(last_source_id) + 1
 
+        return all_events
+
+    @retry_on_transient_error()
+    def _fetch_trades_page(
+        self,
+        symbol: str,
+        start_time: Optional[datetime],
+        limit: int,
+        from_id: Optional[int] = None,
+    ) -> List[LedgerEvent]:
+        """Einzelne Seite von Trades holen (retryable)."""
+        params = {"symbol": symbol, "limit": limit}
+        if from_id is not None:
+            params["fromId"] = from_id
+        elif start_time:
+            params["startTime"] = int(start_time.timestamp() * 1000)
+
+        trades = self.client.get_my_trades(**params)
+
+        events = []
+        for trade in trades:
+            event = self._trade_to_ledger_event(trade, symbol)
+            events.append(event)
+
+        return events
+
+    @retry_on_transient_error()
     def get_current_price(self, symbol: str = "BTCEUR") -> Decimal:
         """
         Holt aktuellen Marktpreis
@@ -91,12 +118,10 @@ class BinanceService:
         Returns:
             Aktueller Preis als Decimal
         """
-        try:
-            ticker = self.client.get_symbol_ticker(symbol=symbol)
-            return Decimal(ticker["price"])
-        except BinanceAPIException as e:
-            raise Exception(f"Binance API Error: {e.status_code} - {e.message}")
+        ticker = self.client.get_symbol_ticker(symbol=symbol)
+        return Decimal(ticker["price"])
 
+    @retry_on_transient_error()
     def get_historical_price(self, symbol: str, timestamp: datetime) -> Decimal:
         """
         Holt den historischen Preis fuer ein Symbol zum angegebenen Zeitpunkt.
@@ -199,6 +224,7 @@ class BinanceService:
             raw_payload=trade,
         )
 
+    @retry_on_transient_error()
     def fetch_account_balance(self) -> dict:
         """
         Holt aktuelle Wallet-Balances
@@ -206,27 +232,23 @@ class BinanceService:
         Returns:
             Dict mit Balances: {"BTC": Decimal("0.01"), "EUR": Decimal("1000.00")}
         """
-        try:
-            account = self.client.get_account()
-            balances = {}
+        account = self.client.get_account()
+        balances = {}
 
-            for balance in account["balances"]:
-                asset = balance["asset"]
-                free = Decimal(balance["free"])
-                locked = Decimal(balance["locked"])
-                total = free + locked
+        for balance in account["balances"]:
+            asset = balance["asset"]
+            free = Decimal(balance["free"])
+            locked = Decimal(balance["locked"])
+            total = free + locked
 
-                if total > 0:
-                    balances[asset] = {
-                        "free": free,
-                        "locked": locked,
-                        "total": total
-                    }
+            if total > 0:
+                balances[asset] = {
+                    "free": free,
+                    "locked": locked,
+                    "total": total
+                }
 
-            return balances
-
-        except BinanceAPIException as e:
-            raise Exception(f"Binance API Error: {e.status_code} - {e.message}")
+        return balances
 
     def fetch_deposit_history(
         self,
@@ -235,12 +257,14 @@ class BinanceService:
         limit: int = 1000
     ) -> List[LedgerEvent]:
         """
-        Holt Deposit-Historie von Binance und konvertiert zu Ledger Events
+        Holt Deposit-Historie von Binance und konvertiert zu Ledger Events.
+
+        Paginiert automatisch via offset wenn >limit Deposits vorhanden.
 
         Args:
             coin: Optional - Filter nach Coin (z.B. "EUR", "BTC")
             start_time: Optional - nur Deposits nach diesem Zeitpunkt
-            limit: Max Anzahl Deposits
+            limit: Max Anzahl Deposits pro API-Call (max 1000)
 
         Returns:
             Liste von LedgerEvents
@@ -248,28 +272,44 @@ class BinanceService:
         Raises:
             BinanceAPIException: Bei API-Fehlern
         """
-        try:
-            params = {"limit": limit}
-            if coin:
-                params["coin"] = coin
-            if start_time:
-                params["startTime"] = int(start_time.timestamp() * 1000)
+        all_events = []
+        offset = 0
 
-            deposits = self.client.get_deposit_history(**params)
+        while True:
+            batch = self._fetch_deposit_page(coin, start_time, limit, offset)
+            all_events.extend(batch)
 
-            events = []
-            for deposit in deposits:
-                # Nur erfolgreiche Deposits berücksichtigen
-                if deposit["status"] != 1:  # 1 = Success
-                    continue
+            if len(batch) < limit:
+                break
+            offset += limit
 
-                event = self._deposit_to_ledger_event(deposit)
-                events.append(event)
+        return all_events
 
-            return events
+    @retry_on_transient_error()
+    def _fetch_deposit_page(
+        self,
+        coin: Optional[str],
+        start_time: Optional[datetime],
+        limit: int,
+        offset: int,
+    ) -> List[LedgerEvent]:
+        """Einzelne Seite von Deposits holen (retryable)."""
+        params = {"limit": limit, "offset": offset}
+        if coin:
+            params["coin"] = coin
+        if start_time:
+            params["startTime"] = int(start_time.timestamp() * 1000)
 
-        except BinanceAPIException as e:
-            raise Exception(f"Binance API Error: {e.status_code} - {e.message}")
+        deposits = self.client.get_deposit_history(**params)
+
+        events = []
+        for deposit in deposits:
+            if deposit["status"] != 1:  # 1 = Success
+                continue
+            event = self._deposit_to_ledger_event(deposit)
+            events.append(event)
+
+        return events
 
     def fetch_withdrawal_history(
         self,
@@ -278,12 +318,14 @@ class BinanceService:
         limit: int = 1000
     ) -> List[LedgerEvent]:
         """
-        Holt Withdrawal-Historie von Binance und konvertiert zu Ledger Events
+        Holt Withdrawal-Historie von Binance und konvertiert zu Ledger Events.
+
+        Paginiert automatisch via offset wenn >limit Withdrawals vorhanden.
 
         Args:
             coin: Optional - Filter nach Coin (z.B. "EUR", "BTC")
             start_time: Optional - nur Withdrawals nach diesem Zeitpunkt
-            limit: Max Anzahl Withdrawals
+            limit: Max Anzahl Withdrawals pro API-Call (max 1000)
 
         Returns:
             Liste von LedgerEvents
@@ -291,28 +333,44 @@ class BinanceService:
         Raises:
             BinanceAPIException: Bei API-Fehlern
         """
-        try:
-            params = {"limit": limit}
-            if coin:
-                params["coin"] = coin
-            if start_time:
-                params["startTime"] = int(start_time.timestamp() * 1000)
+        all_events = []
+        offset = 0
 
-            withdrawals = self.client.get_withdraw_history(**params)
+        while True:
+            batch = self._fetch_withdrawal_page(coin, start_time, limit, offset)
+            all_events.extend(batch)
 
-            events = []
-            for withdrawal in withdrawals:
-                # Nur erfolgreiche Withdrawals berücksichtigen
-                if withdrawal["status"] != 6:  # 6 = Completed
-                    continue
+            if len(batch) < limit:
+                break
+            offset += limit
 
-                event = self._withdrawal_to_ledger_event(withdrawal)
-                events.append(event)
+        return all_events
 
-            return events
+    @retry_on_transient_error()
+    def _fetch_withdrawal_page(
+        self,
+        coin: Optional[str],
+        start_time: Optional[datetime],
+        limit: int,
+        offset: int,
+    ) -> List[LedgerEvent]:
+        """Einzelne Seite von Withdrawals holen (retryable)."""
+        params = {"limit": limit, "offset": offset}
+        if coin:
+            params["coin"] = coin
+        if start_time:
+            params["startTime"] = int(start_time.timestamp() * 1000)
 
-        except BinanceAPIException as e:
-            raise Exception(f"Binance API Error: {e.status_code} - {e.message}")
+        withdrawals = self.client.get_withdraw_history(**params)
+
+        events = []
+        for withdrawal in withdrawals:
+            if withdrawal["status"] != 6:  # 6 = Completed
+                continue
+            event = self._withdrawal_to_ledger_event(withdrawal)
+            events.append(event)
+
+        return events
 
     def _deposit_to_ledger_event(self, deposit: dict) -> LedgerEvent:
         """
@@ -410,6 +468,7 @@ class BinanceService:
     # ===== FIAT (EUR SEPA) Endpunkte =====
     # Diese verwenden /sapi/v1/fiat/orders (separater Endpunkt für Fiat!)
 
+    @retry_on_transient_error()
     def fetch_fiat_deposit_history(
         self,
         begin_time: Optional[datetime] = None,
@@ -428,42 +487,39 @@ class BinanceService:
         Returns:
             Liste von LedgerEvents (typ: EXTERNAL_CASHFLOW)
         """
-        try:
-            all_deposits = []
-            page = 1
+        all_deposits = []
+        page = 1
 
-            while True:
-                params = {
-                    "transactionType": "0",  # 0 = Deposit
-                    "page": page,
-                    "rows": 500,  # Max pro Seite
-                }
-                if begin_time:
-                    params["beginTime"] = int(begin_time.timestamp() * 1000)
-                if end_time:
-                    params["endTime"] = int(end_time.timestamp() * 1000)
+        while True:
+            params = {
+                "transactionType": "0",  # 0 = Deposit
+                "page": page,
+                "rows": 500,  # Max pro Seite
+            }
+            if begin_time:
+                params["beginTime"] = int(begin_time.timestamp() * 1000)
+            if end_time:
+                params["endTime"] = int(end_time.timestamp() * 1000)
 
-                result = self.client.get_fiat_deposit_withdraw_history(**params)
-                data = result.get("data", [])
+            result = self.client.get_fiat_deposit_withdraw_history(**params)
+            data = result.get("data", [])
 
-                if not data:
-                    break
+            if not data:
+                break
 
-                for entry in data:
-                    if entry.get("status") == "Successful":
-                        event = self._fiat_deposit_to_ledger_event(entry)
-                        all_deposits.append(event)
+            for entry in data:
+                if entry.get("status") == "Successful":
+                    event = self._fiat_deposit_to_ledger_event(entry)
+                    all_deposits.append(event)
 
-                # Pagination: Wenn weniger als 500, sind wir fertig
-                if len(data) < 500:
-                    break
-                page += 1
+            # Pagination: Wenn weniger als 500, sind wir fertig
+            if len(data) < 500:
+                break
+            page += 1
 
-            return all_deposits
+        return all_deposits
 
-        except Exception as e:
-            raise Exception(f"Binance Fiat API Error: {e}")
-
+    @retry_on_transient_error()
     def fetch_fiat_withdrawal_history(
         self,
         begin_time: Optional[datetime] = None,
@@ -479,40 +535,36 @@ class BinanceService:
         Returns:
             Liste von LedgerEvents (typ: EXTERNAL_CASHFLOW, negativ)
         """
-        try:
-            all_withdrawals = []
-            page = 1
+        all_withdrawals = []
+        page = 1
 
-            while True:
-                params = {
-                    "transactionType": "1",  # 1 = Withdrawal
-                    "page": page,
-                    "rows": 500,
-                }
-                if begin_time:
-                    params["beginTime"] = int(begin_time.timestamp() * 1000)
-                if end_time:
-                    params["endTime"] = int(end_time.timestamp() * 1000)
+        while True:
+            params = {
+                "transactionType": "1",  # 1 = Withdrawal
+                "page": page,
+                "rows": 500,
+            }
+            if begin_time:
+                params["beginTime"] = int(begin_time.timestamp() * 1000)
+            if end_time:
+                params["endTime"] = int(end_time.timestamp() * 1000)
 
-                result = self.client.get_fiat_deposit_withdraw_history(**params)
-                data = result.get("data", [])
+            result = self.client.get_fiat_deposit_withdraw_history(**params)
+            data = result.get("data", [])
 
-                if not data:
-                    break
+            if not data:
+                break
 
-                for entry in data:
-                    if entry.get("status") == "Successful":
-                        event = self._fiat_withdrawal_to_ledger_event(entry)
-                        all_withdrawals.append(event)
+            for entry in data:
+                if entry.get("status") == "Successful":
+                    event = self._fiat_withdrawal_to_ledger_event(entry)
+                    all_withdrawals.append(event)
 
-                if len(data) < 500:
-                    break
-                page += 1
+            if len(data) < 500:
+                break
+            page += 1
 
-            return all_withdrawals
-
-        except Exception as e:
-            raise Exception(f"Binance Fiat API Error: {e}")
+        return all_withdrawals
 
     def _fiat_deposit_to_ledger_event(self, entry: dict) -> LedgerEvent:
         """

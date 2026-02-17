@@ -7,28 +7,26 @@ import {
   getSettings, analyzeOrderblocks, getOrderblockZones, deleteOrderblockZones,
   getOrderblockBacktestRuns, getOrderblockCandles,
 } from '../api/client';
-import { formatEUR, formatDate, formatTime, formatNumber } from '../utils/formatters';
+import { formatNumber, formatDate } from '../utils/formatters';
+import { useAppState } from '../contexts/AppStateContext';
 import OrderblockChart from './OrderblockChart';
+import OrderblockKPIs from './OrderblockKPIs';
+import OrderblockFilters from './OrderblockFilters';
+import OrderblockZoneTable from './OrderblockZoneTable';
+import OrderblockTradeTable from './OrderblockTradeTable';
 import './Orderblock.css';
 
 // ─── Helpers ───
 
-const getScoreGradient = (score) => {
-  const s = parseFloat(score) || 0;
-  if (s <= 25) return 'linear-gradient(90deg, #94a3b8, #cbd5e1)';
-  if (s <= 50) return 'linear-gradient(90deg, #60a5fa, #3b82f6)';
-  if (s <= 75) return 'linear-gradient(90deg, #fbbf24, #d97706)';
-  return 'linear-gradient(90deg, #a855f7, #7c3aed)';
+const zoneDistance = (zone, mp) => {
+  const top = parseFloat(zone.zone_top) || 0;
+  const bottom = parseFloat(zone.zone_bottom) || 0;
+  if (mp >= bottom && mp <= top) return 0;
+  return Math.min(Math.abs(mp - top), Math.abs(mp - bottom));
 };
 
-const SORT_ICON = { asc: ' \u25B2', desc: ' \u25BC' };
-
-const SortIcon = ({ sortConfig, col }) => {
-  if (sortConfig.key !== col) return <span className="sort-icon">{SORT_ICON.asc}</span>;
-  return <span className="sort-icon sort-active">{SORT_ICON[sortConfig.dir]}</span>;
-};
-
-const Orderblock = ({ userId = 'user_123', marketPrice }) => {
+const Orderblock = () => {
+  const { userId, marketPrice } = useAppState();
   const queryClient = useQueryClient();
 
   // ─── State ───
@@ -53,7 +51,6 @@ const Orderblock = ({ userId = 'user_123', marketPrice }) => {
     msgTimerRef.current = setTimeout(() => setMessage(null), 5000);
   };
 
-  // Cleanup Timer bei Unmount
   useEffect(() => {
     return () => { if (msgTimerRef.current) clearTimeout(msgTimerRef.current); };
   }, []);
@@ -127,14 +124,6 @@ const Orderblock = ({ userId = 'user_123', marketPrice }) => {
     return z;
   }, [allZones, zoneStateFilter, convictionFilter, categoryFilter, confluenceFilter]);
 
-  // Distanz vom Marktpreis zur Zone (0 wenn Preis innerhalb der Zone)
-  const zoneDistance = (zone, mp) => {
-    const top = parseFloat(zone.zone_top) || 0;
-    const bottom = parseFloat(zone.zone_bottom) || 0;
-    if (mp >= bottom && mp <= top) return 0;
-    return Math.min(Math.abs(mp - top), Math.abs(mp - bottom));
-  };
-
   const sortedZones = useMemo(() => {
     if (!zoneSortConfig.key) return filteredZones;
     return [...filteredZones].sort((a, b) => {
@@ -145,7 +134,6 @@ const Orderblock = ({ userId = 'user_123', marketPrice }) => {
         bv = zoneDistance(b, mp);
         const cmp = zoneSortConfig.dir === 'asc' ? av - bv : bv - av;
         if (cmp !== 0) return cmp;
-        // Sekundaer: hoechster Score zuerst
         return (parseFloat(b.conviction_score) || 0) - (parseFloat(a.conviction_score) || 0);
       }
       av = a[zoneSortConfig.key]; bv = b[zoneSortConfig.key];
@@ -200,13 +188,6 @@ const Orderblock = ({ userId = 'user_123', marketPrice }) => {
     setSelectedZone(null);
     setSelectedTradeRow(null);
   }, [selectedInterval, zoneStateFilter, convictionFilter, categoryFilter, confluenceFilter]);
-
-  // ─── Zone KPIs ───
-  const unmitCount = allZones.filter(z => z.state === 'UNMITIGATED').length;
-  const hcCount = allZones.filter(z => z.is_high_conviction_zscore).length;
-  const avgScore = allZones.length > 0
-    ? (allZones.reduce((s, z) => s + (parseFloat(z.conviction_score) || 0), 0) / allZones.length)
-    : 0;
 
   // ─── Chart Data ───
   const metrics = analyzeResult?.metrics;
@@ -341,107 +322,21 @@ const Orderblock = ({ userId = 'user_123', marketPrice }) => {
         </div>
       </div>
 
-      {/* ─── KPI Cards (Zones + Backtest combined) ─── */}
-      {(allZones.length > 0 || metrics) && (
-        <div className="ob-kpi-grid">
-          <div className="ob-kpi-card">
-            <h3>Total Zones</h3>
-            <div className="ob-kpi-value">{allZones.length}</div>
-            <div className="ob-kpi-sub">{unmitCount} aktiv (Unmitigated)</div>
-          </div>
-          {metrics && (
-            <div className="ob-kpi-card ob-kpi-bordered-green">
-              <h3>Hit Rate</h3>
-              <div className="ob-kpi-value ob-kpi-accent">
-                {metrics.hit_rate != null ? `${formatNumber(parseFloat(metrics.hit_rate) * 100, 1)}%` : 'N/A'}
-              </div>
-              <div className="ob-kpi-sub">
-                {metrics.hits} Hits / {metrics.hits + metrics.misses} abgeschlossen
-              </div>
-            </div>
-          )}
-          <div className="ob-kpi-card ob-kpi-bordered-amber">
-            <h3>High Conviction</h3>
-            <div className="ob-kpi-value">{hcCount}</div>
-            <div className="ob-kpi-sub">Z-Score &gt; Threshold</div>
-          </div>
-          <div className="ob-kpi-card ob-kpi-bordered-blue">
-            <h3>Avg Score</h3>
-            <div className="ob-kpi-value">{formatNumber(avgScore, 1)}</div>
-            <div className="ob-kpi-bar-track">
-              <div
-                className="ob-kpi-bar-fill"
-                style={{ width: `${avgScore}%`, background: getScoreGradient(avgScore) }}
-              />
-            </div>
-          </div>
-          {(() => {
-            const strongCount = allZones.filter(z => z.confluence_label === 'STRONG_CONTRARIAN').length;
-            const sentimentScore = analyzeResult?.meta?.sentiment_score;
-            return (strongCount > 0 || sentimentScore != null) ? (
-              <div className="ob-kpi-card ob-kpi-bordered-purple">
-                <h3>Sentiment Confluence</h3>
-                <div className="ob-kpi-value">{strongCount} Strong</div>
-                <div className="ob-kpi-sub">
-                  {sentimentScore != null
-                    ? `Sentiment: ${formatNumber(sentimentScore, 0)}/100`
-                    : 'Sentiment: N/A'}
-                </div>
-              </div>
-            ) : null;
-          })()}
-        </div>
-      )}
+      {/* ─── KPI Cards ─── */}
+      <OrderblockKPIs
+        allZones={allZones}
+        metrics={metrics}
+        analyzeResult={analyzeResult}
+      />
 
       {/* ─── Filters ─── */}
       {allZones.length > 0 && (
-        <div className="ob-filters">
-          <div className="ob-filter-group">
-            <label>State</label>
-            <select value={zoneStateFilter} onChange={e => setZoneStateFilter(e.target.value)}>
-              <option value="">Alle</option>
-              <option value="UNMITIGATED">Unmitigated</option>
-              <option value="MITIGATED">Mitigated</option>
-              <option value="INVALID">Invalid</option>
-            </select>
-          </div>
-          <div className="ob-filter-group">
-            <label>Conviction</label>
-            <select value={convictionFilter} onChange={e => setConvictionFilter(e.target.value)}>
-              <option value="">Alle</option>
-              <option value="LOW">Low</option>
-              <option value="STANDARD">Standard</option>
-              <option value="HIGH">High</option>
-              <option value="INSTITUTIONAL">Institutional</option>
-            </select>
-          </div>
-          <div className="ob-filter-group">
-            <label>Category</label>
-            <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}>
-              <option value="">Alle</option>
-              <option value="EXTREME">Extreme</option>
-              <option value="DECISIONAL">Decisional</option>
-              <option value="SMT">SMT</option>
-              <option value="UNCLASSIFIED">Unclassified</option>
-            </select>
-          </div>
-          <div className="ob-filter-group">
-            <label>Confluence</label>
-            <select value={confluenceFilter} onChange={e => setConfluenceFilter(e.target.value)}>
-              <option value="">Alle</option>
-              <option value="STRONG_CONTRARIAN">Strong Contrarian</option>
-              <option value="MODERATE_CONTRARIAN">Moderate Contrarian</option>
-              <option value="NEUTRAL">Neutral</option>
-              <option value="ADVERSE">Adverse</option>
-            </select>
-          </div>
-          <button
-            className="btn-ob-filter-reset"
-            onClick={() => { setZoneStateFilter('UNMITIGATED'); setConvictionFilter(''); setCategoryFilter(''); setConfluenceFilter(''); }}
-          >
-            Reset
-          </button>
-        </div>
+        <OrderblockFilters
+          zoneStateFilter={zoneStateFilter} setZoneStateFilter={setZoneStateFilter}
+          convictionFilter={convictionFilter} setConvictionFilter={setConvictionFilter}
+          categoryFilter={categoryFilter} setCategoryFilter={setCategoryFilter}
+          confluenceFilter={confluenceFilter} setConfluenceFilter={setConfluenceFilter}
+        />
       )}
 
       {/* ─── Charts ─── */}
@@ -490,123 +385,16 @@ const Orderblock = ({ userId = 'user_123', marketPrice }) => {
         <div className="ob-error">Fehler beim Laden der Zonen. Bitte erneut versuchen.</div>
       ) : zonesLoading ? (
         <div className="ob-loading">Lade Zonen...</div>
-      ) : sortedZones.length > 0 ? (
-        <div className="ob-table-container">
-          <table className="ob-table">
-            <thead>
-              <tr>
-                <th onClick={() => handleZoneSort('direction')}>
-                  Direction <SortIcon sortConfig={zoneSortConfig} col="direction" />
-                </th>
-                <th onClick={() => handleZoneSort('state')}>
-                  State <SortIcon sortConfig={zoneSortConfig} col="state" />
-                </th>
-                <th onClick={() => handleZoneSort('conviction')}>
-                  Conviction <SortIcon sortConfig={zoneSortConfig} col="conviction" />
-                </th>
-                <th onClick={() => handleZoneSort('category')}>
-                  Category <SortIcon sortConfig={zoneSortConfig} col="category" />
-                </th>
-                <th onClick={() => handleZoneSort('conviction_score')}>
-                  Score <SortIcon sortConfig={zoneSortConfig} col="conviction_score" />
-                </th>
-                <th onClick={() => handleZoneSort('has_liquidity_sweep')}>
-                  Sweep <SortIcon sortConfig={zoneSortConfig} col="has_liquidity_sweep" />
-                </th>
-                <th onClick={() => handleZoneSort('confluence_label')}>
-                  Confluence <SortIcon sortConfig={zoneSortConfig} col="confluence_label" />
-                </th>
-                <th onClick={() => handleZoneSort('zone_top')}>
-                  Zone Range <SortIcon sortConfig={zoneSortConfig} col="zone_top" />
-                </th>
-                <th onClick={() => handleZoneSort('price_distance')}>
-                  Distanz <SortIcon sortConfig={zoneSortConfig} col="price_distance" />
-                </th>
-                <th onClick={() => handleZoneSort('formed_at')}>
-                  Formed At <SortIcon sortConfig={zoneSortConfig} col="formed_at" />
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {sortedZones.map(zone => (
-                <tr
-                  key={zone.id}
-                  className={`ob-zone-row ${selectedZone?.id === zone.id ? 'ob-zone-row-selected' : ''}`}
-                  onClick={() => setSelectedZone(selectedZone?.id === zone.id ? null : zone)}
-                >
-                  <td>
-                    <span className={`ob-badge dir-${zone.direction.toLowerCase()}`}>
-                      {zone.direction === 'BULLISH' ? '\u2191 Bull' : '\u2193 Bear'}
-                    </span>
-                  </td>
-                  <td>
-                    <span className={`ob-badge state-${zone.state.toLowerCase()}`}>
-                      {zone.state}
-                    </span>
-                  </td>
-                  <td>
-                    <span className={`ob-badge conv-${zone.conviction.toLowerCase()}`}>
-                      {zone.conviction}
-                    </span>
-                  </td>
-                  <td>
-                    <span className={`ob-badge cat-${(zone.category || 'unclassified').toLowerCase()}`}>
-                      {zone.category || 'N/A'}
-                    </span>
-                  </td>
-                  <td>
-                    <div className="ob-score-cell">
-                      <span className="ob-score-value">{formatNumber(zone.conviction_score, 1)}</span>
-                      <div className="ob-score-bar-track">
-                        <div
-                          className="ob-score-bar-fill"
-                          style={{
-                            width: `${parseFloat(zone.conviction_score) || 0}%`,
-                            background: getScoreGradient(zone.conviction_score),
-                          }}
-                        />
-                      </div>
-                    </div>
-                  </td>
-                  <td>
-                    {zone.has_liquidity_sweep ? (
-                      <span className="ob-badge sweep-yes" title={zone.liquidity_sweep_level ? `Level: ${formatEUR(zone.liquidity_sweep_level)}` : ''}>
-                        Sweep
-                      </span>
-                    ) : (
-                      <span className="ob-badge sweep-no">&ndash;</span>
-                    )}
-                  </td>
-                  <td>
-                    {zone.confluence_label ? (
-                      <span className={`ob-badge confl-${zone.confluence_label.toLowerCase().replace(/_/g, '-')}`}>
-                        {zone.confluence_label === 'STRONG_CONTRARIAN' ? 'Strong'
-                          : zone.confluence_label === 'MODERATE_CONTRARIAN' ? 'Moderate'
-                          : zone.confluence_label === 'ADVERSE' ? 'Adverse'
-                          : 'Neutral'}
-                      </span>
-                    ) : (
-                      <span className="ob-badge confl-na">N/A</span>
-                    )}
-                  </td>
-                  <td>
-                    <div className="cell-mono">{formatEUR(zone.zone_top)}</div>
-                    <div className="cell-secondary">{formatEUR(zone.zone_bottom)}</div>
-                  </td>
-                  <td>
-                    {marketPrice ? (
-                      <span className="cell-mono">
-                        {formatEUR(zoneDistance(zone, marketPrice))}
-                      </span>
-                    ) : '—'}
-                  </td>
-                  <td>{formatDate(zone.formed_at)} {formatTime(zone.formed_at)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : null}
+      ) : (
+        <OrderblockZoneTable
+          sortedZones={sortedZones}
+          selectedZone={selectedZone}
+          onSelectZone={setSelectedZone}
+          zoneSortConfig={zoneSortConfig}
+          onSort={handleZoneSort}
+          marketPrice={marketPrice}
+        />
+      )}
 
       {/* ─── Candlestick Chart (bei selektierter Zone) ─── */}
       {selectedZone && (candlesError ? (
@@ -632,85 +420,20 @@ const Orderblock = ({ userId = 'user_123', marketPrice }) => {
         ) : null
       )}
 
-      {/* ─── Trade Outcomes (collapsible) ─── */}
-      {trades.length > 0 && (
-        <div className="ob-trades-section">
-          <button
-            className="btn-ob-trades-toggle"
-            onClick={() => setShowTrades(v => !v)}
-          >
-            {showTrades ? 'Trade-Details ausblenden' : `Trade-Details anzeigen (${trades.length})`}
-          </button>
-          {showTrades && (
-            <div className="ob-table-container">
-              <table className="ob-table">
-                <thead>
-                  <tr>
-                    <th onClick={() => handleTradeSort('outcome')}>
-                      Outcome <SortIcon sortConfig={tradeSortConfig} col="outcome" />
-                    </th>
-                    <th onClick={() => handleTradeSort('conviction')}>
-                      Conviction <SortIcon sortConfig={tradeSortConfig} col="conviction" />
-                    </th>
-                    <th onClick={() => handleTradeSort('direction')}>
-                      Direction <SortIcon sortConfig={tradeSortConfig} col="direction" />
-                    </th>
-                    <th>Entry / Stop / Target</th>
-                    <th onClick={() => handleTradeSort('penetration_depth_pct')}>
-                      Penetration <SortIcon sortConfig={tradeSortConfig} col="penetration_depth_pct" />
-                    </th>
-                    <th onClick={() => handleTradeSort('holding_duration_candles')}>
-                      Duration <SortIcon sortConfig={tradeSortConfig} col="holding_duration_candles" />
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedTrades.map((trade) => (
-                    <tr
-                      key={`${trade.ob_id}_${trade.entry_timestamp}`}
-                      className={`ob-zone-row ${selectedTradeRow?.ob_id === trade.ob_id ? 'ob-zone-row-selected' : ''}`}
-                      onClick={() => setSelectedTradeRow(selectedTradeRow?.ob_id === trade.ob_id ? null : trade)}
-                    >
-                      <td>
-                        <span className={`ob-badge outcome-${trade.outcome.toLowerCase()}`}>
-                          {trade.outcome}
-                        </span>
-                      </td>
-                      <td>
-                        <span className={`ob-badge conv-${trade.conviction.toLowerCase()}`}>
-                          {trade.conviction}
-                        </span>
-                      </td>
-                      <td>
-                        <span className={`ob-badge dir-${trade.direction.toLowerCase()}`}>
-                          {trade.direction === 'BULLISH' ? '\u2191' : '\u2193'}
-                        </span>
-                      </td>
-                      <td>
-                        <div className="cell-mono">E: {formatEUR(trade.entry_edge)}</div>
-                        <div className="cell-mono cell-secondary">S: {formatEUR(trade.stop_edge)}</div>
-                        <div className="cell-mono cell-secondary">T: {formatEUR(trade.target)}</div>
-                      </td>
-                      <td>{trade.penetration_depth_pct != null ? `${formatNumber(trade.penetration_depth_pct, 1)}%` : '-'}</td>
-                      <td>{trade.holding_duration_candles != null ? `${trade.holding_duration_candles} Kerzen` : '-'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* ─── Trade Candlestick Chart ─── */}
-          {showTrades && selectedTradeRow && (
-            <OrderblockChart
-              candles={tradeCandleData?.candles || []}
-              zone={selectedTradeZone}
-              trade={selectedTradeRow}
-              isLoading={tradeCandlesLoading}
-            />
-          )}
-        </div>
-      )}
+      {/* ─── Trade Outcomes ─── */}
+      <OrderblockTradeTable
+        trades={trades}
+        sortedTrades={sortedTrades}
+        showTrades={showTrades}
+        onToggleTrades={() => setShowTrades(v => !v)}
+        selectedTradeRow={selectedTradeRow}
+        onSelectTradeRow={setSelectedTradeRow}
+        tradeSortConfig={tradeSortConfig}
+        onSort={handleTradeSort}
+        selectedTradeZone={selectedTradeZone}
+        tradeCandleData={tradeCandleData}
+        tradeCandlesLoading={tradeCandlesLoading}
+      />
 
       {/* ─── Historical Runs ─── */}
       {runsError && <div className="ob-error">Fehler beim Laden der Analyse-Runs.</div>}

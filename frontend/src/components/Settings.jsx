@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getSettings, updateSettings } from '../api/client';
+import { useAppState } from '../contexts/AppStateContext';
 import './Settings.css';
 
-const Settings = ({ userId = 'user_123' }) => {
+const Settings = () => {
+  const { userId } = useAppState();
   const queryClient = useQueryClient();
   const [message, setMessage] = useState(null);
   const [maxOrderValueEur, setMaxOrderValueEur] = useState('');
@@ -14,9 +16,13 @@ const Settings = ({ userId = 'user_123' }) => {
   const [obTargetRr, setObTargetRr] = useState('2.0');
   const [obImpulseWindow, setObImpulseWindow] = useState('5');
 
+  const msgTimerRef = useRef(null);
+  useEffect(() => () => { if (msgTimerRef.current) clearTimeout(msgTimerRef.current); }, []);
+
   const showMessage = (type, text) => {
     setMessage({ type, text });
-    setTimeout(() => setMessage(null), 5000);
+    if (msgTimerRef.current) clearTimeout(msgTimerRef.current);
+    msgTimerRef.current = setTimeout(() => setMessage(null), 5000);
   };
 
   const { data: settings, isLoading } = useQuery({

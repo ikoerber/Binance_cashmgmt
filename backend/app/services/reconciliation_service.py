@@ -3,15 +3,19 @@ Reconciliation Service - Synct Binance mit lokaler DB
 
 Kritisch für Production: Detektiert Diskrepanzen zwischen Binance und lokaler DB.
 """
+import logging
 from decimal import Decimal
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 from sqlalchemy.orm import Session
 
+from app.constants import BINANCE_ORDER_STATUS_MAP, map_binance_order_status
 from app.db.models import OrderDB, OrderStatusEnum, EventTypeEnum, LedgerEventDB
 from app.services.binance import BinanceService
 from app.services.order_tracking_service import OrderTrackingService
 from app.services.sync_service import SyncService
+
+logger = logging.getLogger(__name__)
 
 
 class ReconciliationService:
@@ -62,8 +66,9 @@ class ReconciliationService:
         try:
             binance_orders = self.binance_service.client.get_open_orders(symbol=symbol)
             binance_order_ids = {str(order["orderId"]) for order in binance_orders}
-        except Exception as e:
-            report["errors"].append(f"Failed to fetch Binance orders: {str(e)}")
+        except Exception:
+            logger.exception("Failed to fetch Binance open orders for user=%s", user_id)
+            report["errors"].append("Binance-Orders konnten nicht abgerufen werden")
             return report
 
         # 2. Get all open/partially filled orders from DB
@@ -92,16 +97,15 @@ class ReconciliationService:
 
                     # Map Binance status
                     binance_status = binance_order["status"]
-                    status_map = {
-                        "NEW": "OPEN",
-                        "PARTIALLY_FILLED": "PARTIALLY_FILLED",
-                        "FILLED": "FILLED",
-                        "CANCELED": "CANCELLED",
-                        "REJECTED": "REJECTED",
-                        "EXPIRED": "EXPIRED"
-                    }
-
-                    new_status = status_map.get(binance_status, "OPEN")
+                    new_status = map_binance_order_status(binance_status)
+                    if new_status is None:
+                        report["discrepancies"].append({
+                            "order_id": order_db.id,
+                            "client_order_id": order_db.client_order_id,
+                            "binance_order_id": order_db.binance_order_id,
+                            "issue": f"Unknown Binance status: {binance_status}"
+                        })
+                        continue
 
                     # Update if different
                     if order_db.status.value != new_status:
@@ -109,12 +113,16 @@ class ReconciliationService:
                         order_db.raw_response = binance_order
                         report["status_updated"] += 1
 
-                except Exception as e:
+                except Exception:
+                    logger.exception(
+                        "Failed to fetch order details from Binance: order_id=%s, binance_order_id=%s",
+                        order_db.id, order_db.binance_order_id,
+                    )
                     report["discrepancies"].append({
                         "order_id": order_db.id,
                         "client_order_id": order_db.client_order_id,
                         "binance_order_id": order_db.binance_order_id,
-                        "issue": f"Order in DB but fetch failed: {str(e)}"
+                        "issue": "Order-Details konnten nicht von Binance abgerufen werden"
                     })
 
         db.flush()
@@ -156,12 +164,13 @@ class ReconciliationService:
             btc_binance = binance_balances.get("BTC", Decimal("0"))
             eur_binance = binance_balances.get("EUR", Decimal("0"))
 
-        except Exception as e:
-            report["errors"].append(f"Failed to fetch Binance balances: {str(e)}")
+        except Exception:
+            logger.exception("Failed to fetch Binance balances for user=%s", user_id)
+            report["errors"].append("Binance-Balances konnten nicht abgerufen werden")
             return report
 
         # 2. Calculate balances from ledger
-        # BTC: Sum all BTC events (TRADE_FILL, DEPOSIT, WITHDRAWAL)
+        # BTC: Sum all BTC events (TRADE_FILL, DEPOSIT, WITHDRAWAL, ADJUSTMENT)
         ledger_events = db.query(LedgerEventDB).filter(
             LedgerEventDB.user_id == user_id,
             LedgerEventDB.asset == "BTC"
@@ -175,17 +184,20 @@ class ReconciliationService:
                     btc_calculated += event.amount
                 elif event.side.value == "SELL":
                     btc_calculated -= event.amount
-            elif event.type.value in ["DEPOSIT"]:
+            elif event.type.value == "DEPOSIT":
                 btc_calculated += event.amount
-            elif event.type.value in ["WITHDRAWAL"]:
+            elif event.type.value == "WITHDRAWAL":
                 btc_calculated -= event.amount
+            elif event.type.value == "ADJUSTMENT":
+                # ADJUSTMENT: amount kann positiv oder negativ sein
+                btc_calculated += event.amount
 
             # Subtract BTC fees
             if event.fee_asset == "BTC":
                 btc_calculated -= event.fee_amount if event.fee_amount else Decimal("0")
 
         # EUR: Sum all EUR events + EUR from BTC trades
-        # 1. Direct EUR deposits/withdrawals
+        # 1. Direct EUR events (DEPOSIT, WITHDRAWAL, EXTERNAL_CASHFLOW, ADJUSTMENT)
         ledger_events_eur = db.query(LedgerEventDB).filter(
             LedgerEventDB.user_id == user_id,
             LedgerEventDB.asset == "EUR"
@@ -193,10 +205,15 @@ class ReconciliationService:
 
         eur_calculated = Decimal("0")
         for event in ledger_events_eur:
-            if event.type.value in ["DEPOSIT"]:
+            if event.type.value == "DEPOSIT":
                 eur_calculated += event.amount
-            elif event.type.value in ["WITHDRAWAL"]:
+            elif event.type.value == "WITHDRAWAL":
                 eur_calculated -= event.amount
+            elif event.type.value == "EXTERNAL_CASHFLOW":
+                # EXTERNAL_CASHFLOW: positiv = Einzahlung, negativ = Auszahlung
+                eur_calculated += event.amount
+            elif event.type.value == "ADJUSTMENT":
+                eur_calculated += event.amount
 
         # 2. EUR from BTC trades (BUY = spend EUR, SELL = receive EUR)
         btc_trades = db.query(LedgerEventDB).filter(
@@ -213,17 +230,13 @@ class ReconciliationService:
                 elif trade.side.value == "SELL":
                     eur_calculated += eur_value  # Received EUR
 
-        # 3. Subtract EUR fees
-        all_events_with_eur_fees = db.query(LedgerEventDB).filter(
-            LedgerEventDB.user_id == user_id,
-            LedgerEventDB.fee_asset == "EUR"
-        ).all()
+        # 3. Subtract EUR fees (nur von TRADE_FILLs — bei Deposits/Withdrawals
+        #    ist fee_amount ggf. bereits im amount enthalten)
+        for trade in btc_trades:
+            if trade.fee_asset == "EUR" and trade.fee_amount:
+                eur_calculated -= trade.fee_amount
 
-        for event in all_events_with_eur_fees:
-            if event.fee_amount:
-                eur_calculated -= event.fee_amount
-
-        # 3. Compare
+        # 4. Compare
         btc_diff = abs(btc_binance - btc_calculated)
         eur_diff = abs(eur_binance - eur_calculated)
 
@@ -289,8 +302,9 @@ class ReconciliationService:
             report["new_lots"] = sync_result["new_lots"]
             report["allocations"] = sync_result["allocations"]
 
-        except Exception as e:
-            report["errors"].append(f"Failed to sync fills: {str(e)}")
+        except Exception:
+            logger.exception("Failed to sync fills for user=%s, symbol=%s", user_id, symbol)
+            report["errors"].append("Fills konnten nicht synchronisiert werden")
 
         return report
 

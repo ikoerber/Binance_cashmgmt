@@ -1,27 +1,23 @@
 /**
  * LotsTable - Zeigt alle TradeLots mit Filtern und Binance-Sync
+ *
+ * Delegiert Daten-Fetching an useLotsData, Summary-KPIs an LotSummaryCards.
  */
-import { useState, useMemo, useEffect } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getLots, getOrdersForUser, syncLots, createOrderForLot, listPairings, getPortfolio, getMergeGroups, mergeLots } from '../api/client';
+import { useState, useMemo, useEffect, useRef } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { syncLots, createOrderForLot, mergeLots } from '../api/client';
 import PairingPanel from './PairingPanel';
 import LotFilters from './LotFilters';
 import OpenOrdersPanel from './OpenOrdersPanel';
+import LotSummaryCards from './LotSummaryCards';
+import useLotsData from '../hooks/useLotsData';
+import { useAppState } from '../contexts/AppStateContext';
 import { formatNumber, formatEUR, formatBTC, formatDate, formatTime } from '../utils/formatters';
 import './LotsTable.css';
 
-// Preis auf 50 EUR runden, damit der queryKey nicht bei jedem Tick wechselt
-const roundPrice = (p) => Math.round(p / 50) * 50;
-
-const LotsTable = ({ userId = 'user_123', marketPrice = 50000 }) => {
+const LotsTable = () => {
+  const { userId, marketPrice } = useAppState();
   const queryClient = useQueryClient();
-  const [statusFilter, setStatusFilter] = useState(null);
-  const [fromDate, setFromDate] = useState('');
-  const [toDate, setToDate] = useState('');
-  const [orderFilter, setOrderFilter] = useState('');
-  const [showClosed, setShowClosed] = useState(false);
-  const [sortColumn, setSortColumn] = useState(null); // 'date' | 'break_even'
-  const [sortDirection, setSortDirection] = useState('asc');
   const [syncMessage, setSyncMessage] = useState(null);
 
   // Pairing state
@@ -29,6 +25,15 @@ const LotsTable = ({ userId = 'user_123', marketPrice = 50000 }) => {
   const [pairingPanelOpen, setPairingPanelOpen] = useState(false);
   const [pairingActiveTab, setPairingActiveTab] = useState('suggestions');
   const [highlightedLotIds, setHighlightedLotIds] = useState(new Set());
+
+  // Data hook
+  const {
+    filters,
+    sortColumn, sortDirection, toggleSort,
+    isLoading, error,
+    lots, openOrders, openCostSum, totalOpenQty, filteredOpenQtySum,
+    orderByLotId, mergeGroupByLotId, depotPnl,
+  } = useLotsData();
 
   const toggleLotSelection = (lotId) => {
     setSelectedLotIds((prev) => {
@@ -48,13 +53,13 @@ const LotsTable = ({ userId = 'user_123', marketPrice = 50000 }) => {
 
   const clearSelection = () => setSelectedLotIds(new Set());
 
-  const toggleSort = (column) => {
-    if (sortColumn === column) {
-      setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setSortColumn(column);
-      setSortDirection('asc');
-    }
+  const msgTimerRef = useRef(null);
+  useEffect(() => () => { if (msgTimerRef.current) clearTimeout(msgTimerRef.current); }, []);
+
+  const showMessage = (type, text) => {
+    setSyncMessage({ type, text });
+    if (msgTimerRef.current) clearTimeout(msgTimerRef.current);
+    msgTimerRef.current = setTimeout(() => setSyncMessage(null), 8000);
   };
 
   // Sync Mutation
@@ -77,62 +82,29 @@ const LotsTable = ({ userId = 'user_123', marketPrice = 50000 }) => {
         if (report.fiat_withdrawals > 0) {
           parts.push(`${report.fiat_withdrawals} Fiat-Auszahlung${report.fiat_withdrawals !== 1 ? 'en' : ''}`);
         }
-        setSyncMessage({
-          type: 'success',
-          text: parts.join(', '),
-        });
+        showMessage('success', parts.join(', '));
       } else {
-        setSyncMessage({
-          type: 'info',
-          text: 'Keine neuen Trades oder Fiat-Transaktionen auf Binance gefunden.',
-        });
+        showMessage('info', 'Keine neuen Trades oder Fiat-Transaktionen auf Binance gefunden.');
       }
-      setTimeout(() => setSyncMessage(null), 8000);
     },
-    onError: (error) => {
-      setSyncMessage({
-        type: 'error',
-        text: error.response?.data?.detail || error.message,
-      });
-      setTimeout(() => setSyncMessage(null), 8000);
-    },
+    onError: (err) => showMessage('error', err.response?.data?.detail || err.message),
   });
 
-  // Create Order Mutation (Einzel-Lot)
+  // Create Order Mutation
   const createOrderMutation = useMutation({
     mutationFn: ({ lotId }) => createOrderForLot(userId, lotId),
     onSuccess: (data, { lotId }) => {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: ['lots'] });
-      if (data.status === 'duplicate') {
-        setSyncMessage({ type: 'info', text: 'Order existiert bereits (Idempotenz).' });
-      } else {
-        setSyncMessage({ type: 'success', text: `Sell Order erstellt für Lot ${lotId.slice(0, 8)}...` });
-      }
-      setTimeout(() => setSyncMessage(null), 8000);
+      showMessage(
+        data.status === 'duplicate' ? 'info' : 'success',
+        data.status === 'duplicate'
+          ? 'Order existiert bereits (Idempotenz).'
+          : `Sell Order erstellt für Lot ${lotId.slice(0, 8)}...`
+      );
     },
-    onError: (error) => {
-      setSyncMessage({ type: 'error', text: error.response?.data?.detail || error.message });
-      setTimeout(() => setSyncMessage(null), 8000);
-    },
+    onError: (err) => showMessage('error', err.response?.data?.detail || err.message),
   });
-
-  // Merge Groups Query
-  const { data: mergeGroupsData } = useQuery({
-    queryKey: ['merge-groups', userId],
-    queryFn: () => getMergeGroups(userId),
-  });
-
-  // Merge-Lookup: lotId -> mergeGroup
-  const mergeGroupByLotId = useMemo(() => {
-    const map = {};
-    for (const group of mergeGroupsData?.groups || []) {
-      for (const lot of group.lots) {
-        map[lot.id] = group;
-      }
-    }
-    return map;
-  }, [mergeGroupsData]);
 
   // Merge Mutation
   const mergeMutation = useMutation({
@@ -141,60 +113,12 @@ const LotsTable = ({ userId = 'user_123', marketPrice = 50000 }) => {
       queryClient.invalidateQueries({ queryKey: ['lots'] });
       queryClient.invalidateQueries({ queryKey: ['portfolio'] });
       queryClient.invalidateQueries({ queryKey: ['merge-groups'] });
-      setSyncMessage({
-        type: 'success',
-        text: `${data.merged_count} Lot${data.merged_count !== 1 ? 's' : ''} zusammengefasst`,
-      });
-      setTimeout(() => setSyncMessage(null), 8000);
+      showMessage('success', `${data.merged_count} Lot${data.merged_count !== 1 ? 's' : ''} zusammengefasst`);
     },
-    onError: (error) => {
-      setSyncMessage({
-        type: 'error',
-        text: error.response?.data?.detail || error.message,
-      });
-      setTimeout(() => setSyncMessage(null), 8000);
-    },
+    onError: (err) => showMessage('error', err.response?.data?.detail || err.message),
   });
 
-  // Lots werden per WebSocket order_update Event invalidiert (kein Polling noetig)
-  const { data: lotsData, isLoading, error } = useQuery({
-    queryKey: ['lots', userId, statusFilter, fromDate, toDate],
-    queryFn: () => getLots(
-      userId,
-      statusFilter,
-      1000,
-      0,
-      fromDate || null,
-      toDate ? `${toDate}T23:59:59` : null
-    ),
-  });
-
-  // Client-side Filter + Sortierung (Hooks müssen vor Early Returns stehen)
-  const lots = useMemo(() => {
-    const allLots = lotsData?.lots || [];
-    let filtered = orderFilter
-      ? allLots.filter((lot) =>
-          lot.binance_order_id &&
-          lot.binance_order_id.toString().includes(orderFilter)
-        )
-      : allLots;
-    if (!showClosed) {
-      filtered = filtered.filter((lot) => lot.status !== 'CLOSED');
-    }
-    if (!sortColumn) return filtered;
-    const sorted = [...filtered].sort((a, b) => {
-      if (sortColumn === 'date') {
-        return new Date(a.created_at) - new Date(b.created_at);
-      }
-      if (sortColumn === 'break_even') {
-        return parseFloat(a.break_even) - parseFloat(b.break_even);
-      }
-      return 0;
-    });
-    return sortDirection === 'desc' ? sorted.reverse() : sorted;
-  }, [lotsData, orderFilter, showClosed, sortColumn, sortDirection]);
-
-  // Stale Selections bereinigen: IDs entfernen die nicht mehr in den sichtbaren Lots sind
+  // Stale Selections bereinigen
   useEffect(() => {
     if (selectedLotIds.size === 0) return;
     const visibleIds = new Set(lots.map((lot) => lot.id));
@@ -215,95 +139,9 @@ const LotsTable = ({ userId = 'user_123', marketPrice = 50000 }) => {
     setSelectedLotIds(new Set(openLotIds));
   };
 
-  // Summe Kosten offener Positionen (OPEN + PARTIAL_CLOSED)
-  const openCostSum = useMemo(() => {
-    const allLots = lotsData?.lots || [];
-    return allLots
-      .filter((lot) => lot.status === 'OPEN' || lot.status === 'PARTIAL_CLOSED')
-      .reduce((sum, lot) => sum + parseFloat(lot.cost_eur), 0);
-  }, [lotsData]);
-
-  // Gesamte offene BTC-Menge (alle Lots, nicht nur gefilterte) für Erholungspreis
-  const totalOpenQty = useMemo(() => {
-    const allLots = lotsData?.lots || [];
-    return allLots
-      .filter((lot) => lot.status === 'OPEN' || lot.status === 'PARTIAL_CLOSED')
-      .reduce((sum, lot) => sum + parseFloat(lot.qty_btc_open), 0);
-  }, [lotsData]);
-
-  // Summe Menge Offen der gefilterten Liste
-  const filteredOpenQtySum = useMemo(() => {
-    return lots.reduce((sum, lot) => sum + parseFloat(lot.qty_btc_open), 0);
-  }, [lots]);
-
-  // Selected lots for pairing
   const selectedLots = useMemo(() => {
     return lots.filter((lot) => selectedLotIds.has(lot.id));
   }, [lots, selectedLotIds]);
-
-  // Orders werden per WebSocket order_update Event invalidiert (kein Polling noetig)
-  const { data: ordersData } = useQuery({
-    queryKey: ['orders', userId, 'open'],
-    queryFn: () => getOrdersForUser(userId, 'OPEN'),
-  });
-
-  const openOrders = useMemo(() => ordersData?.orders || [], [ordersData]);
-
-  // Pairings laden (cached via PairingPanel) - fuer Pairing→Lot Zuordnung
-  const { data: pairingsData } = useQuery({
-    queryKey: ['pairings', userId, null],
-    queryFn: () => listPairings(userId),
-  });
-
-  // Portfolio wird per WebSocket balance_update Event invalidiert
-  // stablePrice im queryKey: Refetch nur bei >= 50 EUR Aenderung
-  const stablePrice = roundPrice(marketPrice);
-  const { data: portfolio } = useQuery({
-    queryKey: ['portfolio', userId, stablePrice],
-    queryFn: () => getPortfolio(userId, marketPrice),
-    enabled: !!marketPrice,
-  });
-
-  const depotPnl = portfolio
-    ? (parseFloat(portfolio.market_value_eur) + parseFloat(portfolio.eur_available))
-      - parseFloat(portfolio.external_net_eur)
-    : null;
-
-  // Lookup: lotId -> offene Order (direkt via linked_lot_id ODER via Pairing)
-  const orderByLotId = useMemo(() => {
-    const map = {};
-    // 1. Direkte Lot-Verknüpfung
-    for (const order of openOrders) {
-      if (order.linked_lot_id) {
-        map[order.linked_lot_id] = order;
-      }
-    }
-    // 2. Pairing-Verknüpfung: Order → Pairing → Lots
-    const pairings = pairingsData?.pairings || [];
-    for (const order of openOrders) {
-      if (order.linked_pairing_id && !order.linked_lot_id) {
-        const pairing = pairings.find((p) => p.id === order.linked_pairing_id);
-        if (pairing) {
-          for (const item of pairing.items) {
-            if (!map[item.lot_id]) {
-              map[item.lot_id] = order;
-            }
-          }
-        }
-      }
-    }
-    return map;
-  }, [openOrders, pairingsData]);
-
-  const FEE_RATE = 0.001; // 0.1% Binance Spot Fee
-
-  // Portfolio-Erholungspreis: alle offenen Lots tragen proportional (nach qty) bei
-  // WICHTIG: useMemo muss VOR Early Returns stehen (Rules of Hooks)
-  const recoveryPrice = useMemo(() => {
-    if (depotPnl === null || depotPnl >= 0 || totalOpenQty <= 0) return null;
-    const deficit = Math.abs(depotPnl);
-    return (totalOpenQty * marketPrice + deficit) / (totalOpenQty * (1 - FEE_RATE));
-  }, [depotPnl, totalOpenQty, marketPrice]);
 
   if (isLoading) return <div className="loading">Lade TradeLots...</div>;
   if (error) return <div className="error">Fehler: {error.message}</div>;
@@ -347,34 +185,23 @@ const LotsTable = ({ userId = 'user_123', marketPrice = 50000 }) => {
         </div>
       )}
 
-      {/* Summary Cards */}
-      <div className="lots-summary">
-        <div className="summary-card">
-          <span className="summary-label">Kosten offene Positionen</span>
-          <span className="summary-value">{formatEUR(openCostSum)}</span>
-        </div>
-        <div className="summary-card">
-          <span className="summary-label">Menge Offen (gefiltert)</span>
-          <span className="summary-value">{formatBTC(filteredOpenQtySum)}</span>
-        </div>
-        {recoveryPrice !== null && (
-          <div className="summary-card recovery-card">
-            <span className="summary-label">Erholungspreis</span>
-            <span className="summary-value recovery-value">{formatEUR(recoveryPrice)}</span>
-            <span className="summary-sub">+{formatNumber(((recoveryPrice / marketPrice) - 1) * 100, 1)}% über Markt | Deficit: {formatEUR(Math.abs(depotPnl))}</span>
-          </div>
-        )}
-      </div>
+      {/* Summary Cards (delegiert an LotSummaryCards) */}
+      <LotSummaryCards
+        openCostSum={openCostSum}
+        filteredOpenQtySum={filteredOpenQtySum}
+        totalOpenQty={totalOpenQty}
+        depotPnl={depotPnl}
+      />
 
-      <OpenOrdersPanel openOrders={openOrders} marketPrice={marketPrice} />
+      <OpenOrdersPanel openOrders={openOrders} />
 
       {/* Filter Bar */}
       <LotFilters
-        statusFilter={statusFilter} setStatusFilter={setStatusFilter}
-        fromDate={fromDate} setFromDate={setFromDate}
-        toDate={toDate} setToDate={setToDate}
-        orderFilter={orderFilter} setOrderFilter={setOrderFilter}
-        showClosed={showClosed} setShowClosed={setShowClosed}
+        statusFilter={filters.statusFilter} setStatusFilter={filters.setStatusFilter}
+        fromDate={filters.fromDate} setFromDate={filters.setFromDate}
+        toDate={filters.toDate} setToDate={filters.setToDate}
+        orderFilter={filters.orderFilter} setOrderFilter={filters.setOrderFilter}
+        showClosed={filters.showClosed} setShowClosed={filters.setShowClosed}
       />
 
       {/* Pairing Action Bar */}
@@ -403,8 +230,6 @@ const LotsTable = ({ userId = 'user_123', marketPrice = 50000 }) => {
       {/* Pairing Panel */}
       {pairingPanelOpen && (
         <PairingPanel
-          userId={userId}
-          marketPrice={marketPrice}
           selectedLots={selectedLots}
           onClearSelection={clearSelection}
           onToggleLot={toggleLotSelection}

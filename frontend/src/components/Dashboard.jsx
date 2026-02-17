@@ -3,13 +3,15 @@
  */
 import { useQuery } from '@tanstack/react-query';
 import { getPortfolio, getDailyPerformance } from '../api/client';
+import { useAppState } from '../contexts/AppStateContext';
 import { formatNumber, formatEUR, formatBTC } from '../utils/formatters';
 import './Dashboard.css';
 
 // Preis auf 50 EUR runden, damit der queryKey nicht bei jedem Tick wechselt
 const roundPrice = (p) => Math.round(p / 50) * 50;
 
-const Dashboard = ({ userId = 'user_123', marketPrice = 50000 }) => {
+const Dashboard = () => {
+  const { userId, marketPrice } = useAppState();
   const stablePrice = roundPrice(marketPrice);
 
   // Portfolio wird per WebSocket balance_update Event invalidiert (kein Polling noetig)

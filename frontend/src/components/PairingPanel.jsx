@@ -4,19 +4,18 @@
  * 3 Tabs: Vorschläge (auto) | Manuell (Lot-Auswahl) | Bestehende Pairings
  * Simulation-Overlay (Pflicht vor Ausführung)
  */
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   getPairingSuggestions,
   createPairing,
 } from '../api/client';
 import { formatNumber, formatEUR, formatBTC } from '../utils/formatters';
+import { useAppState } from '../contexts/AppStateContext';
 import PairingExistingTab from './PairingExistingTab';
 import './PairingPanel.css';
 
 const PairingPanel = ({
-  userId,
-  marketPrice,
   selectedLots,
   onClearSelection,
   onToggleLot,
@@ -24,6 +23,7 @@ const PairingPanel = ({
   onTabChange,
   onHighlightLots,
 }) => {
+  const { userId, marketPrice } = useAppState();
   const queryClient = useQueryClient();
 
   // Suggestion parameters
@@ -34,10 +34,13 @@ const PairingPanel = ({
 
   // Action feedback
   const [actionMessage, setActionMessage] = useState(null);
+  const msgTimerRef = useRef(null);
+  useEffect(() => () => { if (msgTimerRef.current) clearTimeout(msgTimerRef.current); }, []);
 
   const showMessage = (type, text) => {
     setActionMessage({ type, text });
-    setTimeout(() => setActionMessage(null), 5000);
+    if (msgTimerRef.current) clearTimeout(msgTimerRef.current);
+    msgTimerRef.current = setTimeout(() => setActionMessage(null), 5000);
   };
 
   // ─── Queries ───
@@ -322,8 +325,6 @@ const PairingPanel = ({
       {/* ═══ Tab: Bestehende Pairings ═══ */}
       {activeTab === 'existing' && (
         <PairingExistingTab
-          userId={userId}
-          marketPrice={marketPrice}
           onHighlightLots={onHighlightLots}
           showMessage={showMessage}
         />

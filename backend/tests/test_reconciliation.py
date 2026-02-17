@@ -160,7 +160,7 @@ def test_reconcile_orders_discrepancy(db_session, test_user, reconciliation_serv
 
     assert report["synced"] == 1
     assert len(report["discrepancies"]) == 1
-    assert "Order in DB but fetch failed" in report["discrepancies"][0]["issue"]
+    assert "Order-Details konnten nicht von Binance abgerufen werden" in report["discrepancies"][0]["issue"]
 
 
 def test_reconcile_balances_within_tolerance(db_session, test_user, reconciliation_service, mock_binance_service):
@@ -323,7 +323,7 @@ def test_reconcile_orders_error_handling(db_session, test_user, reconciliation_s
     report = reconciliation_service.reconcile_orders(db_session, test_user.id, "BTCEUR")
 
     assert len(report["errors"]) > 0
-    assert "Failed to fetch Binance orders" in report["errors"][0]
+    assert "Binance-Orders konnten nicht abgerufen werden" in report["errors"][0]
 
 
 def test_reconcile_multiple_orders(db_session, test_user, reconciliation_service, mock_binance_service):

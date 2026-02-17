@@ -7,6 +7,7 @@ import Settings from './components/Settings';
 import Orderblock from './components/Orderblock';
 import CombinedScore from './components/CombinedScore';
 import { WebSocketProvider, useLivePrice } from './contexts/WebSocketContext';
+import { AppStateProvider } from './contexts/AppStateContext';
 import FillNotification from './components/FillNotification';
 import { getServerIp } from './api/client';
 import './App.css';
@@ -31,7 +32,7 @@ function AppContent() {
   const userId = 'user_123';
   
   // Live BTC/EUR Preis
-  const { price: marketPrice, loading: priceLoading, lastUpdate, source: priceSource, direction, changePct, isFlashing } = useLivePrice('BTCEUR', 10000);
+  const { price: marketPrice, loading: priceLoading, lastUpdate, source, direction, changePct, isFlashing } = useLivePrice('BTCEUR', 10000);
 
   // Server Public IP (für Binance Whitelisting)
   const { data: serverIpData } = useQuery({
@@ -68,9 +69,9 @@ function AppContent() {
                 <span className="price-update">
                   {lastUpdate ? `(${lastUpdate.toLocaleTimeString('de-DE')})` : ''}
                 </span>
-                <span className={`ws-status ${priceSource === 'websocket' ? 'ws-connected' : 'ws-polling'}`}
-                      title={priceSource === 'websocket' ? 'WebSocket verbunden' : 'REST Polling (Fallback)'}>
-                  {priceSource === 'websocket' ? 'WS' : 'REST'}
+                <span className={`ws-status ${source === 'websocket' ? 'ws-connected' : 'ws-polling'}`}
+                      title={source === 'websocket' ? 'WebSocket verbunden' : 'REST Polling (Fallback)'}>
+                  {source === 'websocket' ? 'WS' : 'REST'}
                 </span>
               </>
             )}
@@ -121,26 +122,16 @@ function AppContent() {
         </div>
       </nav>
 
-      <div className="content">
-        {currentView === 'dashboard' && (
-          <Dashboard userId={userId} marketPrice={marketPrice || 50000} />
-        )}
-        {currentView === 'lots' && (
-          <LotsTable userId={userId} marketPrice={marketPrice || 50000} />
-        )}
-        {currentView === 'combined' && (
-          <MemoCombinedScore userId={userId} />
-        )}
-        {currentView === 'orderblock' && (
-          <MemoOrderblock userId={userId} marketPrice={marketPrice} />
-        )}
-        {currentView === 'reconciliation' && (
-          <MemoReconciliation userId={userId} />
-        )}
-        {currentView === 'settings' && (
-          <MemoSettings userId={userId} />
-        )}
-      </div>
+      <AppStateProvider userId={userId} marketPrice={marketPrice || 50000}>
+        <div className="content">
+          {currentView === 'dashboard' && <Dashboard />}
+          {currentView === 'lots' && <LotsTable />}
+          {currentView === 'combined' && <MemoCombinedScore />}
+          {currentView === 'orderblock' && <MemoOrderblock />}
+          {currentView === 'reconciliation' && <MemoReconciliation />}
+          {currentView === 'settings' && <MemoSettings />}
+        </div>
+      </AppStateProvider>
 
       <FillNotification />
 

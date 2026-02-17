@@ -8,6 +8,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getCombinedScore, getSettings } from '../api/client';
 import { formatNumber } from '../utils/formatters';
+import { useAppState } from '../contexts/AppStateContext';
 import './CombinedScore.css';
 
 const QUALITY_LABELS = {
@@ -24,7 +25,8 @@ const MACRO_REC_COLORS = {
   'STARK SHORT': '#dc2626',
 };
 
-const CombinedScore = ({ userId = 'user_123' }) => {
+const CombinedScore = () => {
+  const { userId } = useAppState();
   const [showMacroDetail, setShowMacroDetail] = useState(false);
   const [showSentimentDetail, setShowSentimentDetail] = useState(false);
 

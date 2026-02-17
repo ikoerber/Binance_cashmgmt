@@ -5,13 +5,17 @@ Trackt alle Orders mit vollständigem Lifecycle:
 PENDING → SUBMITTED → OPEN → PARTIALLY_FILLED → FILLED
 oder PENDING/SUBMITTED/OPEN → CANCELLED/REJECTED/EXPIRED
 """
+import logging
 from decimal import Decimal
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 from sqlalchemy.orm import Session
 import uuid
 
+from app.constants import BINANCE_ORDER_STATUS_MAP, map_binance_order_status
 from app.db.models import OrderDB, OrderStatusEnum, TradeSideEnum
+
+logger = logging.getLogger(__name__)
 from app.domain.models import utcnow
 from app.services.binance import BinanceService
 
@@ -203,16 +207,9 @@ class OrderTrackingService:
 
             # Map Binance status to internal status
             binance_status = binance_order["status"]
-            status_map = {
-                "NEW": "OPEN",
-                "PARTIALLY_FILLED": "PARTIALLY_FILLED",
-                "FILLED": "FILLED",
-                "CANCELED": "CANCELLED",
-                "REJECTED": "REJECTED",
-                "EXPIRED": "EXPIRED"
-            }
-
-            new_status = status_map.get(binance_status, "OPEN")
+            new_status = map_binance_order_status(binance_status)
+            if new_status is None:
+                return self._order_to_dict(order_db)
 
             # Update status
             order_db.status = OrderStatusEnum[new_status]
@@ -224,8 +221,10 @@ class OrderTrackingService:
 
             return self._order_to_dict(order_db)
 
-        except Exception as e:
-            raise ValueError(f"Failed to sync order from Binance: {str(e)}")
+        except Exception:
+            logger.exception("Failed to sync order from Binance: order_id=%s", order_id)
+            db.rollback()
+            raise ValueError("Order-Status konnte nicht von Binance synchronisiert werden")
 
     def sync_open_order_statuses(
         self,
@@ -276,16 +275,9 @@ class OrderTrackingService:
                             orderId=int(order_db.binance_order_id)
                         )
 
-                        status_map = {
-                            "NEW": "OPEN",
-                            "PARTIALLY_FILLED": "PARTIALLY_FILLED",
-                            "FILLED": "FILLED",
-                            "CANCELED": "CANCELLED",
-                            "REJECTED": "REJECTED",
-                            "EXPIRED": "EXPIRED"
-                        }
-
-                        new_status = status_map.get(binance_order["status"], "OPEN")
+                        new_status = map_binance_order_status(binance_order["status"])
+                        if new_status is None:
+                            continue
 
                         if order_db.status.value != new_status:
                             order_db.status = OrderStatusEnum[new_status]
@@ -294,15 +286,16 @@ class OrderTrackingService:
                             updated += 1
 
                     except Exception:
-                        # Fehler beim Einzelabruf ignorieren, nächster Versuch beim nächsten Poll
-                        pass
+                        logger.warning(
+                            "Failed to sync single order status: binance_order_id=%s",
+                            order_db.binance_order_id, exc_info=True,
+                        )
 
             if updated > 0:
                 db.flush()
 
         except Exception:
-            # Binance nicht erreichbar → stille Degradation, DB-Daten zurückgeben
-            pass
+            logger.warning("Binance not reachable for order status sync (user=%s)", user_id, exc_info=True)
 
         return updated
 
@@ -441,15 +434,10 @@ class OrderTrackingService:
 
                 # Map Binance status
                 binance_status = binance_order["status"]
-                status_map = {
-                    "NEW": "OPEN",
-                    "PARTIALLY_FILLED": "PARTIALLY_FILLED",
-                    "FILLED": "FILLED",
-                    "CANCELED": "CANCELLED",
-                    "REJECTED": "REJECTED",
-                    "EXPIRED": "EXPIRED"
-                }
-                status = status_map.get(binance_status, "OPEN")
+                status = map_binance_order_status(binance_status)
+                if status is None:
+                    report["skipped"] += 1
+                    continue
 
                 order_db = OrderDB(
                     id=order_id,
@@ -472,8 +460,9 @@ class OrderTrackingService:
 
             db.flush()
 
-        except Exception as e:
-            report["errors"].append(str(e))
+        except Exception:
+            logger.exception("Failed to import external orders for user=%s, symbol=%s", user_id, symbol)
+            report["errors"].append("Order-Import von Binance fehlgeschlagen")
 
         return report
 

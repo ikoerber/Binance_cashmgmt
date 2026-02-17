@@ -100,7 +100,7 @@ def root():
     return {"status": "ok", "app": "BTC/EUR Cashflow Management", "version": "0.1.0"}
 
 
-@app.get("/api/websocket/stats")
+@app.get("/api/websocket/stats", dependencies=api_auth)
 def websocket_stats():
     """WebSocket Verbindungsstatistiken"""
     return get_stream_manager().get_stats()
@@ -112,7 +112,7 @@ def health():
     return {"status": "healthy"}
 
 
-@app.get("/api/server-ip")
+@app.get("/api/server-ip", dependencies=api_auth)
 def server_ip():
     """Gibt die öffentliche IP des Servers zurück (für Binance IP-Whitelisting)"""
     import urllib.request

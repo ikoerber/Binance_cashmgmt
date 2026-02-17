@@ -73,15 +73,17 @@ def create_order_for_lot(
         raise HTTPException(status_code=500, detail="Interner Serverfehler")
 
 
-@router.get("/open")
+@router.get("/{user_id}/open")
 def get_open_orders(
+    user_id: str,
     symbol: str = Query("BTCEUR", description="Trading Pair"),
     order_service: OrderService = Depends(get_order_service)
 ):
     """
-    Holt alle offenen Orders
+    Holt alle offenen Orders fuer einen User
 
     Args:
+        user_id: User ID (fuer konsistentes API-Design und IDOR-Schutz)
         symbol: Trading Pair (Default: BTCEUR)
         order_service: Order Service (injected)
 
@@ -95,8 +97,8 @@ def get_open_orders(
             "count": len(orders),
             "symbol": symbol
         }
-    except Exception as e:
-        logger.exception("Orders endpoint failed")
+    except Exception:
+        logger.exception("Orders endpoint failed for user=%s", user_id)
         raise HTTPException(status_code=500, detail="Interner Serverfehler")
 
 
