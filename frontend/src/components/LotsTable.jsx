@@ -3,7 +3,7 @@
  *
  * Delegiert Daten-Fetching an useLotsData, Summary-KPIs an LotSummaryCards.
  */
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { syncLots, createOrderForLot, mergeLots } from '../api/client';
 import PairingPanel from './PairingPanel';
@@ -11,6 +11,7 @@ import LotFilters from './LotFilters';
 import OpenOrdersPanel from './OpenOrdersPanel';
 import LotSummaryCards from './LotSummaryCards';
 import useLotsData from '../hooks/useLotsData';
+import useNotification from '../hooks/useNotification';
 import { useAppState } from '../contexts/AppStateContext';
 import { formatNumber, formatEUR, formatBTC, formatDate, formatTime } from '../utils/formatters';
 import './LotsTable.css';
@@ -18,7 +19,7 @@ import './LotsTable.css';
 const LotsTable = () => {
   const { userId, marketPrice } = useAppState();
   const queryClient = useQueryClient();
-  const [syncMessage, setSyncMessage] = useState(null);
+  const { message: syncMessage, showMessage, dismissMessage } = useNotification(8000);
 
   // Pairing state
   const [selectedLotIds, setSelectedLotIds] = useState(new Set());
@@ -52,15 +53,6 @@ const LotsTable = () => {
   };
 
   const clearSelection = () => setSelectedLotIds(new Set());
-
-  const msgTimerRef = useRef(null);
-  useEffect(() => () => { if (msgTimerRef.current) clearTimeout(msgTimerRef.current); }, []);
-
-  const showMessage = (type, text) => {
-    setSyncMessage({ type, text });
-    if (msgTimerRef.current) clearTimeout(msgTimerRef.current);
-    msgTimerRef.current = setTimeout(() => setSyncMessage(null), 8000);
-  };
 
   // Sync Mutation
   const syncMutation = useMutation({
@@ -181,7 +173,7 @@ const LotsTable = () => {
           {syncMessage.type === 'success' && '+ '}
           {syncMessage.type === 'error' && 'Fehler: '}
           {syncMessage.text}
-          <button className="sync-message-close" onClick={() => setSyncMessage(null)}>&times;</button>
+          <button className="sync-message-close" onClick={dismissMessage}>&times;</button>
         </div>
       )}
 

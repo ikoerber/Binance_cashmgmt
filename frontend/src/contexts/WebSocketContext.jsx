@@ -206,9 +206,7 @@ export const useWebSocket = () => {
 };
 
 /**
- * Drop-in Replacement fuer hooks/useLivePrice.js
- *
- * Nutzt WebSocket wenn verbunden, faellt automatisch auf REST-Polling zurueck.
+ * Live-Preis Hook: WebSocket wenn verbunden, REST-Polling als Fallback.
  */
 // Schwellwert fuer "starke Aenderung" in Prozent
 const LARGE_CHANGE_THRESHOLD_PCT = 1.0;

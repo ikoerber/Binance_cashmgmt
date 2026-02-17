@@ -46,7 +46,7 @@ const OrderblockFilters = ({
     </div>
     <button
       className="btn-ob-filter-reset"
-      onClick={() => { setZoneStateFilter('UNMITIGATED'); setConvictionFilter(''); setCategoryFilter(''); setConfluenceFilter(''); }}
+      onClick={() => { setZoneStateFilter(''); setConvictionFilter(''); setCategoryFilter(''); setConfluenceFilter(''); }}
     >
       Reset
     </button>

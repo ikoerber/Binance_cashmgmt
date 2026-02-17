@@ -20,7 +20,7 @@
 }
 
 .fill-sell {
-  background: #fef2f2;
+  background: var(--color-error-bg);
   border-left: 4px solid #dc2626;
 }
 
@@ -30,11 +30,11 @@
 }
 
 .fill-buy .fill-notification-icon {
-  color: #16a34a;
+  color: var(--color-profit);
 }
 
 .fill-sell .fill-notification-icon {
-  color: #dc2626;
+  color: var(--color-loss);
 }
 
 .fill-notification-content {
@@ -46,7 +46,7 @@
 
 .fill-notification-content strong {
   font-size: 0.875rem;
-  color: #1e293b;
+  color: var(--color-text-primary);
 }
 
 .fill-notification-detail {
@@ -55,7 +55,7 @@
 }
 
 .fill-notification-action {
-  color: #94a3b8;
+  color: var(--color-text-muted);
   font-size: 0.75rem;
 }
 
@@ -64,7 +64,7 @@
   border: none;
   cursor: pointer;
   font-size: 1.125rem;
-  color: #94a3b8;
+  color: var(--color-text-muted);
   padding: 0 4px;
   line-height: 1;
 }

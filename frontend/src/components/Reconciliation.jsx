@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   runFullReconciliation,
@@ -8,6 +8,7 @@ import {
 } from '../api/client';
 import { formatNumber, formatEUR, formatBTC } from '../utils/formatters';
 import { useAppState } from '../contexts/AppStateContext';
+import useNotification from '../hooks/useNotification';
 import './Reconciliation.css';
 
 const ErrorBanner = ({ errors }) => (
@@ -143,16 +144,8 @@ const FillsSection = ({ report }) => {
 const Reconciliation = () => {
   const { userId } = useAppState();
   const queryClient = useQueryClient();
-  const [message, setMessage] = useState(null);
+  const { message, showMessage, dismissMessage } = useNotification();
   const [lastRunTime, setLastRunTime] = useState(null);
-  const msgTimerRef = useRef(null);
-  useEffect(() => () => { if (msgTimerRef.current) clearTimeout(msgTimerRef.current); }, []);
-
-  const showMessage = (type, text) => {
-    setMessage({ type, text });
-    if (msgTimerRef.current) clearTimeout(msgTimerRef.current);
-    msgTimerRef.current = setTimeout(() => setMessage(null), 5000);
-  };
 
   const onReconSuccess = () => {
     setLastRunTime(new Date());
@@ -239,7 +232,7 @@ const Reconciliation = () => {
       {message && (
         <div className={`recon-message recon-${message.type}`}>
           {message.text}
-          <button className="recon-message-close" onClick={() => setMessage(null)}>&times;</button>
+          <button className="recon-message-close" onClick={dismissMessage}>&times;</button>
         </div>
       )}
 

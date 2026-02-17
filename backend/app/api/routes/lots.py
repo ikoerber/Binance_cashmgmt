@@ -1,11 +1,14 @@
 """TradeLot API Endpoints"""
 
+import logging
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query, Body
 from sqlalchemy.orm import Session
 from typing import Optional, List
 
 from app.db.database import get_db
+
+logger = logging.getLogger(__name__)
 from app.services.lot_service import (
     get_lots_for_user,
     get_lot_detail,
@@ -70,8 +73,9 @@ def list_lots(
             "limit": limit,
             "offset": offset,
         }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        logger.exception("list_lots failed for user=%s", user_id)
+        raise HTTPException(status_code=500, detail="Interner Serverfehler")
 
 
 @router.post("/{user_id}/sync")
@@ -109,8 +113,9 @@ def sync_lots_from_binance(
 
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        logger.exception("sync_lots failed for user=%s", user_id)
+        raise HTTPException(status_code=500, detail="Interner Serverfehler")
 
 
 @router.get("/{user_id}/merge-groups")
@@ -128,8 +133,9 @@ def get_merge_groups(
             "groups": groups,
             "count": len(groups),
         }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        logger.exception("get_merge_groups failed for user=%s", user_id)
+        raise HTTPException(status_code=500, detail="Interner Serverfehler")
 
 
 @router.post("/{user_id}/merge")
@@ -157,8 +163,9 @@ def merge_lots_endpoint(
         }
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        logger.exception("merge_lots failed for user=%s", user_id)
+        raise HTTPException(status_code=500, detail="Interner Serverfehler")
 
 
 @router.get("/{user_id}/{lot_id}")
@@ -181,8 +188,9 @@ def get_lot(user_id: str, lot_id: str, db: Session = Depends(get_db)):
         return lot
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        logger.exception("get_lot failed for user=%s lot=%s", user_id, lot_id)
+        raise HTTPException(status_code=500, detail="Interner Serverfehler")
 
 
 @router.patch("/{user_id}/{lot_id}/auto-order")
@@ -214,5 +222,6 @@ def toggle_auto_order(
         }
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        logger.exception("toggle_auto_order failed for user=%s lot=%s", user_id, lot_id)
+        raise HTTPException(status_code=500, detail="Interner Serverfehler")

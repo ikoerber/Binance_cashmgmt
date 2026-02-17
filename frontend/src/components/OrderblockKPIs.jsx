@@ -1,22 +1,14 @@
 import { formatNumber } from '../utils/formatters';
-
-const getScoreGradient = (score) => {
-  const s = parseFloat(score) || 0;
-  if (s <= 25) return 'linear-gradient(90deg, #94a3b8, #cbd5e1)';
-  if (s <= 50) return 'linear-gradient(90deg, #60a5fa, #3b82f6)';
-  if (s <= 75) return 'linear-gradient(90deg, #fbbf24, #d97706)';
-  return 'linear-gradient(90deg, #a855f7, #7c3aed)';
-};
+import { getScoreGradient } from '../utils/orderblockHelpers.jsx';
 
 const OrderblockKPIs = ({ allZones, metrics, analyzeResult }) => {
+  if (allZones.length === 0 && !metrics) return null;
+
   const unmitCount = allZones.filter(z => z.state === 'UNMITIGATED').length;
   const hcCount = allZones.filter(z => z.is_high_conviction_zscore).length;
   const avgScore = allZones.length > 0
-    ? (allZones.reduce((s, z) => s + (parseFloat(z.conviction_score) || 0), 0) / allZones.length)
+    ? allZones.reduce((s, z) => s + (parseFloat(z.conviction_score) || 0), 0) / allZones.length
     : 0;
-
-  if (allZones.length === 0 && !metrics) return null;
-
   const strongCount = allZones.filter(z => z.confluence_label === 'STRONG_CONTRARIAN').length;
   const sentimentScore = analyzeResult?.meta?.sentiment_score;
 

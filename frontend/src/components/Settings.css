@@ -3,9 +3,9 @@
   padding: 24px;
   max-width: 800px;
   margin: 0 auto;
-  background: white;
-  border-radius: 16px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 4px 16px rgba(0, 0, 0, 0.06);
+  background: var(--color-bg-card);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-card);
 }
 
 /* ─── Header ─── */
@@ -17,20 +17,20 @@
   margin: 0;
   font-size: 22px;
   font-weight: 700;
-  color: #1a1a2e;
+  color: var(--color-text-heading);
   letter-spacing: -0.3px;
 }
 
 .settings-header p {
   margin: 6px 0 0;
   font-size: 13px;
-  color: #64748b;
+  color: var(--color-text-secondary);
 }
 
 /* ─── Message Banner ─── */
 .settings-message {
   padding: 12px 16px;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   margin-bottom: 16px;
   font-size: 13px;
   font-weight: 500;
@@ -47,9 +47,9 @@
 }
 
 .settings-error {
-  background: #fef2f2;
-  color: #991b1b;
-  border: 1px solid #fecaca;
+  background: var(--color-error-bg);
+  color: var(--color-error-text);
+  border: 1px solid var(--color-error-border);
 }
 
 .settings-message-close {
@@ -75,8 +75,8 @@
 /* ─── Form Section ─── */
 .settings-section {
   background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
   padding: 20px;
   margin-bottom: 16px;
 }
@@ -85,7 +85,7 @@
   margin: 0 0 16px;
   font-size: 15px;
   font-weight: 700;
-  color: #1e293b;
+  color: var(--color-text-primary);
 }
 
 /* ─── Form Field ─── */
@@ -101,7 +101,7 @@
   display: block;
   font-size: 12px;
   font-weight: 600;
-  color: #64748b;
+  color: var(--color-text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-bottom: 6px;
@@ -120,8 +120,8 @@
   font-size: 16px;
   font-family: inherit;
   font-weight: 600;
-  color: #1e293b;
-  background: white;
+  color: var(--color-text-primary);
+  background: var(--color-bg-card);
   transition: border-color 0.2s, box-shadow 0.2s;
   outline: none;
   min-height: 44px;
@@ -136,13 +136,13 @@
 .settings-unit {
   font-size: 14px;
   font-weight: 600;
-  color: #64748b;
+  color: var(--color-text-secondary);
 }
 
 .settings-hint {
   margin-top: 6px;
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--color-text-muted);
 }
 
 /* ─── Actions ─── */
@@ -155,7 +155,7 @@
   background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
   color: white;
   border: none;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -180,7 +180,7 @@
 .settings-loading {
   text-align: center;
   padding: 40px;
-  color: #64748b;
+  color: var(--color-text-secondary);
   font-size: 14px;
 }
 
@@ -194,10 +194,10 @@
   padding: 10px 20px;
   border: 1px solid #d1d5db;
   border-radius: 8px;
-  background: white;
+  background: var(--color-bg-card);
   font-size: 14px;
   font-weight: 600;
-  color: #64748b;
+  color: var(--color-text-secondary);
   cursor: pointer;
   transition: all 0.2s ease;
   min-width: 80px;
@@ -219,7 +219,7 @@
 @media (max-width: 768px) {
   .settings {
     padding: 16px;
-    border-radius: 12px;
+    border-radius: var(--radius-lg);
   }
 
   .settings-input-group input[type="number"] {

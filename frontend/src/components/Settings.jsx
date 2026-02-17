@@ -1,13 +1,14 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getSettings, updateSettings } from '../api/client';
 import { useAppState } from '../contexts/AppStateContext';
+import useNotification from '../hooks/useNotification';
 import './Settings.css';
 
 const Settings = () => {
   const { userId } = useAppState();
   const queryClient = useQueryClient();
-  const [message, setMessage] = useState(null);
+  const { message, showMessage, dismissMessage } = useNotification();
   const [maxOrderValueEur, setMaxOrderValueEur] = useState('');
   const [macroSignalInterval, setMacroSignalInterval] = useState('15');
   const [sellAllocationStrategy, setSellAllocationStrategy] = useState('FIFO');
@@ -15,15 +16,6 @@ const Settings = () => {
   const [obAtrMultiplier, setObAtrMultiplier] = useState('2.0');
   const [obTargetRr, setObTargetRr] = useState('2.0');
   const [obImpulseWindow, setObImpulseWindow] = useState('5');
-
-  const msgTimerRef = useRef(null);
-  useEffect(() => () => { if (msgTimerRef.current) clearTimeout(msgTimerRef.current); }, []);
-
-  const showMessage = (type, text) => {
-    setMessage({ type, text });
-    if (msgTimerRef.current) clearTimeout(msgTimerRef.current);
-    msgTimerRef.current = setTimeout(() => setMessage(null), 5000);
-  };
 
   const { data: settings, isLoading } = useQuery({
     queryKey: ['settings', userId],
@@ -99,7 +91,7 @@ const Settings = () => {
       {message && (
         <div className={`settings-message settings-${message.type}`}>
           {message.text}
-          <button className="settings-message-close" onClick={() => setMessage(null)}>&times;</button>
+          <button className="settings-message-close" onClick={dismissMessage}>&times;</button>
         </div>
       )}
 

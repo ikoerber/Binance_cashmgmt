@@ -10,6 +10,8 @@ import {
 } from 'lightweight-charts';
 import { formatEUR, formatDate, formatTime } from '../utils/formatters';
 
+const TZ_OFFSET_SEC = new Date().getTimezoneOffset() * -60;
+
 const OrderblockChart = ({ candles, zone, trade, isLoading }) => {
   const chartContainerRef = useRef(null);
   const chartRef = useRef(null);
@@ -86,8 +88,7 @@ const OrderblockChart = ({ candles, zone, trade, isLoading }) => {
     if (!candles?.length || !candleSeriesRef.current) return;
 
     // lightweight-charts zeigt UTC — Offset addieren fuer lokale Zeitanzeige
-    const tzOffsetSec = new Date().getTimezoneOffset() * -60;
-    const adjusted = candles.map(c => ({ ...c, time: c.time + tzOffsetSec }));
+    const adjusted = candles.map(c => ({ ...c, time: c.time + TZ_OFFSET_SEC }));
 
     candleSeriesRef.current.setData(adjusted);
     volumeSeriesRef.current.setData(
@@ -165,13 +166,12 @@ const OrderblockChart = ({ candles, zone, trade, isLoading }) => {
     }
 
     // ─── Markers: OB-definierende Kerzen + Trade Entry/Exit ───
-    const tzOffsetSec = new Date().getTimezoneOffset() * -60;
     const markers = [];
 
     // Formation-Kerze (OB-Basis)
     if (zone.formed_at) {
       markers.push({
-        time: Math.floor(new Date(zone.formed_at).getTime() / 1000) + tzOffsetSec,
+        time: Math.floor(new Date(zone.formed_at).getTime() / 1000) + TZ_OFFSET_SEC,
         position: isBullish ? 'belowBar' : 'aboveBar',
         color: '#d97706',
         shape: 'square',
@@ -182,7 +182,7 @@ const OrderblockChart = ({ candles, zone, trade, isLoading }) => {
     // Confirmation-Kerze (Break of Structure)
     if (zone.confirmed_at) {
       markers.push({
-        time: Math.floor(new Date(zone.confirmed_at).getTime() / 1000) + tzOffsetSec,
+        time: Math.floor(new Date(zone.confirmed_at).getTime() / 1000) + TZ_OFFSET_SEC,
         position: isBullish ? 'aboveBar' : 'belowBar',
         color: '#d97706',
         shape: 'circle',
@@ -232,7 +232,7 @@ const OrderblockChart = ({ candles, zone, trade, isLoading }) => {
       // Trade Entry/Exit Markers
       if (trade.entry_timestamp) {
         markers.push({
-          time: Math.floor(new Date(trade.entry_timestamp).getTime() / 1000) + tzOffsetSec,
+          time: Math.floor(new Date(trade.entry_timestamp).getTime() / 1000) + TZ_OFFSET_SEC,
           position: isBullish ? 'belowBar' : 'aboveBar',
           color: '#3b82f6',
           shape: isBullish ? 'arrowUp' : 'arrowDown',
@@ -242,7 +242,7 @@ const OrderblockChart = ({ candles, zone, trade, isLoading }) => {
       if (trade.exit_timestamp) {
         const isHit = trade.outcome === 'HIT';
         markers.push({
-          time: Math.floor(new Date(trade.exit_timestamp).getTime() / 1000) + tzOffsetSec,
+          time: Math.floor(new Date(trade.exit_timestamp).getTime() / 1000) + TZ_OFFSET_SEC,
           position: isBullish ? 'aboveBar' : 'belowBar',
           color: isHit ? '#16a34a' : '#dc2626',
           shape: isBullish ? 'arrowDown' : 'arrowUp',

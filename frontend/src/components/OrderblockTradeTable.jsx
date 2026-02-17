@@ -1,12 +1,6 @@
 import { formatEUR, formatNumber } from '../utils/formatters';
+import { SortIcon } from '../utils/orderblockHelpers.jsx';
 import OrderblockChart from './OrderblockChart';
-
-const SORT_ICON = { asc: ' \u25B2', desc: ' \u25BC' };
-
-const SortIcon = ({ sortConfig, col }) => {
-  if (sortConfig.key !== col) return <span className="sort-icon">{SORT_ICON.asc}</span>;
-  return <span className="sort-icon sort-active">{SORT_ICON[sortConfig.dir]}</span>;
-};
 
 const OrderblockTradeTable = ({
   trades,

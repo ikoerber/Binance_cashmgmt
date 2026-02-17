@@ -131,9 +131,10 @@ def simulate(
 
         return simulation
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except Exception as e:
-        logger.exception("Pairing endpoint failed for user=%s", user_id)
+        logger.warning("Pairing simulate not found: user=%s pairing=%s: %s", user_id, pairing_id, e)
+        raise HTTPException(status_code=404, detail="Pairing nicht gefunden")
+    except Exception:
+        logger.exception("Pairing simulate failed for user=%s", user_id)
         raise HTTPException(status_code=500, detail="Interner Serverfehler")
 
 
@@ -170,6 +171,7 @@ def create_pairing_endpoint(
             "pairing": pairing
         }
     except ValueError as e:
+        logger.warning("Pairing validation failed for user=%s: %s", user_id, e)
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.exception("Pairing endpoint failed for user=%s", user_id)
@@ -263,6 +265,7 @@ def lock_pairing_endpoint(
             "pairing": pairing
         }
     except ValueError as e:
+        logger.warning("Pairing validation failed for user=%s: %s", user_id, e)
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.exception("Pairing endpoint failed for user=%s", user_id)
@@ -283,6 +286,7 @@ def unlock_pairing_endpoint(
             "pairing": pairing
         }
     except ValueError as e:
+        logger.warning("Pairing validation failed for user=%s: %s", user_id, e)
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.exception("Pairing endpoint failed for user=%s", user_id)
@@ -336,6 +340,7 @@ def execute_pairing_endpoint(
 
         return result
     except ValueError as e:
+        logger.warning("Pairing validation failed for user=%s: %s", user_id, e)
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.exception("Pairing endpoint failed for user=%s", user_id)
@@ -367,6 +372,7 @@ def delete_pairing_endpoint(
             "pairing_id": pairing_id
         }
     except ValueError as e:
+        logger.warning("Pairing validation failed for user=%s: %s", user_id, e)
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.exception("Pairing endpoint failed for user=%s", user_id)

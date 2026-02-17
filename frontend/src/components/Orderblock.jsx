@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell,
@@ -8,7 +8,9 @@ import {
   getOrderblockBacktestRuns, getOrderblockCandles,
 } from '../api/client';
 import { formatNumber, formatDate } from '../utils/formatters';
+import { zoneDistance } from '../utils/orderblockHelpers.jsx';
 import { useAppState } from '../contexts/AppStateContext';
+import useNotification from '../hooks/useNotification';
 import OrderblockChart from './OrderblockChart';
 import OrderblockKPIs from './OrderblockKPIs';
 import OrderblockFilters from './OrderblockFilters';
@@ -16,18 +18,10 @@ import OrderblockZoneTable from './OrderblockZoneTable';
 import OrderblockTradeTable from './OrderblockTradeTable';
 import './Orderblock.css';
 
-// ─── Helpers ───
-
-const zoneDistance = (zone, mp) => {
-  const top = parseFloat(zone.zone_top) || 0;
-  const bottom = parseFloat(zone.zone_bottom) || 0;
-  if (mp >= bottom && mp <= top) return 0;
-  return Math.min(Math.abs(mp - top), Math.abs(mp - bottom));
-};
-
 const Orderblock = () => {
   const { userId, marketPrice } = useAppState();
   const queryClient = useQueryClient();
+  const { message, showMessage: showMsg, dismissMessage } = useNotification();
 
   // ─── State ───
   const [selectedInterval, setSelectedInterval] = useState('4h');
@@ -39,21 +33,9 @@ const Orderblock = () => {
   const [zoneSortConfig, setZoneSortConfig] = useState({ key: 'price_distance', dir: 'asc' });
   const [tradeSortConfig, setTradeSortConfig] = useState({ key: null, dir: 'asc' });
   const [analyzeResult, setAnalyzeResult] = useState(null);
-  const [message, setMessage] = useState(null);
   const [showTrades, setShowTrades] = useState(false);
   const [selectedZone, setSelectedZone] = useState(null);
   const [selectedTradeRow, setSelectedTradeRow] = useState(null);
-  const msgTimerRef = useRef(null);
-
-  const showMsg = (type, text) => {
-    setMessage({ type, text });
-    if (msgTimerRef.current) clearTimeout(msgTimerRef.current);
-    msgTimerRef.current = setTimeout(() => setMessage(null), 5000);
-  };
-
-  useEffect(() => {
-    return () => { if (msgTimerRef.current) clearTimeout(msgTimerRef.current); };
-  }, []);
 
   // ─── Queries ───
 
@@ -129,9 +111,12 @@ const Orderblock = () => {
     return [...filteredZones].sort((a, b) => {
       let av, bv;
       if (zoneSortConfig.key === 'price_distance') {
-        const mp = marketPrice || 0;
-        av = zoneDistance(a, mp);
-        bv = zoneDistance(b, mp);
+        if (!marketPrice) {
+          // Ohne Marktpreis: Fallback auf conviction_score desc
+          return (parseFloat(b.conviction_score) || 0) - (parseFloat(a.conviction_score) || 0);
+        }
+        av = zoneDistance(a, marketPrice);
+        bv = zoneDistance(b, marketPrice);
         const cmp = zoneSortConfig.dir === 'asc' ? av - bv : bv - av;
         if (cmp !== 0) return cmp;
         return (parseFloat(b.conviction_score) || 0) - (parseFloat(a.conviction_score) || 0);
@@ -183,11 +168,17 @@ const Orderblock = () => {
     return trades.find(t => t.ob_id === selectedZone.id) || null;
   }, [selectedZone, trades]);
 
-  // Reset Selections bei Interval-/Filter-Aenderung
+  // Reset Selections + analyzeResult bei Interval-Wechsel, Selections bei Filter-Aenderung
   useEffect(() => {
     setSelectedZone(null);
     setSelectedTradeRow(null);
-  }, [selectedInterval, zoneStateFilter, convictionFilter, categoryFilter, confluenceFilter]);
+    setAnalyzeResult(null);
+  }, [selectedInterval]);
+
+  useEffect(() => {
+    setSelectedZone(null);
+    setSelectedTradeRow(null);
+  }, [zoneStateFilter, convictionFilter, categoryFilter, confluenceFilter]);
 
   // ─── Chart Data ───
   const metrics = analyzeResult?.metrics;
@@ -281,7 +272,7 @@ const Orderblock = () => {
       {message && (
         <div className={`ob-message ob-message-${message.type}`}>
           {message.text}
-          <button className="ob-message-close" onClick={() => setMessage(null)}>&times;</button>
+          <button className="ob-message-close" onClick={dismissMessage}>&times;</button>
         </div>
       )}
 

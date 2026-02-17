@@ -4,21 +4,21 @@
 .combined-error {
   text-align: center;
   padding: 60px 20px;
-  color: #64748b;
+  color: var(--color-text-secondary);
   font-size: 16px;
 }
 
 .combined-error {
-  color: #dc2626;
+  color: var(--color-loss);
 }
 
 .combined-container {
   padding: 24px;
   max-width: 1200px;
   margin: 0 auto;
-  background: white;
-  border-radius: 16px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 4px 16px rgba(0, 0, 0, 0.06);
+  background: var(--color-bg-card);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-card);
   border-top: 3px solid #4f46e5;
 }
 
@@ -42,7 +42,7 @@
 .combined-header-left h2 {
   margin: 0;
   font-size: 22px;
-  color: #1e293b;
+  color: var(--color-text-primary);
 }
 
 .combined-header-left h2 span {
@@ -53,21 +53,21 @@
   background: #eef2ff;
   color: #4f46e5;
   padding: 4px 10px;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   font-size: 13px;
   font-weight: 600;
 }
 
 .combined-quality-badge {
   padding: 4px 10px;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   font-size: 12px;
   font-weight: 600;
 }
 
 .combined-quality-badge.quality-full {
-  background: #dcfce7;
-  color: #16a34a;
+  background: var(--color-success-bg);
+  color: var(--color-profit);
 }
 
 .combined-quality-badge.quality-partial {
@@ -77,14 +77,14 @@
 
 .combined-quality-badge.quality-degraded {
   background: #fee2e2;
-  color: #dc2626;
+  color: var(--color-loss);
 }
 
 .combined-header-right {
   display: flex;
   align-items: center;
   gap: 16px;
-  color: #64748b;
+  color: var(--color-text-secondary);
   font-size: 13px;
 }
 
@@ -97,7 +97,7 @@
 .combined-action-banner {
   background: linear-gradient(135deg, #eef2ff, #e0e7ff);
   border: 1px solid #c7d2fe;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   padding: 24px;
   margin-bottom: 20px;
 }
@@ -132,7 +132,7 @@
   display: flex;
   justify-content: space-between;
   font-size: 11px;
-  color: #94a3b8;
+  color: var(--color-text-muted);
   margin-bottom: 4px;
   padding: 0 2px;
 }
@@ -183,7 +183,7 @@
 }
 
 .combined-score-value strong {
-  color: #1e293b;
+  color: var(--color-text-primary);
 }
 
 /* ─── Conflict Alert ─── */
@@ -216,8 +216,8 @@
 
 .combined-subsignal-card {
   background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
   padding: 20px;
 }
 
@@ -231,14 +231,14 @@
 .combined-subsignal-header h3 {
   margin: 0;
   font-size: 16px;
-  color: #1e293b;
+  color: var(--color-text-primary);
 }
 
 .combined-weight-badge {
   background: #4f46e5;
   color: white;
   padding: 3px 10px;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   font-size: 12px;
   font-weight: 600;
 }
@@ -274,7 +274,7 @@
 
 .combined-metric-label {
   font-size: 11px;
-  color: #94a3b8;
+  color: var(--color-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -282,7 +282,7 @@
 .combined-metric-value {
   font-size: 16px;
   font-weight: 600;
-  color: #1e293b;
+  color: var(--color-text-primary);
 }
 
 /* ─── Detail Toggle ─── */
@@ -292,7 +292,7 @@
   margin-top: 12px;
   padding: 8px;
   background: transparent;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--color-border);
   border-radius: 6px;
   color: #4f46e5;
   font-size: 13px;
@@ -329,7 +329,7 @@
 .combined-factor-dir {
   font-size: 11px;
   margin-left: 4px;
-  color: #94a3b8;
+  color: var(--color-text-muted);
 }
 
 .combined-factor-bar-track {
@@ -377,15 +377,15 @@
 }
 
 .combined-factor-score.positive {
-  color: #16a34a;
+  color: var(--color-profit);
 }
 
 .combined-factor-score.negative {
-  color: #dc2626;
+  color: var(--color-loss);
 }
 
 .combined-factor-reason {
-  color: #64748b;
+  color: var(--color-text-secondary);
   font-size: 12px;
   white-space: nowrap;
   overflow: hidden;
@@ -423,7 +423,7 @@
 .combined-pillar-score {
   font-weight: 700;
   text-align: right;
-  color: #1e293b;
+  color: var(--color-text-primary);
 }
 
 .combined-pillar-quality {
@@ -440,7 +440,7 @@
 
 .combined-pillar-quality.quality-cached {
   background: #f1f5f9;
-  color: #64748b;
+  color: var(--color-text-secondary);
 }
 
 .combined-pillar-quality.quality-stale {
@@ -450,7 +450,7 @@
 
 .combined-pillar-quality.quality-unavailable {
   background: #f1f5f9;
-  color: #94a3b8;
+  color: var(--color-text-muted);
 }
 
 .combined-dispersion-info,
@@ -487,7 +487,7 @@
   background: #f8fafc;
   border-radius: 8px;
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--color-text-muted);
   line-height: 1.5;
   text-align: center;
 }
