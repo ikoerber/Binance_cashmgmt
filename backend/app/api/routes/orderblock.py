@@ -1,6 +1,7 @@
 """Orderblock Detection & Backtest API Endpoints"""
 
 import asyncio
+import logging
 from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Optional
@@ -15,8 +16,8 @@ from app.domain.orderblock import OBConfig
 from app.services.orderblock_data_service import (
     ALLOWED_INTERVALS,
     INTERVAL_MS,
-    _serialize_candle_for_chart,
-    _serialize_config,
+    serialize_candle_for_chart,
+    serialize_config,
     get_orderblock_data_service,
 )
 from app.services.orderblock_persistence_service import (
@@ -28,6 +29,8 @@ from app.services.orderblock_persistence_service import (
     save_backtest_result,
     save_detection_result,
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/orderblock", tags=["orderblock"])
 
@@ -47,6 +50,8 @@ class OBConfigRequest(BaseModel):
     zscore_threshold: float = Field(default=2.0, ge=0.5, le=5.0)
     max_holding_candles: int = Field(default=200, ge=0, le=2000)
     impulse_window: int = Field(default=5, ge=2, le=20)
+    sweep_lookback: int = Field(default=10, ge=1, le=50)
+    sweep_conviction_boost: float = Field(default=10.0, ge=0.0, le=30.0)
 
 
 class AnalyzeRequest(BaseModel):
@@ -115,6 +120,8 @@ def _build_config(
             zscore_threshold=Decimal(str(req_config.zscore_threshold)),
             max_holding_candles=req_config.max_holding_candles,
             impulse_window=req_config.impulse_window,
+            sweep_lookback=req_config.sweep_lookback,
+            sweep_conviction_boost=Decimal(str(req_config.sweep_conviction_boost)),
         )
 
     # Kein expliziter Config -> User-Settings als Fallback
@@ -170,28 +177,41 @@ async def analyze_orderblocks(
     config = _build_config(request.config, user_settings)
     service = get_orderblock_data_service()
 
-    result_data = await asyncio.to_thread(
-        service.analyze,
-        symbol=request.symbol,
-        interval=interval,
-        months=request.months,
-        config=config,
-    )
+    try:
+        result_data = await asyncio.to_thread(
+            service.analyze,
+            symbol=request.symbol,
+            interval=interval,
+            months=request.months,
+            config=config,
+        )
+    except Exception as e:
+        logger.error("Orderblock Analyse fehlgeschlagen: %s", e)
+        raise HTTPException(
+            status_code=502,
+            detail=f"Analyse fehlgeschlagen (Binance API oder Detection): {e}",
+        )
 
     # Zonen persistieren
     raw_zones = result_data.pop("raw_zones", [])
     if raw_zones:
-        config_json = _serialize_config(config)
+        config_json = serialize_config(config)
         save_detection_result(
             db, user_id, raw_zones, request.symbol, interval, config_json
         )
 
     # Backtest-Run persistieren
     run_id = None
-    if result_data.get("result"):
-        run_id = save_backtest_result(db, user_id, result_data)
-
-    result_data.pop("result", None)
+    result = result_data.pop("result", None)
+    if result:
+        run_id = save_backtest_result(
+            db,
+            user_id,
+            result,
+            config_json=result_data["config"],
+            metrics_json=result_data["metrics"],
+            trades_json=result_data["trades"],
+        )
     result_data["run_id"] = run_id
 
     return result_data
@@ -230,7 +250,7 @@ def get_orderblock_zone_detail(
     db: Session = Depends(get_db),
 ):
     """Einzelne Zone mit vollstaendigen Details laden."""
-    zone = get_zone_detail(db, zone_id)
+    zone = get_zone_detail(db, zone_id, user_id=user_id)
     if zone is None:
         raise HTTPException(status_code=404, detail="Zone nicht gefunden.")
     return zone
@@ -272,7 +292,7 @@ def get_orderblock_backtest_run_detail(
     db: Session = Depends(get_db),
 ):
     """Einzelnen Backtest-Run mit Metriken und Trades laden."""
-    run = get_backtest_run(db, run_id)
+    run = get_backtest_run(db, run_id, user_id=user_id)
     if run is None:
         raise HTTPException(status_code=404, detail="Backtest-Run nicht gefunden.")
     return run
@@ -305,18 +325,24 @@ async def get_orderblock_candles(
 
     if start_time and end_time:
         # Modus 2: Explizites Zeitfenster mit Kontext-Padding
-        start_dt = datetime.fromisoformat(
-            start_time.replace("Z", "+00:00")
-        ).replace(tzinfo=None)
-        end_dt = datetime.fromisoformat(
-            end_time.replace("Z", "+00:00")
-        ).replace(tzinfo=None)
+        try:
+            start_dt = datetime.fromisoformat(
+                start_time.replace("Z", "+00:00")
+            ).replace(tzinfo=None)
+            end_dt = datetime.fromisoformat(
+                end_time.replace("Z", "+00:00")
+            ).replace(tzinfo=None)
+        except ValueError as e:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Ungueltiges Datumsformat: {e}",
+            )
         padding_ms = 20 * interval_ms
         start_dt = start_dt - timedelta(milliseconds=padding_ms)
         end_dt = end_dt + timedelta(milliseconds=padding_ms)
     elif zone_id:
         # Modus 1: Zone-basiertes Fenster
-        zone = get_zone_detail(db, zone_id)
+        zone = get_zone_detail(db, zone_id, user_id=user_id)
         if zone is None:
             raise HTTPException(status_code=404, detail="Zone nicht gefunden.")
         formed_at_str = zone.get("formed_at", "")
@@ -333,16 +359,23 @@ async def get_orderblock_candles(
         )
 
     service = get_orderblock_data_service()
-    candles = await asyncio.to_thread(
-        service.fetch_candles_for_window,
-        symbol=symbol,
-        interval=interval,
-        start_time=start_dt,
-        end_time=end_dt,
-    )
+    try:
+        candles = await asyncio.to_thread(
+            service.fetch_candles_for_window,
+            symbol=symbol,
+            interval=interval,
+            start_time=start_dt,
+            end_time=end_dt,
+        )
+    except Exception as e:
+        logger.error("Candle-Fetch fehlgeschlagen: %s", e)
+        raise HTTPException(
+            status_code=502,
+            detail=f"Candle-Daten konnten nicht geladen werden: {e}",
+        )
 
     return {
-        "candles": [_serialize_candle_for_chart(c) for c in candles],
+        "candles": [serialize_candle_for_chart(c) for c in candles],
         "count": len(candles),
         "symbol": symbol,
         "interval": interval,

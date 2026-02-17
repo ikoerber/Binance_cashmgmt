@@ -59,6 +59,7 @@ class BacktestTrade:
     conviction: ConvictionLevel
     volume_zscore: Decimal
     conviction_score: Decimal = Decimal("0")
+    has_liquidity_sweep: bool = False
 
 
 @dataclass
@@ -305,6 +306,7 @@ def _make_trade(
         conviction=ob.conviction,
         volume_zscore=ob.volume_zscore,
         conviction_score=ob.conviction_score,
+        has_liquidity_sweep=ob.has_liquidity_sweep,
     )
 
 

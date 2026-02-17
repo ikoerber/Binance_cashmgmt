@@ -18,7 +18,7 @@ Z-Score = (V_impulse - mean(V_lookback)) / std(V_lookback)
 wobei V die Volumen der Kerzen sind. Nur OBs mit Z > threshold gelten als HIGH_CONVICTION.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
@@ -80,6 +80,15 @@ class OBCategory(Enum):
     UNCLASSIFIED = "UNCLASSIFIED"  # OBs ausserhalb der Major-Struktur
 
 
+class ConfluenceLabel(Enum):
+    """Sentiment-OB Confluence Stufe."""
+
+    STRONG_CONTRARIAN = "STRONG_CONTRARIAN"  # Fear + Bullish OB oder Greed + Bearish OB
+    MODERATE_CONTRARIAN = "MODERATE_CONTRARIAN"  # Moderate kontraere Konstellation
+    NEUTRAL = "NEUTRAL"  # Keine klare Confluence
+    ADVERSE = "ADVERSE"  # OB-Richtung aligned mit Sentiment-Extrem (unguenstig)
+
+
 # ---------------------------------------------------------------------------
 # Dataclasses
 # ---------------------------------------------------------------------------
@@ -113,6 +122,8 @@ class OBConfig:
     zscore_threshold: Decimal = Decimal("2.0")
     max_holding_candles: int = 200  # Triple Barrier Zeitlimit (0=deaktiviert)
     impulse_window: int = 5  # Max Kerzen nach OB fuer Displacement/FVG/BOS (AlbaTherium)
+    sweep_lookback: int = 10  # Kerzen vor OB-Formation fuer Liquidity Sweep Erkennung
+    sweep_conviction_boost: Decimal = Decimal("10")  # Additive Punkte bei Sweep
 
 
 @dataclass
@@ -148,6 +159,15 @@ class InducementLevel:
 
 
 @dataclass
+class SentimentConfluence:
+    """Ergebnis der Sentiment-OB Cross-Referenz Berechnung."""
+
+    confluence_score: Decimal  # conviction × multiplier, capped bei 100
+    confluence_label: ConfluenceLabel
+    sentiment_at_detection: Decimal  # Sentiment-Snapshot zum Analyse-Zeitpunkt
+
+
+@dataclass
 class Orderblock:
     """Ein validierter Orderblock (Zone)."""
 
@@ -176,9 +196,16 @@ class Orderblock:
     impact_efficiency_ratio: Decimal = Decimal("0")
     conviction_score: Decimal = Decimal("0")
     is_high_conviction_zscore: bool = False  # Spec 4.3: volume_zscore > zscore_threshold
-    category: str = "UNCLASSIFIED"  # OBCategory: EXTREME/DECISIONAL/SMT/UNCLASSIFIED
+    category: OBCategory = OBCategory.UNCLASSIFIED
     mitigated_at: Optional[datetime] = None
     invalidated_at: Optional[datetime] = None
+    # Liquidity Sweep
+    has_liquidity_sweep: bool = False
+    liquidity_sweep_level: Optional[Decimal] = None
+    # Sentiment Confluence
+    sentiment_at_detection: Optional[Decimal] = None
+    confluence_label: Optional[str] = None  # ConfluenceLabel.value oder None
+    confluence_score: Optional[Decimal] = None
 
 
 # ---------------------------------------------------------------------------
@@ -337,7 +364,7 @@ def find_fvgs(
 
     # Wir brauchen mindestens 3 Kerzen (i-2, i-1, i)
     # start_index ist die erste Kerze nach dem OB
-    for i in range(max(start_index, 2), min(start_index + window + 2, n)):
+    for i in range(max(start_index, 2), min(start_index + window, n)):
         if i - 2 < 0:
             continue
 
@@ -685,6 +712,153 @@ def conviction_level_from_score(score: Decimal) -> ConvictionLevel:
 
 
 # ---------------------------------------------------------------------------
+# Liquidity Sweep Detection
+# ---------------------------------------------------------------------------
+
+
+def detect_liquidity_sweep(
+    candles: List[Candle],
+    ob_index: int,
+    direction: OBDirection,
+    all_swings: List[SwingPoint],
+    lookback: int,
+) -> tuple:
+    """
+    Erkennt ob ein Liquidity Sweep vor der OB-Formation stattfand.
+
+    Ein Sweep liegt vor wenn eine Kerze ueber einen bestaetigten Swing-Punkt
+    hinaus wicked, aber auf der "richtigen" Seite geschlossen hat (Reversal).
+
+    Bullish OB: Kerze wicked unter Swing Low (Sell-Stops abgeraeumt),
+                schliesst aber ueber dem Swing Low.
+    Bearish OB: Kerze wicked ueber Swing High (Buy-Stops abgeraeumt),
+                schliesst aber unter dem Swing High.
+
+    Sucht im Fenster [ob_index - lookback, ob_index).
+    Verwendet nur Swings die VOR dem OB bestaetigt sind (keine Look-Ahead-Bias).
+
+    Returns: (has_sweep: bool, sweep_level: Optional[Decimal])
+    """
+    if lookback <= 0:
+        return (False, None)
+
+    window_start = max(0, ob_index - lookback)
+
+    # Nur bestaetigte Swings vor der OB-Formation verwenden
+    if direction == OBDirection.BULLISH:
+        # Bullish OB: Sweep unter vorherigen Swing Lows
+        relevant_swings = [
+            s for s in all_swings
+            if not s.is_high  # Swing Lows
+            and s.confirmed_at_index < ob_index  # Zeitkonsistent
+            and s.index < ob_index  # Swing liegt vor dem OB
+        ]
+    else:
+        # Bearish OB: Sweep ueber vorherigen Swing Highs
+        relevant_swings = [
+            s for s in all_swings
+            if s.is_high  # Swing Highs
+            and s.confirmed_at_index < ob_index
+            and s.index < ob_index
+        ]
+
+    if not relevant_swings:
+        return (False, None)
+
+    # Suche die juengste Sweep-Kerze im Lookback-Fenster
+    best_sweep_idx = -1
+    best_sweep_level = None
+
+    for candle_idx in range(window_start, ob_index):
+        candle = candles[candle_idx]
+        for swing in relevant_swings:
+            if direction == OBDirection.BULLISH:
+                # Wick unter Swing Low, Close darueber = Sell-Stop Sweep
+                if candle.low <= swing.price and candle.close > swing.price:
+                    if candle_idx > best_sweep_idx:
+                        best_sweep_idx = candle_idx
+                        best_sweep_level = swing.price
+            else:
+                # Wick ueber Swing High, Close darunter = Buy-Stop Sweep
+                if candle.high >= swing.price and candle.close < swing.price:
+                    if candle_idx > best_sweep_idx:
+                        best_sweep_idx = candle_idx
+                        best_sweep_level = swing.price
+
+    if best_sweep_idx >= 0:
+        return (True, best_sweep_level)
+    return (False, None)
+
+
+# ---------------------------------------------------------------------------
+# Sentiment-OB Confluence (Pure Domain, kein I/O)
+# ---------------------------------------------------------------------------
+
+
+def compute_sentiment_confluence(
+    sentiment_score: Decimal,
+    ob_direction: OBDirection,
+    conviction_score: Decimal,
+) -> SentimentConfluence:
+    """
+    Berechnet Sentiment-OB Confluence.
+
+    Kontraere Konstellationen (Fear + Bullish bzw. Greed + Bearish) erhalten
+    einen Score-Boost, gleichgerichtete Konstellationen einen Abschlag.
+
+    BULLISH OB + Sentiment < 30:  STRONG_CONTRARIAN  (×1.3)
+    BULLISH OB + Sentiment 30-45: MODERATE_CONTRARIAN (×1.15)
+    BULLISH OB + Sentiment > 70:  ADVERSE            (×0.85)
+    BEARISH OB + Sentiment > 70:  STRONG_CONTRARIAN  (×1.3)
+    BEARISH OB + Sentiment 55-70: MODERATE_CONTRARIAN (×1.15)
+    BEARISH OB + Sentiment < 30:  ADVERSE            (×0.85)
+    Sonst:                        NEUTRAL             (×1.0)
+
+    Pure Funktion. Alle Werte Decimal, niemals float.
+    """
+    _30 = Decimal("30")
+    _45 = Decimal("45")
+    _55 = Decimal("55")
+    _70 = Decimal("70")
+    _hundred = Decimal("100")
+
+    if ob_direction == OBDirection.BULLISH:
+        if sentiment_score < _30:
+            label = ConfluenceLabel.STRONG_CONTRARIAN
+            mult = Decimal("1.3")
+        elif sentiment_score < _45:
+            label = ConfluenceLabel.MODERATE_CONTRARIAN
+            mult = Decimal("1.15")
+        elif sentiment_score > _70:
+            label = ConfluenceLabel.ADVERSE
+            mult = Decimal("0.85")
+        else:
+            label = ConfluenceLabel.NEUTRAL
+            mult = Decimal("1")
+    else:  # BEARISH
+        if sentiment_score > _70:
+            label = ConfluenceLabel.STRONG_CONTRARIAN
+            mult = Decimal("1.3")
+        elif sentiment_score > _55:
+            label = ConfluenceLabel.MODERATE_CONTRARIAN
+            mult = Decimal("1.15")
+        elif sentiment_score < _30:
+            label = ConfluenceLabel.ADVERSE
+            mult = Decimal("0.85")
+        else:
+            label = ConfluenceLabel.NEUTRAL
+            mult = Decimal("1")
+
+    conf_score = _clamp(conviction_score * mult, Decimal("0"), _hundred)
+
+    return SentimentConfluence(
+        confluence_score=conf_score,
+        confluence_label=label,
+        sentiment_at_detection=sentiment_score,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Hauptlogik: detect_orderblocks
 # ---------------------------------------------------------------------------
 
@@ -802,10 +976,10 @@ def _try_validate_ob(
     for sw in all_swings:
         if sw.confirmed_at_index <= ob_index:
             if sw.is_high:
-                if last_swing_high is None or sw.price > last_swing_high.price:
+                if last_swing_high is None or sw.index > last_swing_high.index:
                     last_swing_high = sw
             else:
-                if last_swing_low is None or sw.price < last_swing_low.price:
+                if last_swing_low is None or sw.index > last_swing_low.index:
                     last_swing_low = sw
 
     bos_candle_idx = None
@@ -880,11 +1054,25 @@ def _try_validate_ob(
     )
     conviction = conviction_level_from_score(conv_score)
 
+    # Liquidity Sweep Detection (verwendet dieselben Swing Points wie BOS)
+    has_sweep, sweep_level = detect_liquidity_sweep(
+        candles, ob_index, direction, all_swings, config.sweep_lookback
+    )
+
+    # Sweep Conviction Boost (additiv, gedeckelt bei 100)
+    if has_sweep:
+        conv_score = _clamp(
+            conv_score + config.sweep_conviction_boost,
+            Decimal("0"),
+            Decimal("100"),
+        )
+        conviction = conviction_level_from_score(conv_score)
+
     # Spec 4.3: Expliziter Z-Score Threshold Filter
     is_hc_zscore = vol_zscore > config.zscore_threshold
 
     ts = int(candles[ob_index].timestamp.timestamp())
-    ob_id = f"ob_{direction.value.lower()}_{ts}"
+    ob_id = f"ob_{direction.value.lower()}_{ts}_{ob_index}"
 
     return Orderblock(
         id=ob_id,
@@ -912,6 +1100,8 @@ def _try_validate_ob(
         impact_efficiency_ratio=ier,
         conviction_score=conv_score,
         is_high_conviction_zscore=is_hc_zscore,
+        has_liquidity_sweep=has_sweep,
+        liquidity_sweep_level=sweep_level,
     )
 
 
@@ -1003,11 +1193,11 @@ def classify_orderblocks(
     # --- Phase 1: OBs in der Major-Range als SMT markieren ---
     classified: List[Orderblock] = []
     for ob in zones:
-        cat = "UNCLASSIFIED"
+        cat = OBCategory.UNCLASSIFIED
 
         if ob.direction == OBDirection.BULLISH:
             if major_low.index <= ob.formed_at_index <= major_high.index:
-                cat = "SMT"
+                cat = OBCategory.SMT
         elif ob.direction == OBDirection.BEARISH:
             # Bearish: Major High vor Major Low (Abwaertsbewegung)
             if (
@@ -1015,22 +1205,20 @@ def classify_orderblocks(
                 <= ob.formed_at_index
                 <= max(major_high.index, major_low.index)
             ):
-                cat = "SMT"
+                cat = OBCategory.SMT
 
-        classified.append(
-            Orderblock(**{**ob.__dict__, "category": cat})
-        )
+        classified.append(replace(ob, category=cat))
 
     # --- Phase 2: EXTREME identifizieren ---
     # Bullish: tiefster OB (naechst am Major Low)
     bullish_in_range = [
         ob for ob in classified
-        if ob.direction == OBDirection.BULLISH and ob.category == "SMT"
+        if ob.direction == OBDirection.BULLISH and ob.category == OBCategory.SMT
     ]
     if bullish_in_range:
         extreme_id = min(bullish_in_range, key=lambda ob: ob.zone_bottom).id
         classified = [
-            Orderblock(**{**ob.__dict__, "category": "EXTREME"})
+            replace(ob, category=OBCategory.EXTREME)
             if ob.id == extreme_id else ob
             for ob in classified
         ]
@@ -1038,12 +1226,12 @@ def classify_orderblocks(
     # Bearish: hoechster OB (naechst am Major High)
     bearish_in_range = [
         ob for ob in classified
-        if ob.direction == OBDirection.BEARISH and ob.category == "SMT"
+        if ob.direction == OBDirection.BEARISH and ob.category == OBCategory.SMT
     ]
     if bearish_in_range:
         extreme_id = max(bearish_in_range, key=lambda ob: ob.zone_top).id
         classified = [
-            Orderblock(**{**ob.__dict__, "category": "EXTREME"})
+            replace(ob, category=OBCategory.EXTREME)
             if ob.id == extreme_id else ob
             for ob in classified
         ]
@@ -1054,13 +1242,13 @@ def classify_orderblocks(
         below_idm = [
             ob for ob in classified
             if ob.direction == OBDirection.BULLISH
-            and ob.category == "SMT"
+            and ob.category == OBCategory.SMT
             and ob.zone_top < current_idm
         ]
         if below_idm:
             decisional_id = max(below_idm, key=lambda ob: ob.formed_at_index).id
             classified = [
-                Orderblock(**{**ob.__dict__, "category": "DECISIONAL"})
+                replace(ob, category=OBCategory.DECISIONAL)
                 if ob.id == decisional_id else ob
                 for ob in classified
             ]
@@ -1118,33 +1306,9 @@ def update_zone_states(
                     mitigated_at = c.timestamp
 
         updated.append(
-            Orderblock(
-                id=ob.id,
-                direction=ob.direction,
-                zone_top=ob.zone_top,
-                zone_bottom=ob.zone_bottom,
-                equilibrium=ob.equilibrium,
-                entry_edge=ob.entry_edge,
-                stop_edge=ob.stop_edge,
-                formed_at=ob.formed_at,
-                confirmed_at=ob.confirmed_at,
-                formed_at_index=ob.formed_at_index,
-                confirmed_at_index=ob.confirmed_at_index,
+            replace(
+                ob,
                 state=new_state,
-                conviction=ob.conviction,
-                volume_zscore=ob.volume_zscore,
-                volume_weight=ob.volume_weight,
-                fvg=ob.fvg,
-                atr_at_formation=ob.atr_at_formation,
-                displacement_range=ob.displacement_range,
-                bos_swing_price=ob.bos_swing_price,
-                config=ob.config,
-                volume_percentile=ob.volume_percentile,
-                ofi_divergence=ob.ofi_divergence,
-                impact_efficiency_ratio=ob.impact_efficiency_ratio,
-                conviction_score=ob.conviction_score,
-                is_high_conviction_zscore=ob.is_high_conviction_zscore,
-                category=ob.category,
                 mitigated_at=mitigated_at,
                 invalidated_at=invalidated_at,
             )

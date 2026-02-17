@@ -12,6 +12,7 @@ import pytest
 
 from app.domain.orderblock import (
     Candle,
+    ConfluenceLabel,
     ConvictionLevel,
     FairValueGap,
     InducementLevel,
@@ -20,6 +21,7 @@ from app.domain.orderblock import (
     OBDirection,
     OBState,
     Orderblock,
+    SentimentConfluence,
     SwingPoint,
     _is_inside_bar,
     classify_orderblocks,
@@ -27,10 +29,12 @@ from app.domain.orderblock import (
     compute_conviction_score,
     compute_impact_efficiency_ratio,
     compute_ofi_divergence,
+    compute_sentiment_confluence,
     compute_volume_percentile,
     compute_volume_weight,
     compute_volume_zscore,
     conviction_level_from_score,
+    detect_liquidity_sweep,
     detect_orderblocks,
     find_fvgs,
     find_inducement_levels,
@@ -1429,7 +1433,7 @@ class TestOBClassification:
         ob = _make_dummy_ob("ob_1", OBDirection.BULLISH, 5)
         result = classify_orderblocks([ob], [], candles)
         assert len(result) == 1
-        assert result[0].category == "UNCLASSIFIED"
+        assert result[0].category == OBCategory.UNCLASSIFIED
 
     def test_classification_is_deterministic(self):
         """Gleicher Input ergibt gleiche Klassifikation."""
@@ -1452,7 +1456,7 @@ class TestOBClassification:
     def test_category_field_on_orderblock(self):
         """Orderblock hat category-Feld mit Default UNCLASSIFIED."""
         ob = _make_dummy_ob("ob_test", OBDirection.BULLISH, 5)
-        assert ob.category == "UNCLASSIFIED"
+        assert ob.category == OBCategory.UNCLASSIFIED
 
 
 def _make_dummy_ob(
@@ -1491,3 +1495,303 @@ def _make_dummy_ob(
         bos_swing_price=Decimal("115.0"),
         config=OBConfig(),
     )
+
+
+# ---------------------------------------------------------------------------
+# Tests: Liquidity Sweep Detection
+# ---------------------------------------------------------------------------
+
+
+class TestLiquiditySweep:
+    """Tests fuer detect_liquidity_sweep()."""
+
+    def _make_swings_and_candles(self):
+        """Erstellt 20 flache Kerzen + einen bestaetigten Swing Low bei Index 5."""
+        candles = _make_flat_candles(20, price="100", spread="2")
+        # Swing Low bei Index 5: Preis faellt auf 90
+        candles[5] = _make_candle(5, "98", "99", "90", "97")
+        swing_low = SwingPoint(
+            index=5,
+            timestamp=candles[5].timestamp,
+            price=Decimal("90"),
+            is_high=False,
+            confirmed_at_index=7,  # Bestaetigt bei Index 7
+        )
+        return candles, [swing_low]
+
+    def test_bullish_sweep_detected(self):
+        """Wick unter Swing Low + Close darueber = Sweep erkannt."""
+        candles, swings = self._make_swings_and_candles()
+        # Sweep-Kerze bei Index 12: wicked unter 90, schloss bei 95
+        candles[12] = _make_candle(12, "96", "97", "89", "95")
+        ob_index = 14
+
+        has_sweep, level = detect_liquidity_sweep(
+            candles, ob_index, OBDirection.BULLISH, swings, lookback=10
+        )
+        assert has_sweep is True
+        assert level == Decimal("90")
+
+    def test_bearish_sweep_detected(self):
+        """Wick ueber Swing High + Close darunter = Sweep erkannt."""
+        candles = _make_flat_candles(20, price="100", spread="2")
+        # Swing High bei Index 5: Preis steigt auf 110
+        candles[5] = _make_candle(5, "102", "110", "101", "103")
+        swing_high = SwingPoint(
+            index=5,
+            timestamp=candles[5].timestamp,
+            price=Decimal("110"),
+            is_high=True,
+            confirmed_at_index=7,
+        )
+        # Sweep-Kerze bei Index 12: wicked ueber 110, schloss bei 105
+        candles[12] = _make_candle(12, "104", "111", "103", "105")
+        ob_index = 14
+
+        has_sweep, level = detect_liquidity_sweep(
+            candles, ob_index, OBDirection.BEARISH, [swing_high], lookback=10
+        )
+        assert has_sweep is True
+        assert level == Decimal("110")
+
+    def test_no_sweep_when_close_beyond_swing(self):
+        """Close unter Swing Low = Breakdown, kein Sweep."""
+        candles, swings = self._make_swings_and_candles()
+        # Kerze schliesst UNTER dem Swing Low (= echter Breakdown)
+        candles[12] = _make_candle(12, "96", "97", "88", "87")
+        ob_index = 14
+
+        # Lookback nur auf [11, 14) beschraenken, damit die Swing-Kerze
+        # (Index 5) selbst nicht als Sweep-Candle zaehlt.
+        has_sweep, level = detect_liquidity_sweep(
+            candles, ob_index, OBDirection.BULLISH, swings, lookback=3
+        )
+        assert has_sweep is False
+        assert level is None
+
+    def test_no_sweep_outside_lookback(self):
+        """Sweep jenseits des Lookback-Fensters wird ignoriert."""
+        candles, swings = self._make_swings_and_candles()
+        # Sweep-Kerze bei Index 8 — aber lookback=3 ab ob_index=14 geht nur bis 11
+        candles[8] = _make_candle(8, "96", "97", "89", "95")
+        ob_index = 14
+
+        has_sweep, level = detect_liquidity_sweep(
+            candles, ob_index, OBDirection.BULLISH, swings, lookback=3
+        )
+        assert has_sweep is False
+
+    def test_sweep_uses_confirmed_swings_only(self):
+        """Nur Swings die vor dem OB bestaetigt sind werden beruecksichtigt."""
+        candles = _make_flat_candles(20, price="100", spread="2")
+        # Swing Low bei Index 10, bestaetigt erst bei Index 16 (NACH dem OB)
+        candles[10] = _make_candle(10, "98", "99", "90", "97")
+        swing_late = SwingPoint(
+            index=10,
+            timestamp=candles[10].timestamp,
+            price=Decimal("90"),
+            is_high=False,
+            confirmed_at_index=16,  # Erst NACH OB bestaetigt
+        )
+        # Sweep-Kerze bei Index 12
+        candles[12] = _make_candle(12, "96", "97", "89", "95")
+        ob_index = 14
+
+        has_sweep, level = detect_liquidity_sweep(
+            candles, ob_index, OBDirection.BULLISH, [swing_late], lookback=10
+        )
+        assert has_sweep is False
+
+    def test_no_sweep_returns_false_none(self):
+        """Ohne Sweep: has_sweep=False, level=None."""
+        candles = _make_flat_candles(20, price="100", spread="2")
+        swings = []
+        ob_index = 14
+
+        has_sweep, level = detect_liquidity_sweep(
+            candles, ob_index, OBDirection.BULLISH, swings, lookback=10
+        )
+        assert has_sweep is False
+        assert level is None
+
+    def test_sweep_nearest_to_ob_wins(self):
+        """Bei mehreren Sweeps gewinnt der naechste zum OB (hoechster Index)."""
+        candles, swings = self._make_swings_and_candles()
+        # Sweep 1 bei Index 10
+        candles[10] = _make_candle(10, "96", "97", "89", "95")
+        # Sweep 2 bei Index 12 (naeher am OB)
+        candles[12] = _make_candle(12, "96", "97", "88", "95")
+        ob_index = 14
+
+        has_sweep, level = detect_liquidity_sweep(
+            candles, ob_index, OBDirection.BULLISH, swings, lookback=10
+        )
+        assert has_sweep is True
+        # Level bleibt der Swing-Preis (90), nicht der Candle-Low
+        assert level == Decimal("90")
+
+    def test_zero_lookback_no_sweep(self):
+        """Lookback=0 liefert keinen Sweep."""
+        candles, swings = self._make_swings_and_candles()
+        candles[12] = _make_candle(12, "96", "97", "89", "95")
+
+        has_sweep, level = detect_liquidity_sweep(
+            candles, 14, OBDirection.BULLISH, swings, lookback=0
+        )
+        assert has_sweep is False
+
+
+# ---------------------------------------------------------------------------
+# Tests: Sentiment-OB Confluence
+# ---------------------------------------------------------------------------
+
+
+class TestSentimentConfluence:
+    """Tests fuer compute_sentiment_confluence() (pure Domain-Logik)."""
+
+    def test_bullish_fear_strong_contrarian(self):
+        """BULLISH OB + Sentiment < 30 = STRONG_CONTRARIAN, x1.3."""
+        result = compute_sentiment_confluence(
+            sentiment_score=Decimal("20"),
+            ob_direction=OBDirection.BULLISH,
+            conviction_score=Decimal("60"),
+        )
+        assert result.confluence_label == ConfluenceLabel.STRONG_CONTRARIAN
+        assert result.confluence_score == Decimal("78")  # 60 * 1.3
+        assert result.sentiment_at_detection == Decimal("20")
+
+    def test_bullish_moderate_fear(self):
+        """BULLISH OB + Sentiment 30-45 = MODERATE_CONTRARIAN, x1.15."""
+        result = compute_sentiment_confluence(
+            sentiment_score=Decimal("35"),
+            ob_direction=OBDirection.BULLISH,
+            conviction_score=Decimal("60"),
+        )
+        assert result.confluence_label == ConfluenceLabel.MODERATE_CONTRARIAN
+        assert result.confluence_score == Decimal("69")  # 60 * 1.15
+
+    def test_bearish_greed_strong_contrarian(self):
+        """BEARISH OB + Sentiment > 70 = STRONG_CONTRARIAN, x1.3."""
+        result = compute_sentiment_confluence(
+            sentiment_score=Decimal("80"),
+            ob_direction=OBDirection.BEARISH,
+            conviction_score=Decimal("50"),
+        )
+        assert result.confluence_label == ConfluenceLabel.STRONG_CONTRARIAN
+        assert result.confluence_score == Decimal("65")  # 50 * 1.3
+
+    def test_bearish_moderate_greed(self):
+        """BEARISH OB + Sentiment 55-70 = MODERATE_CONTRARIAN, x1.15."""
+        result = compute_sentiment_confluence(
+            sentiment_score=Decimal("60"),
+            ob_direction=OBDirection.BEARISH,
+            conviction_score=Decimal("40"),
+        )
+        assert result.confluence_label == ConfluenceLabel.MODERATE_CONTRARIAN
+        assert result.confluence_score == Decimal("46")  # 40 * 1.15
+
+    def test_bullish_greed_adverse(self):
+        """BULLISH OB + Sentiment > 70 = ADVERSE, x0.85."""
+        result = compute_sentiment_confluence(
+            sentiment_score=Decimal("80"),
+            ob_direction=OBDirection.BULLISH,
+            conviction_score=Decimal("60"),
+        )
+        assert result.confluence_label == ConfluenceLabel.ADVERSE
+        assert result.confluence_score == Decimal("51")  # 60 * 0.85
+
+    def test_bearish_fear_adverse(self):
+        """BEARISH OB + Sentiment < 30 = ADVERSE, x0.85."""
+        result = compute_sentiment_confluence(
+            sentiment_score=Decimal("15"),
+            ob_direction=OBDirection.BEARISH,
+            conviction_score=Decimal("60"),
+        )
+        assert result.confluence_label == ConfluenceLabel.ADVERSE
+        assert result.confluence_score == Decimal("51")  # 60 * 0.85
+
+    def test_neutral_sentiment(self):
+        """Neutrales Sentiment (45-55) = NEUTRAL, x1.0."""
+        result = compute_sentiment_confluence(
+            sentiment_score=Decimal("50"),
+            ob_direction=OBDirection.BULLISH,
+            conviction_score=Decimal("60"),
+        )
+        assert result.confluence_label == ConfluenceLabel.NEUTRAL
+        assert result.confluence_score == Decimal("60")
+
+    def test_confluence_score_capped_at_100(self):
+        """Score * 1.3 darf 100 nicht ueberschreiten."""
+        result = compute_sentiment_confluence(
+            sentiment_score=Decimal("15"),
+            ob_direction=OBDirection.BULLISH,
+            conviction_score=Decimal("90"),
+        )
+        assert result.confluence_label == ConfluenceLabel.STRONG_CONTRARIAN
+        assert result.confluence_score == Decimal("100")  # 90 * 1.3 = 117 -> capped
+
+    def test_all_decimal(self):
+        """Alle Rueckgabewerte sind Decimal."""
+        result = compute_sentiment_confluence(
+            sentiment_score=Decimal("25"),
+            ob_direction=OBDirection.BULLISH,
+            conviction_score=Decimal("50"),
+        )
+        assert isinstance(result.confluence_score, Decimal)
+        assert isinstance(result.sentiment_at_detection, Decimal)
+        assert isinstance(result.confluence_label, ConfluenceLabel)
+
+    def test_boundary_value_30(self):
+        """Sentiment exakt 30: BULLISH -> MODERATE (>= 30)."""
+        result = compute_sentiment_confluence(
+            sentiment_score=Decimal("30"),
+            ob_direction=OBDirection.BULLISH,
+            conviction_score=Decimal("60"),
+        )
+        # 30 ist >= 30, also MODERATE_CONTRARIAN (nicht mehr STRONG)
+        assert result.confluence_label == ConfluenceLabel.MODERATE_CONTRARIAN
+
+    def test_boundary_value_45(self):
+        """Sentiment exakt 45: BULLISH -> NEUTRAL (>= 45)."""
+        result = compute_sentiment_confluence(
+            sentiment_score=Decimal("45"),
+            ob_direction=OBDirection.BULLISH,
+            conviction_score=Decimal("60"),
+        )
+        assert result.confluence_label == ConfluenceLabel.NEUTRAL
+
+    def test_boundary_value_70(self):
+        """Sentiment exakt 70: BULLISH -> NEUTRAL (nicht > 70)."""
+        result = compute_sentiment_confluence(
+            sentiment_score=Decimal("70"),
+            ob_direction=OBDirection.BULLISH,
+            conviction_score=Decimal("60"),
+        )
+        assert result.confluence_label == ConfluenceLabel.NEUTRAL
+
+    def test_boundary_value_71_bullish_adverse(self):
+        """Sentiment 71: BULLISH -> ADVERSE."""
+        result = compute_sentiment_confluence(
+            sentiment_score=Decimal("71"),
+            ob_direction=OBDirection.BULLISH,
+            conviction_score=Decimal("60"),
+        )
+        assert result.confluence_label == ConfluenceLabel.ADVERSE
+
+    def test_boundary_value_55_bearish(self):
+        """Sentiment exakt 55: BEARISH -> NEUTRAL (nicht > 55)."""
+        result = compute_sentiment_confluence(
+            sentiment_score=Decimal("55"),
+            ob_direction=OBDirection.BEARISH,
+            conviction_score=Decimal("60"),
+        )
+        assert result.confluence_label == ConfluenceLabel.NEUTRAL
+
+    def test_boundary_value_56_bearish_moderate(self):
+        """Sentiment 56: BEARISH -> MODERATE_CONTRARIAN."""
+        result = compute_sentiment_confluence(
+            sentiment_score=Decimal("56"),
+            ob_direction=OBDirection.BEARISH,
+            conviction_score=Decimal("60"),
+        )
+        assert result.confluence_label == ConfluenceLabel.MODERATE_CONTRARIAN

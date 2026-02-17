@@ -369,6 +369,15 @@ class OrderblockZoneDB(Base):
     is_high_conviction_zscore = Column(Boolean, nullable=False, server_default="0")
     category = Column(String, nullable=True, server_default="UNCLASSIFIED")
 
+    # Liquidity Sweep
+    has_liquidity_sweep = Column(Boolean, nullable=False, server_default="0")
+    liquidity_sweep_level = Column(Numeric(precision=20, scale=10), nullable=True)
+
+    # Sentiment Confluence
+    sentiment_at_detection = Column(Numeric(precision=10, scale=4), nullable=True)
+    confluence_label = Column(String, nullable=True)
+    confluence_score = Column(Numeric(precision=10, scale=4), nullable=True)
+
     atr_at_formation = Column(Numeric(precision=20, scale=10), nullable=False)
     displacement_range = Column(Numeric(precision=20, scale=10), nullable=False)
     bos_swing_price = Column(Numeric(precision=20, scale=10), nullable=False)

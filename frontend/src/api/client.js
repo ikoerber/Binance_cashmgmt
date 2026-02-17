@@ -209,11 +209,6 @@ export const getOrderblockCandles = async (userId, { symbol = 'BTCEUR', interval
   return response.data;
 };
 
-export const getOrderblockBacktestRunDetail = async (userId, runId) => {
-  const response = await apiClient.get(`/api/orderblock/${userId}/backtest/runs/${runId}`);
-  return response.data;
-};
-
 // Server IP API
 export const getServerIp = async () => {
   const response = await apiClient.get('/api/server-ip');

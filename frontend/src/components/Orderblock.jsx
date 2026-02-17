@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell,
@@ -23,15 +23,21 @@ const getScoreGradient = (score) => {
 
 const SORT_ICON = { asc: ' \u25B2', desc: ' \u25BC' };
 
+const SortIcon = ({ sortConfig, col }) => {
+  if (sortConfig.key !== col) return <span className="sort-icon">{SORT_ICON.asc}</span>;
+  return <span className="sort-icon sort-active">{SORT_ICON[sortConfig.dir]}</span>;
+};
+
 const Orderblock = ({ userId = 'user_123' }) => {
   const queryClient = useQueryClient();
 
   // ─── State ───
-  const [interval, setInterval_] = useState('4h');
+  const [selectedInterval, setSelectedInterval] = useState('4h');
   const [months, setMonths] = useState(6);
   const [zoneStateFilter, setZoneStateFilter] = useState('UNMITIGATED');
   const [convictionFilter, setConvictionFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
+  const [confluenceFilter, setConfluenceFilter] = useState('');
   const [zoneSortConfig, setZoneSortConfig] = useState({ key: 'formed_at', dir: 'desc' });
   const [tradeSortConfig, setTradeSortConfig] = useState({ key: null, dir: 'asc' });
   const [analyzeResult, setAnalyzeResult] = useState(null);
@@ -39,11 +45,18 @@ const Orderblock = ({ userId = 'user_123' }) => {
   const [showTrades, setShowTrades] = useState(false);
   const [selectedZone, setSelectedZone] = useState(null);
   const [selectedTradeRow, setSelectedTradeRow] = useState(null);
+  const msgTimerRef = useRef(null);
 
   const showMsg = (type, text) => {
     setMessage({ type, text });
-    setTimeout(() => setMessage(null), 5000);
+    if (msgTimerRef.current) clearTimeout(msgTimerRef.current);
+    msgTimerRef.current = setTimeout(() => setMessage(null), 5000);
   };
+
+  // Cleanup Timer bei Unmount
+  useEffect(() => {
+    return () => { if (msgTimerRef.current) clearTimeout(msgTimerRef.current); };
+  }, []);
 
   // ─── Queries ───
 
@@ -54,24 +67,24 @@ const Orderblock = ({ userId = 'user_123' }) => {
 
   useEffect(() => {
     if (settings?.ob_interval) {
-      setInterval_(settings.ob_interval);
+      setSelectedInterval(settings.ob_interval);
     }
   }, [settings?.ob_interval]);
 
-  const { data: zonesData, isLoading: zonesLoading } = useQuery({
-    queryKey: ['ob-zones', userId, interval],
-    queryFn: () => getOrderblockZones(userId, { interval }),
+  const { data: zonesData, isLoading: zonesLoading, isError: zonesError } = useQuery({
+    queryKey: ['ob-zones', userId, selectedInterval],
+    queryFn: () => getOrderblockZones(userId, { interval: selectedInterval }),
   });
 
-  const { data: runsData } = useQuery({
+  const { data: runsData, isError: runsError } = useQuery({
     queryKey: ['ob-backtest-runs', userId],
     queryFn: () => getOrderblockBacktestRuns(userId),
   });
 
-  const { data: candleData, isLoading: candlesLoading } = useQuery({
-    queryKey: ['ob-candles', userId, selectedZone?.id, interval],
+  const { data: candleData, isLoading: candlesLoading, isError: candlesError } = useQuery({
+    queryKey: ['ob-candles', userId, selectedZone?.id, selectedInterval],
     queryFn: () => getOrderblockCandles(userId, {
-      interval,
+      interval: selectedInterval,
       zoneId: selectedZone.id,
     }),
     enabled: !!selectedZone,
@@ -81,7 +94,7 @@ const Orderblock = ({ userId = 'user_123' }) => {
   // ─── Mutations ───
 
   const analyzeMutation = useMutation({
-    mutationFn: () => analyzeOrderblocks(userId, { interval, months }),
+    mutationFn: () => analyzeOrderblocks(userId, { interval: selectedInterval, months }),
     onSuccess: (data) => {
       setAnalyzeResult(data);
       queryClient.invalidateQueries({ queryKey: ['ob-zones', userId] });
@@ -92,7 +105,7 @@ const Orderblock = ({ userId = 'user_123' }) => {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: () => deleteOrderblockZones(userId, { interval }),
+    mutationFn: () => deleteOrderblockZones(userId, { interval: selectedInterval }),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['ob-zones', userId] });
       setAnalyzeResult(null);
@@ -110,8 +123,9 @@ const Orderblock = ({ userId = 'user_123' }) => {
     if (zoneStateFilter) z = z.filter(zone => zone.state === zoneStateFilter);
     if (convictionFilter) z = z.filter(zone => zone.conviction === convictionFilter);
     if (categoryFilter) z = z.filter(zone => zone.category === categoryFilter);
+    if (confluenceFilter) z = z.filter(zone => zone.confluence_label === confluenceFilter);
     return z;
-  }, [allZones, zoneStateFilter, convictionFilter, categoryFilter]);
+  }, [allZones, zoneStateFilter, convictionFilter, categoryFilter, confluenceFilter]);
 
   const sortedZones = useMemo(() => {
     if (!zoneSortConfig.key) return filteredZones;
@@ -147,9 +161,9 @@ const Orderblock = ({ userId = 'user_123' }) => {
   }, [selectedTradeRow, allZones]);
 
   const { data: tradeCandleData, isLoading: tradeCandlesLoading } = useQuery({
-    queryKey: ['ob-candles-trade', userId, selectedTradeRow?.ob_id, selectedTradeRow?.entry_timestamp, interval],
+    queryKey: ['ob-candles-trade', userId, selectedTradeRow?.ob_id, selectedTradeRow?.entry_timestamp, selectedInterval],
     queryFn: () => getOrderblockCandles(userId, {
-      interval,
+      interval: selectedInterval,
       startTime: selectedTradeRow.entry_timestamp,
       endTime: selectedTradeRow.exit_timestamp || selectedTradeRow.entry_timestamp,
     }),
@@ -167,7 +181,7 @@ const Orderblock = ({ userId = 'user_123' }) => {
   useEffect(() => {
     setSelectedZone(null);
     setSelectedTradeRow(null);
-  }, [interval, zoneStateFilter, convictionFilter, categoryFilter]);
+  }, [selectedInterval, zoneStateFilter, convictionFilter, categoryFilter, confluenceFilter]);
 
   // ─── Zone KPIs ───
   const unmitCount = allZones.filter(z => z.state === 'UNMITIGATED').length;
@@ -177,20 +191,23 @@ const Orderblock = ({ userId = 'user_123' }) => {
     : 0;
 
   // ─── Chart Data ───
-  const stateChartData = [
+  const metrics = analyzeResult?.metrics;
+
+  const stateChartData = useMemo(() => [
     { name: 'Unmitigated', count: allZones.filter(z => z.state === 'UNMITIGATED').length, fill: '#16a34a' },
     { name: 'Mitigated', count: allZones.filter(z => z.state === 'MITIGATED').length, fill: '#94a3b8' },
     { name: 'Invalid', count: allZones.filter(z => z.state === 'INVALID').length, fill: '#dc2626' },
-  ];
+  ], [allZones]);
 
-  const metrics = analyzeResult?.metrics;
-  const convBreakdown = metrics?.conviction_breakdown || [];
-  const convChartData = convBreakdown.map(cb => ({
-    level: cb.level,
-    Hits: cb.hits,
-    Misses: cb.misses,
-    Expired: cb.expired || 0,
-  }));
+  const convChartData = useMemo(() => {
+    const breakdown = metrics?.conviction_breakdown || [];
+    return breakdown.map(cb => ({
+      level: cb.level,
+      Hits: cb.hits,
+      Misses: cb.misses,
+      Expired: cb.expired || 0,
+    }));
+  }, [metrics]);
 
   // ─── Sort Handlers ───
   const handleZoneSort = (key) => {
@@ -204,11 +221,6 @@ const Orderblock = ({ userId = 'user_123' }) => {
       key,
       dir: prev.key === key && prev.dir === 'asc' ? 'desc' : 'asc',
     }));
-  };
-
-  const SortIcon = ({ sortConfig, col }) => {
-    if (sortConfig.key !== col) return <span className="sort-icon">{SORT_ICON.asc}</span>;
-    return <span className="sort-icon sort-active">{SORT_ICON[sortConfig.dir]}</span>;
   };
 
   // ─── Render ───
@@ -286,7 +298,7 @@ const Orderblock = ({ userId = 'user_123' }) => {
         {allZones.length > 0 && (
           <button
             className="btn-ob-action btn-ob-delete"
-            onClick={() => { if (window.confirm(`Alle ${allZones.length} Zonen (${interval}) löschen?`)) deleteMutation.mutate(); }}
+            onClick={() => { if (window.confirm(`Alle ${allZones.length} Zonen (${selectedInterval}) löschen?`)) deleteMutation.mutate(); }}
             disabled={deleteMutation.isPending}
           >
             {deleteMutation.isPending ? 'Lösche...' : 'Alle Zonen löschen'}
@@ -294,7 +306,7 @@ const Orderblock = ({ userId = 'user_123' }) => {
         )}
         <div className="ob-param-group">
           <label>Interval</label>
-          <select value={interval} onChange={e => setInterval_(e.target.value)}>
+          <select value={selectedInterval} onChange={e => setSelectedInterval(e.target.value)}>
             <option value="1h">1 Stunde</option>
             <option value="4h">4 Stunden</option>
             <option value="1d">1 Tag</option>
@@ -345,6 +357,21 @@ const Orderblock = ({ userId = 'user_123' }) => {
               />
             </div>
           </div>
+          {(() => {
+            const strongCount = allZones.filter(z => z.confluence_label === 'STRONG_CONTRARIAN').length;
+            const sentimentScore = analyzeResult?.meta?.sentiment_score;
+            return (strongCount > 0 || sentimentScore != null) ? (
+              <div className="ob-kpi-card ob-kpi-bordered-purple">
+                <h3>Sentiment Confluence</h3>
+                <div className="ob-kpi-value">{strongCount} Strong</div>
+                <div className="ob-kpi-sub">
+                  {sentimentScore != null
+                    ? `Sentiment: ${formatNumber(sentimentScore, 0)}/100`
+                    : 'Sentiment: N/A'}
+                </div>
+              </div>
+            ) : null;
+          })()}
         </div>
       )}
 
@@ -380,9 +407,19 @@ const Orderblock = ({ userId = 'user_123' }) => {
               <option value="UNCLASSIFIED">Unclassified</option>
             </select>
           </div>
+          <div className="ob-filter-group">
+            <label>Confluence</label>
+            <select value={confluenceFilter} onChange={e => setConfluenceFilter(e.target.value)}>
+              <option value="">Alle</option>
+              <option value="STRONG_CONTRARIAN">Strong Contrarian</option>
+              <option value="MODERATE_CONTRARIAN">Moderate Contrarian</option>
+              <option value="NEUTRAL">Neutral</option>
+              <option value="ADVERSE">Adverse</option>
+            </select>
+          </div>
           <button
             className="btn-ob-filter-reset"
-            onClick={() => { setZoneStateFilter('UNMITIGATED'); setConvictionFilter(''); setCategoryFilter(''); }}
+            onClick={() => { setZoneStateFilter('UNMITIGATED'); setConvictionFilter(''); setCategoryFilter(''); setConfluenceFilter(''); }}
           >
             Reset
           </button>
@@ -402,8 +439,8 @@ const Orderblock = ({ userId = 'user_123' }) => {
                   <YAxis stroke="#64748b" fontSize={12} allowDecimals={false} />
                   <Tooltip contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px' }} />
                   <Bar dataKey="count" radius={[6, 6, 0, 0]}>
-                    {stateChartData.map((entry, i) => (
-                      <Cell key={i} fill={entry.fill} />
+                    {stateChartData.map((entry) => (
+                      <Cell key={entry.name} fill={entry.fill} />
                     ))}
                   </Bar>
                 </BarChart>
@@ -431,7 +468,9 @@ const Orderblock = ({ userId = 'user_123' }) => {
       )}
 
       {/* ─── Zone Table ─── */}
-      {zonesLoading ? (
+      {zonesError ? (
+        <div className="ob-error">Fehler beim Laden der Zonen. Bitte erneut versuchen.</div>
+      ) : zonesLoading ? (
         <div className="ob-loading">Lade Zonen...</div>
       ) : sortedZones.length > 0 ? (
         <div className="ob-table-container">
@@ -452,6 +491,12 @@ const Orderblock = ({ userId = 'user_123' }) => {
                 </th>
                 <th onClick={() => handleZoneSort('conviction_score')}>
                   Score <SortIcon sortConfig={zoneSortConfig} col="conviction_score" />
+                </th>
+                <th onClick={() => handleZoneSort('has_liquidity_sweep')}>
+                  Sweep <SortIcon sortConfig={zoneSortConfig} col="has_liquidity_sweep" />
+                </th>
+                <th onClick={() => handleZoneSort('confluence_label')}>
+                  Confluence <SortIcon sortConfig={zoneSortConfig} col="confluence_label" />
                 </th>
                 <th onClick={() => handleZoneSort('zone_top')}>
                   Zone Range <SortIcon sortConfig={zoneSortConfig} col="zone_top" />
@@ -503,6 +548,27 @@ const Orderblock = ({ userId = 'user_123' }) => {
                     </div>
                   </td>
                   <td>
+                    {zone.has_liquidity_sweep ? (
+                      <span className="ob-badge sweep-yes" title={zone.liquidity_sweep_level ? `Level: ${formatEUR(zone.liquidity_sweep_level)}` : ''}>
+                        Sweep
+                      </span>
+                    ) : (
+                      <span className="ob-badge sweep-no">&ndash;</span>
+                    )}
+                  </td>
+                  <td>
+                    {zone.confluence_label ? (
+                      <span className={`ob-badge confl-${zone.confluence_label.toLowerCase().replace(/_/g, '-')}`}>
+                        {zone.confluence_label === 'STRONG_CONTRARIAN' ? 'Strong'
+                          : zone.confluence_label === 'MODERATE_CONTRARIAN' ? 'Moderate'
+                          : zone.confluence_label === 'ADVERSE' ? 'Adverse'
+                          : 'Neutral'}
+                      </span>
+                    ) : (
+                      <span className="ob-badge confl-na">N/A</span>
+                    )}
+                  </td>
+                  <td>
                     <div className="cell-mono">{formatEUR(zone.zone_top)}</div>
                     <div className="cell-secondary">{formatEUR(zone.zone_bottom)}</div>
                   </td>
@@ -515,14 +581,16 @@ const Orderblock = ({ userId = 'user_123' }) => {
       ) : null}
 
       {/* ─── Candlestick Chart (bei selektierter Zone) ─── */}
-      {selectedZone && (
+      {selectedZone && (candlesError ? (
+        <div className="ob-error">Fehler beim Laden der Kerzen-Daten.</div>
+      ) : (
         <OrderblockChart
           candles={candleData?.candles || []}
           zone={selectedZone}
           trade={selectedTrade}
           isLoading={candlesLoading}
         />
-      )}
+      ))}
 
       {!zonesLoading && sortedZones.length === 0 && (
         allZones.length === 0 && !analyzeMutation.isPending ? (
@@ -569,9 +637,9 @@ const Orderblock = ({ userId = 'user_123' }) => {
                   </tr>
                 </thead>
                 <tbody>
-                  {sortedTrades.map((trade, idx) => (
+                  {sortedTrades.map((trade) => (
                     <tr
-                      key={idx}
+                      key={`${trade.ob_id}_${trade.entry_timestamp}`}
                       className={`ob-zone-row ${selectedTradeRow?.ob_id === trade.ob_id ? 'ob-zone-row-selected' : ''}`}
                       onClick={() => setSelectedTradeRow(selectedTradeRow?.ob_id === trade.ob_id ? null : trade)}
                     >
@@ -617,6 +685,7 @@ const Orderblock = ({ userId = 'user_123' }) => {
       )}
 
       {/* ─── Historical Runs ─── */}
+      {runsError && <div className="ob-error">Fehler beim Laden der Analyse-Runs.</div>}
       {runs.length > 0 && (
         <div className="ob-runs-section">
           <div className="ob-runs-header">

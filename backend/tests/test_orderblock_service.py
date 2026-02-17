@@ -38,43 +38,12 @@ from app.services.orderblock_data_service import (
     ALLOWED_INTERVALS,
     CachedValue,
     OrderblockDataService,
-    _serialize_config,
-    _serialize_metrics,
-    _serialize_trade,
-    _serialize_zone,
+    serialize_config,
+    serialize_metrics,
+    serialize_trade,
+    serialize_zone,
 )
-
-BASE_TIME = datetime(2024, 1, 1, 0, 0, 0)
-
-
-def _make_candle(index, o, h, low, c, v="100"):
-    return Candle(
-        timestamp=BASE_TIME + timedelta(hours=index),
-        open=Decimal(o),
-        high=Decimal(h),
-        low=Decimal(low),
-        close=Decimal(c),
-        volume=Decimal(v),
-    )
-
-
-def _make_binance_kline(index, o="100", h="101", low="99", c="100", v="100"):
-    """Erzeugt ein Binance-Kline-Array (Liste) im API-Format."""
-    ts = int((BASE_TIME + timedelta(hours=index)).replace(tzinfo=timezone.utc).timestamp() * 1000)
-    return [
-        ts,       # 0: Open time
-        o,        # 1: Open
-        h,        # 2: High
-        low,      # 3: Low
-        c,        # 4: Close
-        v,        # 5: Volume
-        ts + 3600000 - 1,  # 6: Close time
-        "0",      # 7: Quote asset volume
-        10,       # 8: Number of trades
-        "50",     # 9: Taker buy base volume
-        "0",      # 10: Taker buy quote volume
-        "0",      # 11: Ignore
-    ]
+from tests.conftest import OB_BASE_TIME as BASE_TIME, make_candle as _make_candle, make_binance_kline as _make_binance_kline
 
 
 # ===========================================================================
@@ -192,13 +161,12 @@ class TestKlineFetching:
         assert result == []
 
 
-class TestDetectionOrchestration:
-    """Tests fuer detect_zones() Orchestrierung."""
+class TestAnalyzeOrchestration:
+    """Tests fuer analyze() Orchestrierung (Combined Detection + Backtest)."""
 
     @patch("app.services.orderblock_data_service.requests.get")
-    def test_detect_returns_structure(self, mock_get):
-        """Detection liefert korrektes Result-Dict."""
-        # Genug Kerzen fuer ATR + Detection
+    def test_analyze_returns_structure(self, mock_get):
+        """Analyze liefert korrektes Result-Dict mit Zonen, Metriken, Trades."""
         klines = [_make_binance_kline(i) for i in range(50)]
         mock_resp = MagicMock()
         mock_resp.json.return_value = klines
@@ -206,35 +174,34 @@ class TestDetectionOrchestration:
         mock_get.return_value = mock_resp
 
         service = OrderblockDataService()
-        result = service.detect_zones("BTCEUR", "1h", months=1)
+        result = service.analyze("BTCEUR", "1h", months=1)
 
         assert "zones" in result
+        assert "metrics" in result
+        assert "trades" in result
         assert "config" in result
         assert "meta" in result
         assert result["meta"]["symbol"] == "BTCEUR"
         assert result["meta"]["interval"] == "1h"
 
     @patch("app.services.orderblock_data_service.requests.get")
-    def test_detect_empty_candles(self, mock_get):
-        """Detection mit leeren Daten → leere Zonen."""
+    def test_analyze_empty_candles(self, mock_get):
+        """Analyze mit leeren Daten → leere Zonen und Trades."""
         mock_resp = MagicMock()
         mock_resp.json.return_value = []
         mock_resp.raise_for_status = MagicMock()
         mock_get.return_value = mock_resp
 
         service = OrderblockDataService()
-        result = service.detect_zones("BTCEUR", "1h", months=1)
+        result = service.analyze("BTCEUR", "1h", months=1)
 
         assert result["zones"] == []
+        assert result["trades"] == []
         assert result["meta"]["candle_count"] == 0
 
-
-class TestBacktestOrchestration:
-    """Tests fuer run_backtest() Orchestrierung."""
-
     @patch("app.services.orderblock_data_service.requests.get")
-    def test_backtest_returns_structure(self, mock_get):
-        """Backtest liefert korrektes Result-Dict."""
+    def test_analyze_contains_raw_zones_and_result(self, mock_get):
+        """Analyze liefert raw_zones und result fuer Persistenz."""
         klines = [_make_binance_kline(i) for i in range(50)]
         mock_resp = MagicMock()
         mock_resp.json.return_value = klines
@@ -242,28 +209,11 @@ class TestBacktestOrchestration:
         mock_get.return_value = mock_resp
 
         service = OrderblockDataService()
-        result = service.run_backtest("BTCEUR", "1h", months=1)
+        result = service.analyze("BTCEUR", "1h", months=1)
 
-        assert "metrics" in result
-        assert "trades" in result
-        assert "zones" in result
-        assert "config" in result
-        assert "meta" in result
-        assert "result" in result  # Raw BacktestResult
-
-    @patch("app.services.orderblock_data_service.requests.get")
-    def test_backtest_empty_candles(self, mock_get):
-        """Backtest mit leeren Daten."""
-        mock_resp = MagicMock()
-        mock_resp.json.return_value = []
-        mock_resp.raise_for_status = MagicMock()
-        mock_get.return_value = mock_resp
-
-        service = OrderblockDataService()
-        result = service.run_backtest("BTCEUR", "1h", months=1)
-
-        assert result["trades"] == []
-        assert result["zones"] == []
+        assert "raw_zones" in result
+        # raw_zones kann leer sein (flache Daten), aber Key muss existieren
+        assert isinstance(result["raw_zones"], list)
 
 
 # ===========================================================================
@@ -274,9 +224,9 @@ class TestBacktestOrchestration:
 class TestSerialization:
     """Tests fuer Serialisierungsfunktionen."""
 
-    def test_serialize_config(self):
+    def testserialize_config(self):
         config = OBConfig()
-        d = _serialize_config(config)
+        d = serialize_config(config)
 
         assert d["atr_length"] == 20
         assert d["atr_multiplier"] == "2.0"
@@ -287,7 +237,7 @@ class TestSerialization:
         assert d["stop_policy"] == "STOP_EDGE_TOUCH"
         assert d["mitigation_policy"] == "ZONE_TOUCH"
 
-    def test_serialize_zone(self):
+    def testserialize_zone(self):
         fvg = FairValueGap(
             index=5,
             timestamp=BASE_TIME,
@@ -318,7 +268,7 @@ class TestSerialization:
             config=OBConfig(),
         )
 
-        d = _serialize_zone(ob)
+        d = serialize_zone(ob)
         assert d["id"] == "ob_bullish_12345"
         assert d["direction"] == "BULLISH"
         assert d["state"] == "UNMITIGATED"
@@ -359,11 +309,11 @@ class TestSerialization:
             mitigated_at=BASE_TIME + timedelta(hours=10),
         )
 
-        d = _serialize_zone(ob)
+        d = serialize_zone(ob)
         assert d["state"] == "MITIGATED"
         assert d["mitigated_at"] is not None
 
-    def test_serialize_trade(self):
+    def testserialize_trade(self):
         trade = BacktestTrade(
             ob_id="ob_bullish_12345",
             direction=OBDirection.BULLISH,
@@ -381,7 +331,7 @@ class TestSerialization:
             volume_zscore=Decimal("2.5"),
         )
 
-        d = _serialize_trade(trade)
+        d = serialize_trade(trade)
         assert d["ob_id"] == "ob_bullish_12345"
         assert d["outcome"] == "HIT"
         assert d["holding_duration_candles"] == 5
@@ -405,7 +355,7 @@ class TestSerialization:
             volume_zscore=Decimal("0.5"),
         )
 
-        d = _serialize_trade(trade)
+        d = serialize_trade(trade)
         assert d["outcome"] == "OPEN"
         assert d["exit_timestamp"] is None
 
@@ -472,7 +422,7 @@ class TestPersistenceService:
         )
 
         zone = self._make_zone()
-        config_json = _serialize_config(OBConfig())
+        config_json = serialize_config(OBConfig())
 
         saved = save_detection_result(
             db_session, "user_1", [zone], "BTCEUR", "1h", config_json
@@ -493,7 +443,7 @@ class TestPersistenceService:
             get_zones,
         )
 
-        config_json = _serialize_config(OBConfig())
+        config_json = serialize_config(OBConfig())
 
         # Erstmal UNMITIGATED speichern
         zone1 = self._make_zone(state=OBState.UNMITIGATED)
@@ -521,7 +471,7 @@ class TestPersistenceService:
             get_zones,
         )
 
-        config_json = _serialize_config(OBConfig())
+        config_json = serialize_config(OBConfig())
 
         z1 = self._make_zone("ob_1", OBState.UNMITIGATED)
         z2 = self._make_zone("ob_2", OBState.MITIGATED)
@@ -549,7 +499,7 @@ class TestPersistenceService:
             get_zone_detail,
         )
 
-        config_json = _serialize_config(OBConfig())
+        config_json = serialize_config(OBConfig())
         zone = self._make_zone()
         save_detection_result(
             db_session, "user_1", [zone], "BTCEUR", "1h", config_json
@@ -574,8 +524,8 @@ class TestPersistenceService:
             get_backtest_run,
         )
 
-        result_data = self._make_backtest_result_data()
-        run_id = save_backtest_result(db_session, "user_1", result_data)
+        result, kwargs = self._make_backtest_result_data()
+        run_id = save_backtest_result(db_session, "user_1", result, **kwargs)
         db_session.commit()
 
         assert run_id.startswith("bt_")
@@ -594,11 +544,11 @@ class TestPersistenceService:
             get_backtest_runs,
         )
 
-        r1 = self._make_backtest_result_data(symbol="BTCEUR")
-        r2 = self._make_backtest_result_data(symbol="BTCUSDT")
+        r1, kw1 = self._make_backtest_result_data(symbol="BTCEUR")
+        r2, kw2 = self._make_backtest_result_data(symbol="BTCUSDT")
 
-        save_backtest_result(db_session, "user_1", r1)
-        save_backtest_result(db_session, "user_1", r2)
+        save_backtest_result(db_session, "user_1", r1, **kw1)
+        save_backtest_result(db_session, "user_1", r2, **kw2)
         db_session.commit()
 
         all_runs = get_backtest_runs(db_session, "user_1")
@@ -614,7 +564,7 @@ class TestPersistenceService:
         assert detail is None
 
     def _make_backtest_result_data(self, symbol="BTCEUR"):
-        """Erzeugt ein minimales result_data Dict fuer save_backtest_result."""
+        """Erzeugt ein minimales (result, kwargs) Tuple fuer save_backtest_result."""
         metrics = BacktestMetrics(
             total_zones=5,
             total_trades=3,
@@ -652,26 +602,13 @@ class TestPersistenceService:
             candle_count=4380,
         )
 
-        from app.services.orderblock_data_service import (
-            _serialize_config,
-            _serialize_metrics,
-        )
-
-        return {
-            "result": result,
-            "metrics": _serialize_metrics(result),
-            "trades": [],
-            "zones": [],
-            "config": _serialize_config(OBConfig()),
-            "meta": {
-                "symbol": symbol,
-                "interval": "1h",
-                "months": 6,
-                "candle_count": 4380,
-                "data_start": BASE_TIME.isoformat(),
-                "data_end": (BASE_TIME + timedelta(days=180)).isoformat(),
-            },
+        kwargs = {
+            "config_json": serialize_config(OBConfig()),
+            "metrics_json": serialize_metrics(result),
+            "trades_json": [],
         }
+
+        return result, kwargs
 
 
 # ===========================================================================
@@ -730,7 +667,7 @@ class TestSerializeMetrics:
             candle_count=2160,
         )
 
-        d = _serialize_metrics(result)
+        d = serialize_metrics(result)
 
         assert d["total_zones"] == 10
         assert d["total_trades"] == 8
@@ -786,7 +723,7 @@ class TestSerializeMetrics:
             data_start=BASE_TIME, data_end=BASE_TIME + timedelta(days=30),
             candle_count=0,
         )
-        d = _serialize_metrics(result)
+        d = serialize_metrics(result)
         assert d["hit_rate"] is None
         assert d["high_conviction_hit_rate"] is None
         assert d["standard_conviction_hit_rate"] is None
@@ -802,7 +739,7 @@ class TestValidation:
 
     def test_config_defaults(self):
         config = OBConfig()
-        d = _serialize_config(config)
+        d = serialize_config(config)
         assert d["atr_length"] == 20
         assert d["target_rr"] == "2.0"
         assert d["zscore_lookback"] == 50
@@ -863,8 +800,8 @@ class TestOrderblockAPIRoutes:
         test_app.dependency_overrides.clear()
 
     @patch("app.services.orderblock_data_service.requests.get")
-    def test_detect_endpoint(self, mock_get, client):
-        """POST /{user_id}/detect liefert Zonen."""
+    def test_analyze_endpoint(self, mock_get, client):
+        """POST /{user_id}/analyze liefert Zonen, Metriken, Trades."""
         klines = [_make_binance_kline(i) for i in range(50)]
         mock_resp = MagicMock()
         mock_resp.json.return_value = klines
@@ -872,7 +809,7 @@ class TestOrderblockAPIRoutes:
         mock_get.return_value = mock_resp
 
         resp = client.post(
-            "/api/orderblock/user1/detect",
+            "/api/orderblock/user1/analyze",
             json={"symbol": "BTCEUR", "interval": "1h", "months": 1},
         )
         assert resp.status_code == 200
@@ -880,23 +817,25 @@ class TestOrderblockAPIRoutes:
         assert "zones" in data
         assert "config" in data
         assert "meta" in data
+        assert "metrics" in data
+        assert "trades" in data
         assert data["meta"]["symbol"] == "BTCEUR"
 
     @patch("app.services.orderblock_data_service.requests.get")
-    def test_detect_invalid_symbol(self, mock_get, client):
-        """POST /{user_id}/detect mit ungueltigem Symbol -> 400."""
+    def test_analyze_invalid_symbol(self, mock_get, client):
+        """POST /{user_id}/analyze mit ungueltigem Symbol -> 400."""
         resp = client.post(
-            "/api/orderblock/user1/detect",
+            "/api/orderblock/user1/analyze",
             json={"symbol": "ETHEUR", "interval": "1h", "months": 1},
         )
         assert resp.status_code == 400
         assert "Symbol" in resp.json()["detail"]
 
     @patch("app.services.orderblock_data_service.requests.get")
-    def test_detect_invalid_interval(self, mock_get, client):
-        """POST /{user_id}/detect mit ungueltigem Interval -> 400."""
+    def test_analyze_invalid_interval(self, mock_get, client):
+        """POST /{user_id}/analyze mit ungueltigem Interval -> 400."""
         resp = client.post(
-            "/api/orderblock/user1/detect",
+            "/api/orderblock/user1/analyze",
             json={"symbol": "BTCEUR", "interval": "2h", "months": 1},
         )
         assert resp.status_code == 400
@@ -927,8 +866,8 @@ class TestOrderblockAPIRoutes:
         assert resp.status_code == 404
 
     @patch("app.services.orderblock_data_service.requests.get")
-    def test_backtest_endpoint(self, mock_get, client):
-        """POST /{user_id}/backtest liefert Metriken."""
+    def test_analyze_with_custom_config(self, mock_get, client):
+        """POST /{user_id}/analyze mit Custom-Config."""
         klines = [_make_binance_kline(i) for i in range(50)]
         mock_resp = MagicMock()
         mock_resp.json.return_value = klines
@@ -936,28 +875,7 @@ class TestOrderblockAPIRoutes:
         mock_get.return_value = mock_resp
 
         resp = client.post(
-            "/api/orderblock/user1/backtest",
-            json={"symbol": "BTCEUR", "interval": "1h", "months": 1},
-        )
-        assert resp.status_code == 200
-        data = resp.json()
-        assert "metrics" in data
-        assert "trades" in data
-        assert "zones" in data
-        assert "config" in data
-        assert "meta" in data
-
-    @patch("app.services.orderblock_data_service.requests.get")
-    def test_backtest_with_custom_config(self, mock_get, client):
-        """POST /{user_id}/backtest mit Custom-Config."""
-        klines = [_make_binance_kline(i) for i in range(50)]
-        mock_resp = MagicMock()
-        mock_resp.json.return_value = klines
-        mock_resp.raise_for_status = MagicMock()
-        mock_get.return_value = mock_resp
-
-        resp = client.post(
-            "/api/orderblock/user1/backtest",
+            "/api/orderblock/user1/analyze",
             json={
                 "symbol": "BTCEUR",
                 "interval": "4h",
@@ -989,19 +907,20 @@ class TestOrderblockAPIRoutes:
         assert resp.status_code == 404
 
     @patch("app.services.orderblock_data_service.requests.get")
-    def test_detect_and_get_zones_roundtrip(self, mock_get, client):
-        """Detect -> Zones abrufbar (Roundtrip)."""
+    def test_analyze_and_get_zones_roundtrip(self, mock_get, client):
+        """Analyze -> Zones abrufbar (Roundtrip)."""
         klines = [_make_binance_kline(i) for i in range(50)]
         mock_resp = MagicMock()
         mock_resp.json.return_value = klines
         mock_resp.raise_for_status = MagicMock()
         mock_get.return_value = mock_resp
 
-        # Detect
-        client.post(
-            "/api/orderblock/user1/detect",
+        # Analyze (combined detection + backtest)
+        resp = client.post(
+            "/api/orderblock/user1/analyze",
             json={"symbol": "BTCEUR", "interval": "1h", "months": 1},
         )
+        assert resp.status_code == 200
 
         # Zones abrufen
         resp = client.get(
@@ -1013,17 +932,17 @@ class TestOrderblockAPIRoutes:
         assert resp.json()["count"] >= 0
 
     @patch("app.services.orderblock_data_service.requests.get")
-    def test_backtest_and_get_runs_roundtrip(self, mock_get, client):
-        """Backtest -> Run abrufbar (Roundtrip)."""
+    def test_analyze_and_get_runs_roundtrip(self, mock_get, client):
+        """Analyze -> Backtest-Run abrufbar (Roundtrip)."""
         klines = [_make_binance_kline(i) for i in range(50)]
         mock_resp = MagicMock()
         mock_resp.json.return_value = klines
         mock_resp.raise_for_status = MagicMock()
         mock_get.return_value = mock_resp
 
-        # Backtest ausfuehren
+        # Analyze ausfuehren
         resp = client.post(
-            "/api/orderblock/user1/backtest",
+            "/api/orderblock/user1/analyze",
             json={"symbol": "BTCEUR", "interval": "1h", "months": 1},
         )
         assert resp.status_code == 200
@@ -1033,10 +952,105 @@ class TestOrderblockAPIRoutes:
         resp = client.get("/api/orderblock/user1/backtest/runs")
         assert resp.status_code == 200
         runs = resp.json()["runs"]
-        assert len(runs) >= 1
-
-        # Einzelnen Run abrufen (wenn run_id vorhanden)
+        # run_id kann None sein wenn keine Kerzen → kein Backtest
         if run_id:
+            assert len(runs) >= 1
+            # Einzelnen Run abrufen
             resp = client.get(f"/api/orderblock/user1/backtest/runs/{run_id}")
             assert resp.status_code == 200
             assert resp.json()["id"] == run_id
+
+
+# ===========================================================================
+# Serialisierung: Sweep + Confluence Felder
+# ===========================================================================
+
+
+class TestSerializeSweepAndConfluence:
+    """Tests fuer neue Sweep/Confluence Felder in Serialisierung."""
+
+    def _make_zone(self, **kwargs):
+        fvg = FairValueGap(
+            index=5, timestamp=BASE_TIME, gap_top=Decimal("105"),
+            gap_bottom=Decimal("100"), direction=OBDirection.BULLISH,
+        )
+        defaults = dict(
+            id="ob_test", direction=OBDirection.BULLISH,
+            zone_top=Decimal("100"), zone_bottom=Decimal("95"),
+            equilibrium=Decimal("97.5"), entry_edge=Decimal("100"),
+            stop_edge=Decimal("95"), formed_at=BASE_TIME,
+            confirmed_at=BASE_TIME + timedelta(hours=3),
+            formed_at_index=10, confirmed_at_index=13,
+            state=OBState.UNMITIGATED, conviction=ConvictionLevel.HIGH,
+            volume_zscore=Decimal("2.5"), volume_weight=Decimal("1.8"),
+            fvg=fvg, atr_at_formation=Decimal("5"),
+            displacement_range=Decimal("15"), bos_swing_price=Decimal("102"),
+            config=OBConfig(),
+        )
+        defaults.update(kwargs)
+        return Orderblock(**defaults)
+
+    def test_serialize_zone_sweep_fields(self):
+        """serialize_zone enthaelt Sweep-Felder."""
+        zone = self._make_zone(
+            has_liquidity_sweep=True,
+            liquidity_sweep_level=Decimal("93.5"),
+        )
+        d = serialize_zone(zone)
+        assert d["has_liquidity_sweep"] is True
+        assert d["liquidity_sweep_level"] == "93.5"
+
+    def test_serialize_zone_no_sweep(self):
+        """Ohne Sweep: has_liquidity_sweep=False, level=None."""
+        zone = self._make_zone()
+        d = serialize_zone(zone)
+        assert d["has_liquidity_sweep"] is False
+        assert d["liquidity_sweep_level"] is None
+
+    def test_serialize_zone_confluence_fields(self):
+        """serialize_zone enthaelt Confluence-Felder."""
+        zone = self._make_zone(
+            sentiment_at_detection=Decimal("25.3"),
+            confluence_label="STRONG_CONTRARIAN",
+            confluence_score=Decimal("78"),
+        )
+        d = serialize_zone(zone)
+        assert d["sentiment_at_detection"] == "25.3"
+        assert d["confluence_label"] == "STRONG_CONTRARIAN"
+        assert d["confluence_score"] == "78"
+
+    def test_serialize_zone_no_confluence(self):
+        """Ohne Sentiment: Confluence-Felder sind None."""
+        zone = self._make_zone()
+        d = serialize_zone(zone)
+        assert d["sentiment_at_detection"] is None
+        assert d["confluence_label"] is None
+        assert d["confluence_score"] is None
+
+    def test_serialize_config_sweep_params(self):
+        """serialize_config enthaelt sweep_lookback und sweep_conviction_boost."""
+        config = OBConfig(sweep_lookback=15, sweep_conviction_boost=Decimal("12"))
+        d = serialize_config(config)
+        assert d["sweep_lookback"] == 15
+        assert d["sweep_conviction_boost"] == "12"
+
+    def test_serialize_config_defaults(self):
+        """Default-Config enthaelt Sweep-Defaults."""
+        d = serialize_config(OBConfig())
+        assert d["sweep_lookback"] == 10
+        assert d["sweep_conviction_boost"] == "10"
+
+    def test_serialize_trade_sweep_field(self):
+        """serialize_trade enthaelt has_liquidity_sweep."""
+        trade = BacktestTrade(
+            ob_id="ob_test", direction=OBDirection.BULLISH,
+            entry_edge=Decimal("100"), stop_edge=Decimal("95"),
+            target=Decimal("110"), entry_price=Decimal("100"),
+            entry_timestamp=BASE_TIME, exit_timestamp=BASE_TIME + timedelta(hours=5),
+            outcome=TradeOutcome.HIT, penetration_depth_pct=Decimal("10"),
+            holding_duration_candles=5, min_adverse_price=Decimal("99"),
+            conviction=ConvictionLevel.HIGH, volume_zscore=Decimal("2.5"),
+            conviction_score=Decimal("65"), has_liquidity_sweep=True,
+        )
+        d = serialize_trade(trade)
+        assert d["has_liquidity_sweep"] is True

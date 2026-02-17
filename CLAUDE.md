@@ -31,6 +31,7 @@ BTC/EUR Cashflow-Management & Automation App für Binance Spot Trading. Ledger-b
 - Dependencies gepinnt auf exakte Versionen in `requirements.txt`
 - Alternative Sell Allocation Strategien (FIFO, LIFO, HIGHEST_COST) konfigurierbar in Settings
 - Historische Fee-Umrechnung: BNB-Fees per Binance Klines API zum Fill-Zeitpunkt konvertiert (statt aktuellem Preis), `fee_eur_value` auf LedgerEvent persistiert, Portfolio BNB-Fee-Handling konsistent mit Lot-Ebene
+- Orderblock Detection Engine: Institutionelle Preiszonen-Erkennung mit 5-Phasen-Validierung, Conviction Scoring (Cont/Bouchaud), AlbaTherium-Klassifikation, Backtesting mit Triple-Barrier-Methode (Lopez de Prado), Candlestick-Chart-Visualisierung (lightweight-charts)
 
 **Offen (Iteration 4-5):**
 - Auto-Order Automation (Trigger-basiert)
@@ -46,6 +47,7 @@ BTC/EUR Cashflow-Management & Automation App für Binance Spot Trading. Ledger-b
 - **Idempotente Orders**: `clientOrderId` = `{userId}_{lotId}_{targetPrice}_{qty}_{version}`
 - **FIFO Allocation**: Sell-Fills schließen immer die ältesten Lots zuerst
 - **Simulation vor Execution**: Pairing-Ausführung nur nach Simulation-Preview
+- **Zeitkonsistente Orderblocks**: Keine Look-Ahead-Bias — Zonen erst ab `confirmed_at_index + 1` handelbar
 
 ## Technologiestack
 
@@ -68,7 +70,9 @@ cashmgnt/
 │   │   │   ├── lots.py                # create_trade_lot_from_buy_fill(), allocate_sell_with_strategy(), allocate_sell_fifo()
 │   │   │   ├── pairing.py            # suggest_pairings(), simulate_pairing()
 │   │   │   ├── macro_signal.py        # Makro-Faktoren Analyse + Richtungsempfehlung
-│   │   │   └── sentiment.py           # Sentiment v3: 5-Pillar Scoring, Dispersion, Volatility Scaling
+│   │   │   ├── sentiment.py           # Sentiment v3: 5-Pillar Scoring, Dispersion, Volatility Scaling
+│   │   │   ├── orderblock.py          # Orderblock Detection: 5-Phasen-Pipeline, Conviction Scoring, Zone State Machine
+│   │   │   └── orderblock_backtest.py # Backtesting: Triple-Barrier-Simulation, Hit-Rate-Metriken, Conviction-Breakdown
 │   │   ├── services/                  # DB-Integration, Binance API
 │   │   │   ├── binance.py            # Binance API Client (inkl. get_historical_price via Klines API)
 │   │   │   ├── sync_service.py       # Fills importieren (historische Fee-Konvertierung pro Fill)
@@ -80,7 +84,9 @@ cashmgnt/
 │   │   │   ├── reconciliation_service.py
 │   │   │   ├── csv_import_service.py  # CSV Import (nur fuer Trading Bot / Grid Bot Trades, da diese NICHT ueber die Binance API abrufbar sind)
 │   │   │   ├── macro_data_service.py  # Makro-Daten (Klines, Fear&Greed, etc.)
-│   │   │   └── sentiment_data_service.py # Sentiment-Daten: F&G, OKX Funding, Klines, Caching (Singleton)
+│   │   │   ├── sentiment_data_service.py # Sentiment-Daten: F&G, OKX Funding, Klines, Caching (Singleton)
+│   │   │   ├── orderblock_data_service.py # Kline-Fetching (Binance REST, paginiert), Detection-Orchestrierung, TTL-Cache (1h)
+│   │   │   └── orderblock_persistence_service.py # Zone CRUD (Upsert, Stale-Cleanup), Backtest-Run Persistierung
 │   │   ├── db/
 │   │   │   ├── database.py           # SQLAlchemy Session
 │   │   │   └── models.py             # ORM: LedgerEventDB, TradeLotDB, PairingDB, OrderDB, UserSettingsDB
@@ -96,10 +102,12 @@ cashmgnt/
 │   │   │       ├── reconciliation.py # POST /api/reconciliation/...
 │   │   │       ├── settings.py       # GET/PUT /api/settings/{user_id}
 │   │   │       ├── macro.py          # GET /api/macro/...
-│   │   │       └── sentiment.py     # GET /api/sentiment/{user_id}/current
+│   │   │       ├── sentiment.py     # GET /api/sentiment/{user_id}/current
+│   │   │       └── orderblock.py    # POST analyze, GET/DELETE zones, GET backtest runs/candles
 │   ├── scripts/
-│   │   └── backtest_sentiment.py     # Backtesting: v1/v2/v3 Sentiment vs. 2000+ Tage historische Daten
-│   ├── tests/                         # 13 Testdateien
+│   │   ├── backtest_sentiment.py     # Backtesting: v1/v2/v3 Sentiment vs. 2000+ Tage historische Daten
+│   │   └── backtest_orderblock.py    # Orderblock Backtesting: Single-Run + Parameter-Sweep (ATR, R:R, Timeframes)
+│   ├── tests/                         # 18 Testdateien
 │   │   └── conftest.py               # TEST_BINANCE_API_KEY + Testnet
 │   ├── alembic/                       # DB-Migrationen
 │   ├── requirements.txt
@@ -107,8 +115,8 @@ cashmgnt/
 │
 └── frontend/
     ├── src/
-    │   ├── App.jsx                    # Routing: Dashboard | TradeLots | Reconciliation | Settings | Makro-Signal | Sentiment | API Docs
-    │   ├── api/client.js              # Axios: Portfolio, Lots, Orders, Pairing, Sync, Reconciliation, Settings, Sentiment
+    │   ├── App.jsx                    # Routing: Dashboard | TradeLots | Reconciliation | Settings | Makro-Signal | Sentiment | Orderblocks | API Docs
+    │   ├── api/client.js              # Axios: Portfolio, Lots, Orders, Pairing, Sync, Reconciliation, Settings, Sentiment, Orderblocks
     │   ├── components/
     │   │   ├── Dashboard.jsx          # 8 KPI-Kacheln (Break-even, P&L, BTC, EUR)
     │   │   ├── LotsTable.jsx          # Trade-Cockpit: Tabelle, Sort, Checkboxen, Pairing-Integration
@@ -127,7 +135,10 @@ cashmgnt/
     │   │   ├── Reconciliation.css
     │   │   ├── Settings.css
     │   │   ├── MacroSignal.css
-    │   │   └── Sentiment.css
+    │   │   ├── Sentiment.css
+    │   │   ├── Orderblock.jsx         # Orderblock Dashboard: Analyse, KPI-Cards, Zone-Tabelle, Backtest-Trades, Filter
+    │   │   ├── OrderblockChart.jsx    # Candlestick-Chart (lightweight-charts): Zonen-Overlay, Trade-Marker, Volume
+    │   │   └── Orderblock.css
     │   ├── utils/
     │   │   └── formatters.js          # Shared: formatNumber, formatEUR, formatBTC, formatPct, formatDate, formatTime
     │   └── hooks/useLivePrice.js      # Binance Ticker Polling (10s)
@@ -159,6 +170,19 @@ black . && ruff check --fix .             # Auto-Fix
 ```bash
 cd backend
 python scripts/backtest_sentiment.py --days 2000 --symbol BTCUSDT
+```
+
+### Orderblock Backtesting
+```bash
+cd backend
+# Single Run
+python scripts/backtest_orderblock.py --symbol BTCEUR --interval 4h --months 6
+
+# Parameter-Sweep (Grid Search ueber ATR-Multiplikatoren, Risk:Reward, Timeframes)
+python scripts/backtest_orderblock.py --mode sweep --months 12 \
+  --sweep-atr-mults 1.5,2.0,2.5,3.0 \
+  --sweep-rrs 1.5,2.0,3.0 \
+  --csv sweep_results.csv
 ```
 
 ### Frontend
@@ -204,6 +228,13 @@ alembic downgrade -1                      # Rollback
 | `/api/settings/{user_id}` | GET | User-Settings laden (oder Defaults) |
 | `/api/settings/{user_id}` | PUT | User-Settings speichern (upsert) |
 | `/api/sentiment/{user_id}/current` | GET | Aktueller Sentiment Score v3 (5 Pillars, Dispersion, Volatility) |
+| `/api/orderblock/{user_id}/analyze` | POST | Orderblock-Erkennung + Backtest ausfuehren (Symbol, Intervall, Monate, Config) |
+| `/api/orderblock/{user_id}/zones` | GET | Erkannte Zonen laden (Filter: symbol, interval, state) |
+| `/api/orderblock/{user_id}/zones/{zone_id}` | GET | Einzelne Zone mit vollstaendiger Config |
+| `/api/orderblock/{user_id}/zones` | DELETE | Zonen loeschen (symbol + interval) |
+| `/api/orderblock/{user_id}/backtest/runs` | GET | Backtest-Historien (Filter: symbol) |
+| `/api/orderblock/{user_id}/backtest/runs/{run_id}` | GET | Backtest-Detail mit allen Trades |
+| `/api/orderblock/{user_id}/candles` | GET | OHLCV-Kerzen fuer Chart (Zone-basiert oder Zeitfenster) |
 
 ## Architektur
 
@@ -241,6 +272,81 @@ API Routes (thin)  →  Services (DB + Binance)  →  Domain (pure, no I/O)
 - `get_recommendation_v3()` - Finaler Multiplikator: base × dispersion_confidence × volatility_scaling
 - `rolling_percentile()`, `score_funding_rate()` - Pillar-Normalisierung
 - Dataclasses: `PillarScore`, `DispersionInfo`, `VolatilityScaling`, `SentimentResultV3`, `SentimentRecommendationV3`
+
+**`domain/orderblock.py`** - Orderblock Detection Engine (pure, kein I/O):
+
+Orderblocks sind hochreaktive institutionelle Preiszonen, die durch Marktstruktur-Analyse identifiziert werden. Das Konzept basiert auf der Beobachtung, dass grosse Marktteilnehmer (Smart Money) Positionen in definierten Preisbereichen akkumulieren oder distribuieren. Kehrt der Preis in diese Zonen zurueck, reagiert der Markt haeufig scharf, da dort ungefuellte institutionelle Limit-Orders verbleiben und prognostizierbare Preisreaktionen entstehen.
+
+- **Richtung**: BULLISH = letzte baerische Kerze vor starkem Aufwaertsimpuls (Akkumulationszone, wirkt als Unterstuetzung). BEARISH = letzte bullische Kerze vor starkem Abwaertsimpuls (Distributionszone, wirkt als Widerstand).
+
+**5-Phasen-Validierungspipeline** (eliminiert Fehlsignale durch sequentielle Bestaetigungen):
+
+| Phase | Pruefung | Finanzlogik |
+|-------|----------|-------------|
+| 1. Formation | Kandidatenkerze identifizieren (baerisch fuer Bullish-OB, bullisch fuer Bearish-OB, keine Dojis) | Institutionelle Positionsbildung hinterlaesst charakteristische Kerzenformationen |
+| 2. Displacement | Impulsstärke muss `ATR × atr_multiplier` (Default: 2.0 × 20-Perioden-ATR) ueberschreiten | Starke Preisbewegung = Bestaetigung institutioneller Aktivitaet (Retail erzeugt keine Displacements dieser Groessenordnung) |
+| 3. Fair Value Gap (FVG) | 3-Kerzen-Ungleichgewicht innerhalb `impulse_window` (Default: 5 Kerzen): Bullish FVG = `Low(i) > High(i-2)`, Bearish FVG = `High(i) < Low(i-2)` | Preis-Luecke = Markt hat die Zone uebersprungen, es besteht ein Ungleichgewicht zwischen Angebot und Nachfrage |
+| 4. Break of Structure (BOS) | Fraktaler Swing-Punkt vor OB-Index muss gebrochen werden (Bullish: Close > letztes Swing-High, Bearish: Close < letztes Swing-Low). Fraktal-Erkennung n=2, Inside-Bars werden uebersprungen | Strukturbruch = Trendwende bestaetigt, die Marktstruktur verschiebt sich zugunsten der OB-Richtung |
+| 5. State Management | Initialer Zustand: UNMITIGATED. Bestaetigung bei `max(displacement_idx, fvg_idx, bos_idx)`. Zone erst ab `confirmed_at_index + 1` handelbar | Zeitkonsistenz: Keine Look-Ahead-Bias — Backtesting und Live-Erkennung liefern identische Ergebnisse |
+
+**Conviction Scoring (0-100)** — Vier gleichgewichtete Komponenten (je 25%):
+
+| Komponente | Methodik | Begruendung |
+|------------|----------|-------------|
+| Volume Percentile (Cont) | `percentile(V, lookback=50)` — robust gegenueber Heavy-Tail-Verteilungen | Handelsvolumina folgen Potenzgesetzen, nicht Normalverteilungen. Z-Scores allein waeren unzuverlaessig |
+| Volume Z-Score | `z = (V - mean) / std`, normalisiert auf 0-100 (z=4 → 100) | Erfasst die Abweichung vom Baseline-Volumen als klassisches Standardsignal |
+| OFI Divergence (Bouchaud) | Close-Location-Value × Volumen, Vergleich Formation vs. Impuls, Sigmoid-Normalisierung | Institutionelle Akkumulation zeigt geringen Price Impact bei hohem Volumen — der Orderfluss verschiebt sich von Verkauf zu Kauf (oder umgekehrt) |
+| Impulse Intensity | `body_ratio × (volume_weight / 3) × 100` — Kerzenkoerper-Staerke kombiniert mit Volumen-Surge | Starker Kerzenkoerper + ueberdurchschnittliches Volumen = hohe Impulsqualitaet |
+
+- Conviction-Stufen: LOW (<35), STANDARD (35-55), HIGH (55-75), INSTITUTIONAL (75+)
+- High-Conviction Z-Score Flag: `volume_zscore > zscore_threshold` (Default: 2.0) — separater Filter fuer ungewoehnlich hohes Impulsvolumen
+
+**Impact Efficiency Ratio (Bouchaud Square Root Law)**:
+- `IER = participation_rate / normalized_displacement²`
+- Hoher IER (>> 1): Viel Volumen, wenig Preisbewegung → institutionelle Akkumulation (Smart Money arbeitet unerkannt)
+- Niedriger IER (≈ 1): Volumen proportional zur Preisbewegung → Retail-getrieben oder News-Event
+
+**AlbaTherium-Klassifikation** (strukturelle Kategorisierung nach Swing-Hierarchie):
+- EXTREME: Erster/tiefster OB zwischen Major Low und Major High — Ursprung der Primaerbewegung
+- DECISIONAL: Juengster OB unter aktuellem Inducement-Level — Wiedereinstieg vor finalem Push
+- SMT (Smart Money Trap): Alle OBs zwischen EXTREME und DECISIONAL — potenzielle Fallen fuer Retail-Trader
+- UNCLASSIFIED: Ausserhalb der identifizierten Marktstruktur
+
+**Zone State Machine**:
+- UNMITIGATED → MITIGATED (Preis beruehrt Zone: `High >= bottom AND Low <= top`, Orderfluss erschoepft)
+- UNMITIGATED/MITIGATED → INVALID (Wick-Touch durchbricht Zone: Bullish `Low <= zone_bottom`, Bearish `High >= zone_top`)
+
+- Kernfunktionen: `detect_orderblocks()`, `compute_atr()` (Wilder's Smoothing), `find_swing_points()`, `find_fvgs()`, `compute_volume_zscore()`, `compute_volume_percentile()`, `compute_ofi_divergence()`, `compute_impact_efficiency_ratio()`, `compute_conviction_score()`, `classify_orderblocks()`, `update_zone_states()`
+- Dataclasses: `Candle`, `Orderblock`, `OBConfig`, `SwingPoint`, `FairValueGap`, `ConvictionLevel`, `OBDirection`, `OBState`, `OBCategory`
+
+**`domain/orderblock_backtest.py`** - Backtesting Engine (pure, kein I/O):
+
+Simuliert das Handeln an erkannten Orderblock-Zonen nach der **Triple-Barrier-Methode** (Lopez de Prado): Jeder Trade hat drei Ausstiegsbedingungen — Take-Profit, Stop-Loss und maximale Haltedauer.
+
+- **Entry**: Limit-Order am `entry_edge` (erste Beruehrung nach `confirmed_at_index + 1`)
+- **Stop**: Wick-Touch am `stop_edge` (konservativer Ansatz — bereits ein Docht genuegt)
+- **Target**: `entry ± target_rr × zone_width` (konfigurierbar, Default R:R = 2.0)
+- **Time-Exit**: Nach `max_holding_candles` (Default: 200) → EXPIRED (Risikomanagement)
+- Trade-Outcomes: HIT (Target erreicht), MISS (Stop erreicht), EXPIRED (Zeitlimit), OPEN (Daten enden)
+- Metriken: Hit-Rate (nur HIT+MISS), Penetration Depth (wie tief dringt Preis in Zone ein), Holding Duration, Conviction-Breakdown pro Stufe, Z-Score-Clustering
+- Dataclasses: `BacktestTrade`, `BacktestMetrics`, `ConvictionBreakdown`, `ZScoreCluster`, `BacktestResult`
+
+**`services/orderblock_data_service.py`** - Singleton mit Thread-Safe TTL-Cache (1h):
+- Binance REST API Klines (oeffentlich, kein API-Key erforderlich): Paginierung (max 1000 Kerzen/Request)
+- `fetch_candles(symbol, interval, months)` — Paginierter Abruf + Cache
+- `analyze(symbol, interval, months, config)` — Orchestrierung: Fetch → Detect → State → Simulate → Metriken
+- Serialisierung: `serialize_zone()`, `serialize_config()`, `serialize_metrics()`, `serialize_trade()`, `serialize_candle_for_chart()`
+
+**`services/orderblock_persistence_service.py`** - Zone CRUD + Backtest-Persistenz:
+- `save_detection_result()` — Upsert mit Stale-Cleanup (N+1-Query-Optimierung: Batch-Load existierender Zone-IDs)
+- `get_zones()` — Filter nach symbol, interval, state (IDOR-geschuetzt via user_id)
+- `save_backtest_result()` — Immutable Snapshot (Config + Metriken + Trades als JSON)
+- `get_backtest_runs()` / `get_backtest_run()` — Historie + Detail (IDOR-geschuetzt)
+
+**3-stufige Config-Aufloesung** (Orderblock-Analyse):
+1. Request-Parameter (hoechste Prioritaet)
+2. User-Settings (`ob_interval`, `ob_atr_multiplier`, `ob_target_rr`, `ob_impulse_window`)
+3. OBConfig-Defaults (niedrigste Prioritaet)
 
 **`services/sentiment_data_service.py`** - Singleton mit TTL-Cache:
 - Datenquellen: Alternative.me F&G (30min TTL), Binance Klines (5min TTL), OKX Funding Rate (15min TTL)
@@ -312,6 +418,24 @@ API Routes (thin)  →  Services (DB + Binance)  →  Domain (pure, no I/O)
 - TanStack Query mit 60s Refetch-Intervall
 - Loading/Error States, Disclaimer Footer
 
+**Orderblock.jsx** - Orderblock Detection Dashboard:
+- Action-Bar: Analyse starten (POST), Zonen loeschen, Intervall-/Lookback-Auswahl (1h/4h/1d, 3-24 Monate)
+- KPI-Cards: Gesamtzonen, Hit-Rate, High-Conviction-Anzahl, Durchschnittlicher Conviction Score
+- Filter-Bar: Zone-State (UNMITIGATED/MITIGATED/INVALID), Conviction-Level, AlbaTherium-Kategorie
+- Charts (Recharts): Zone-State-Verteilung (Stacked Bar), Conviction-Breakdown (Grouped Bar: Hits/Misses/Expired pro Stufe)
+- Zone-Tabelle (sortierbar): Direction, State, Conviction, Category, Score, Zone-Range, Formation-Zeitpunkt
+- Trade-Tabelle (wenn Backtest vorhanden): Entry/Exit, Outcome, Penetration Depth, Holding Duration, Conviction Score
+- Explainer: Aufklappbare Erklaerung der 5-Phasen-Validierung und Conviction-Komponenten
+- State: selectedInterval, months, zoneStateFilter, convictionFilter, categoryFilter, selectedZone, Sorting
+
+**OrderblockChart.jsx** - Candlestick-Chart (lightweight-charts / TradingView):
+- OHLCV Candlestick-Serie (bullisch gruen, baerisch rot) + Volume-Histogramm (semi-transparent, farbangepasst)
+- Price Lines: Zone-Grenzen (top/bottom), Equilibrium, Entry/Stop Edge, Target-Level
+- Marker: Kerzenindizes, FVG-Highlight, Swing-Punkte
+- Crosshair: Interaktives Preis-/Zeittracking
+- Datenfluss: Zone-Selektion → Kerzen-Fetch (±Kontext um `formed_at`), Trade-Selektion → Kerzen-Fetch (Entry bis Exit ± Kontext)
+- UTC-Zeitzonenkonvertierung fuer lokale Anzeige
+
 ### Datenmodell (Kern-Tabellen)
 
 | Tabelle | Beschreibung |
@@ -322,7 +446,9 @@ API Routes (thin)  →  Services (DB + Binance)  →  Domain (pure, no I/O)
 | `orders` | Order-Tracking: client_order_id, binance_order_id, price, stop_price, linked_lot_id, linked_pairing_id |
 | `pairings` | Virtuelle Bündelung: threshold_pct, status (DRAFT/LOCKED/EXECUTED) |
 | `pairing_items` | N:M Pairing ↔ Lot: qty_btc, cost_eur (unterstützt Teilmengen) |
-| `user_settings` | Konfigurierbare Parameter pro User: max_order_value_eur, sell_allocation_strategy (FIFO/LIFO/HIGHEST_COST) |
+| `user_settings` | Konfigurierbare Parameter pro User: max_order_value_eur, sell_allocation_strategy (FIFO/LIFO/HIGHEST_COST), ob_interval, ob_atr_multiplier, ob_target_rr, ob_impulse_window |
+| `orderblock_zones` | Erkannte Preiszonen: direction, state, conviction, zone_top/bottom, equilibrium, entry/stop_edge, formed/confirmed_at, volume_zscore, volume_weight, volume_percentile, ofi_divergence, impact_efficiency_ratio, conviction_score, is_high_conviction_zscore, category, config_json. Indiziert nach (user_id, symbol, interval), (user_id, state), (formed_at) |
+| `backtest_runs` | Immutable Backtest-Snapshots: symbol, interval, data_start/end, candle_count, total_zones/trades, hits/misses/expired, hit_rate, avg_penetration_depth, avg_holding_duration, high_conviction_count/hit_rate, config_json, metrics_json, trades_json. Indiziert nach (user_id, symbol) |
 
 ### Kritische Invarianten
 
@@ -339,6 +465,11 @@ API Routes (thin)  →  Services (DB + Binance)  →  Domain (pure, no I/O)
 11. **Test-Isolation** - Tests verwenden `TEST_BINANCE_API_KEY` + Testnet, nie Produktions-Keys
 12. **Sentiment Scoring** - Korrelationsbasierte Gewichte (nicht gleich), Dispersion als Confidence, Volatility als Scaling - stetige piecewise-linear Multiplikatoren (keine Buckets/Cliff-Effekte)
 13. **Fee-Konvertierung** - BNB/andere Fees werden zum historischen Preis (Binance Klines, 1min) zum Fill-Zeitpunkt umgerechnet. `fee_eur_value` wird auf LedgerEvent persistiert. Fallback: aktueller Preis → Skip. Portfolio und Lots konsistent.
+14. **Orderblock Zeitkonsistenz** - Zonen erst ab `confirmed_at_index + 1` handelbar. Gleiche Kerzen + gleiche Config → identische Zonen + Trades + Metriken. Keine Look-Ahead-Bias in Detection oder Backtesting.
+15. **Orderblock 5-Phasen-Pflicht** - Jede Zone muss alle 5 Validierungsphasen (Formation, Displacement, FVG, BOS, State) bestehen. Kein Ueberspringen einzelner Phasen moeglich.
+16. **Conviction Scoring** - Vier gleichgewichtete Komponenten (Volume Percentile, Z-Score, OFI Divergence, Impulse Intensity). Percentile-basiert statt Z-Score-only wegen Heavy-Tail-Verteilung der Volumina (Cont).
+17. **Triple Barrier** - Backtesting mit drei Ausstiegsbedingungen (Target, Stop, Zeit). Time-Exit nach `max_holding_candles` verhindert unbegrenzte Haltezeiten.
+18. **Orderblock Config-Hierarchie** - Request > User-Settings > OBConfig-Defaults. Kein implizites Override — jede Stufe ist transparent nachvollziehbar.
 
 ## Styling-Konventionen (Frontend)
 
@@ -349,13 +480,14 @@ API Routes (thin)  →  Services (DB + Binance)  →  Domain (pure, no I/O)
   - Pairing/Akzent: Indigo `#6366f1`
   - Reconciliation: Sky-Blue `#0ea5e9`
   - Sentiment: Teal `#0d9488` (Gauge-Gradient: Rot `#dc2626` → Slate `#64748b` → Gruen `#16a34a`)
+  - Orderblock: Amber `#d97706` (Bullish-Zonen: Gruen `#16a34a`, Bearish-Zonen: Rot `#dc2626`, Score-Gradient: Slate→Blue→Amber→Purple)
   - Binance-Sync: Orange `#f7931a`
   - Neutrals: Slate-Palette (`#f8fafc`, `#e2e8f0`, `#64748b`, `#1e293b`)
 - **Patterns**: Summary-Cards, Filter-Groups mit Labels, Toggle-Switches, Status-Badges, Sort-Icons
 
 ## Testing
 
-**Backend (15 Testdateien):**
+**Backend (18 Testdateien):**
 - `test_portfolio_breakeven.py` - WAC, Fees, Partial Sells, BNB-Fee via fee_eur_value
 - `test_lots_fifo.py` - FIFO Allocation Deterministik
 - `test_lots_strategies.py` - LIFO, HIGHEST_COST, Strategy-Routing, Overflow-Strategien (18 Tests)
@@ -371,6 +503,9 @@ API Routes (thin)  →  Services (DB + Binance)  →  Domain (pure, no I/O)
 - `test_macro_signal.py` - Makro-Signal Berechnung
 - `test_historical_price.py` - Historische Fee-Konvertierung: BinanceService.get_historical_price(), Per-Fill Rates, Minuten-Cache, Fallback, _compute_fee_eur_value (13 Tests)
 - `test_sentiment_v3.py` - Sentiment v3: Pillar Dispersion, Funding Scoring, Piecewise Multiplier, Volatility Scaling, Recommendation (45+ Tests)
+- `test_orderblock_detection.py` - Orderblock Detection: ATR (Wilder's Smoothing), Swing-Fraktal-Erkennung, FVG-Detection, Volume Z-Score/Percentile, OFI Divergence, Impact Efficiency Ratio, Conviction Score, Detection Pipeline, State Transitions, AlbaTherium-Klassifikation
+- `test_orderblock_backtest.py` - Orderblock Backtesting: Trade-Outcome-Simulation (HIT/MISS/EXPIRED/OPEN), Penetration Depth, Hit-Rate-Metriken, Conviction-Breakdown, Z-Score-Clustering
+- `test_orderblock_service.py` - Orderblock Services: Kline-Paginierung, Cache Hit/Miss/TTL, Serialisierung (Zone/Config/Metriken/Trade), Persistence CRUD, Detection+Backtest Integration
 
 **Test-Konfiguration (`tests/conftest.py`):**
 - Alle Tests verwenden automatisch `TEST_BINANCE_API_KEY` statt Produktions-Keys
@@ -512,7 +647,18 @@ Zeigt: betroffene Lots, erwartete P&L, Fees, verbleibende Bestände
 
 ### 3.5 Settings-Screen
 - Formular für max_order_value_eur (Default: 1000 EUR)
+- Orderblock-Parameter: Intervall, ATR-Multiplikator, Target R:R, Impulse Window
 - Erweiterbar für zukünftige Settings
+
+### 3.6 Orderblock-Screen
+- Action-Bar: Analyse starten, Zonen loeschen, Intervall-/Lookback-Auswahl
+- KPI-Cards: Gesamtzonen, Hit-Rate, High-Conviction-Anzahl, Avg Score
+- Filter: State, Conviction-Level, AlbaTherium-Kategorie
+- Charts: Zone-State-Verteilung, Conviction-Breakdown (Hits/Misses/Expired)
+- Zone-Tabelle: Sortierbar, klickbar → Candlestick-Chart mit Zonen-Overlay
+- Trade-Tabelle: Backtest-Trades mit Entry/Exit, Outcome, Penetration Depth
+- Candlestick-Chart (lightweight-charts): OHLCV, Volume, Zone-Grenzen, Trade-Marker
+- Amber Akzentfarbe (`#d97706`)
 
 ---
 
@@ -542,6 +688,75 @@ Krypto-spezifische Stimmungsanalyse, komplementaer zum MacroSignal (Makro-Richtu
 
 ---
 
+### 2.6 Orderblock Detection Engine
+
+Institutionelle Preiszonen-Erkennung fuer die Identifikation hochreaktiver Unterstuetzungs- und Widerstandsbereiche. Orderblocks repraesentieren Preiszonen, in denen institutionelle Marktteilnehmer grosse Positionen akkumuliert oder distribuiert haben. Die Engine kombiniert klassische Marktstrukturanalyse mit quantitativen Methoden der Finanzmarkt-Mikrostrukturforschung.
+
+**Abgrenzung zu anderen Modulen:**
+- **MacroSignal**: Kurzfristiges Richtungssignal (1-15 Minuten) — "Wohin bewegt sich der Markt?"
+- **Sentiment Engine**: Mittelfristiges Position-Sizing (taeglich) — "Wie gross sollte meine Position sein?"
+- **Orderblock Engine**: Praeziselevel-Identifikation (Stunden bis Tage) — "Bei welchem Preis reagiert der Markt?"
+
+Die drei Module sind komplementaer: MacroSignal bestimmt die Richtung, Sentiment die Groesse, Orderblocks den optimalen Einstiegspreis.
+
+#### 2.6.1 Detection: 5-Phasen-Validierung
+
+Institutionelle Preiszonen werden durch eine 5-stufige Validierungspipeline identifiziert:
+
+1. **Formation**: Identifikation der Kandidatenkerze — letzte Gegenkerze vor dem Impuls
+2. **Displacement**: Impulsmessung via ATR-Multiple — bestaetigt institutionelle Staerke
+3. **Fair Value Gap**: 3-Kerzen-Ungleichgewicht — bestaetigt Angebot/Nachfrage-Imbalance
+4. **Break of Structure**: Fraktaler Swing-Bruch — bestaetigt Trendwende
+5. **State Management**: Zeitkonsistente Zonenaktivierung — verhindert Look-Ahead-Bias
+
+Jede Phase eliminiert falsch-positive Signale. Nur Zonen, die alle 5 Phasen bestehen, werden als handelbar markiert.
+
+#### 2.6.2 Conviction Scoring (Cont/Bouchaud)
+
+Jede Zone erhaelt einen quantitativen Conviction Score (0-100) aus vier Komponenten:
+
+- **Volume Percentile (Cont)**: Heavy-Tail-robuste Quantifizierung (Volumina folgen Potenzgesetzen, nicht Gaussverteilungen)
+- **Volume Z-Score**: Klassische Abweichung vom Baseline-Volumen
+- **OFI Divergence (Bouchaud)**: Orderfluss-Verschiebung — institutionelle Akkumulation zeigt geringen Price Impact bei hohem Volumen
+- **Impulse Intensity**: Kerzenkoerper-Staerke kombiniert mit Volumen-Surge
+
+Zusaetzlich: **Impact Efficiency Ratio** (Bouchaud Square Root Law) misst das Verhaeltnis von Volumen zu Preisbewegung — hoher IER deutet auf institutionelle Aktivitaet hin.
+
+#### 2.6.3 AlbaTherium-Klassifikation
+
+Strukturelle Einordnung jeder Zone im uebergeordneten Marktkontext:
+- **EXTREME**: Ursprung der Primaerbewegung (tiefster OB zwischen Major Low/High)
+- **DECISIONAL**: Wiedereinstiegspunkt vor finalem Push
+- **SMT**: Smart Money Trap — potenzielle Retail-Falle zwischen EXTREME und DECISIONAL
+- **UNCLASSIFIED**: Ausserhalb identifizierter Marktstruktur
+
+#### 2.6.4 Backtesting (Triple Barrier, Lopez de Prado)
+
+Jede erkannte Zone wird mit der Triple-Barrier-Methode simuliert:
+- **Take-Profit**: Target-Preis bei `entry ± target_rr × zone_width`
+- **Stop-Loss**: Wick-Touch am Stop-Edge (konservativ)
+- **Time-Exit**: Maximale Haltedauer (`max_holding_candles`, Default: 200)
+
+Metriken: Hit-Rate, Penetration Depth, Holding Duration, Conviction-Breakdown pro Stufe, Z-Score-Clustering.
+
+#### 2.6.5 Konfigurierbare Parameter
+
+| Parameter | Default | Beschreibung |
+|-----------|---------|--------------|
+| `atr_length` | 20 | Perioden fuer ATR-Berechnung (Wilder's Smoothing) |
+| `atr_multiplier` | 2.0 | Displacement-Schwelle als Vielfaches der ATR |
+| `fvg_window` | 3 | Kerzen fuer Fair Value Gap Erkennung |
+| `swing_fractal_n` | 2 | Kerzen links/rechts fuer Fraktal-Swing-Erkennung |
+| `target_rr` | 2.0 | Risk:Reward-Verhaeltnis fuer Backtesting |
+| `zscore_lookback` | 50 | Kerzen fuer Volume-Statistiken |
+| `zscore_threshold` | 2.0 | Z-Score-Schwelle fuer High-Conviction-Flag |
+| `max_holding_candles` | 200 | Triple-Barrier Time-Exit (0 = deaktiviert) |
+| `impulse_window` | 5 | Kerzen fuer Impulsphase nach Formation |
+
+Persistierbar pro User in Settings (`ob_interval`, `ob_atr_multiplier`, `ob_target_rr`, `ob_impulse_window`).
+
+---
+
 ## 4. Offene Punkte
 - Aggregierte Pairing-Orders (v1.1+)
 - Frontend-Tests (Vitest)
@@ -561,3 +776,7 @@ Krypto-spezifische Stimmungsanalyse, komplementaer zum MacroSignal (Makro-Richtu
 - Sentiment Score reproduzierbar aus gleichen Rohdaten (deterministische Domain-Logik)
 - Sentiment Graceful Degradation: System funktioniert mit 1-5 aktiven Pillars
 - Sentiment EU-kompatibel: Keine geo-blockierten APIs (OKX statt Binance Futures)
+- Orderblock-Erkennung deterministisch: Gleiche Kerzen + gleiche Config → identische Zonen und Metriken
+- Orderblock-Backtesting zeitkonsistent: Keine Look-Ahead-Bias (Entry erst ab confirmed_at_index + 1)
+- Conviction Score reproduzierbar aus gleichen Volumen-/Preis-Daten (pure Domain-Logik)
+- AlbaTherium-Klassifikation konsistent mit identifizierter Swing-Hierarchie

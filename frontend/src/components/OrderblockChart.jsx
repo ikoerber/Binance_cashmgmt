@@ -150,6 +150,20 @@ const OrderblockChart = ({ candles, zone, trade, isLoading }) => {
       })
     );
 
+    // Liquidity Sweep Level (falls vorhanden)
+    if (zone.liquidity_sweep_level) {
+      priceLinesRef.current.push(
+        series.createPriceLine({
+          price: parseFloat(zone.liquidity_sweep_level),
+          color: '#f59e0b',
+          lineWidth: 1,
+          lineStyle: LineStyle.SparseDotted,
+          axisLabelVisible: true,
+          title: 'Sweep',
+        })
+      );
+    }
+
     // ─── Markers: OB-definierende Kerzen + Trade Entry/Exit ───
     const tzOffsetSec = new Date().getTimezoneOffset() * -60;
     const markers = [];
