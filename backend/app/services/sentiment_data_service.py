@@ -8,6 +8,7 @@ Datenquellen:
 
 Haelt Rolling-Historien fuer Percentile-Scoring (90 Tage).
 """
+
 import logging
 import threading
 from collections import deque
@@ -21,43 +22,30 @@ from app.domain.sentiment import (
     SentimentResultV3,
     compute_sentiment_v3,
 )
+from app.services.binance_public_client import CachedValue, get_binance_public_client
 
 logger = logging.getLogger(__name__)
 
 # ─── Konfiguration ───
 
 FNG_URL = "https://api.alternative.me/fng/"
-BINANCE_KLINES_URL = "https://api.binance.com/api/v3/klines"
-BINANCE_TICKER_URL = "https://api.binance.com/api/v3/ticker/price"
 OKX_FUNDING_URL = "https://www.okx.com/api/v5/public/funding-rate"
 # OKX bietet nur USD-denominierte Perpetuals. Funding Rate ist ein prozentualer
 # Indikator und damit waehrungsneutral (identisch fuer EUR- und USD-Paare).
 OKX_FUNDING_INST_ID = "BTC-USDT-SWAP"
 
 # Cache-TTLs
-FNG_CACHE_TTL = timedelta(minutes=30)       # F&G aendert sich nur taeglich
-KLINE_CACHE_TTL = timedelta(minutes=5)      # Klines fuer DMA/Volume
-FUNDING_CACHE_TTL = timedelta(minutes=15)   # OKX Funding Rate (alle 8h, aber wir pollen oefter)
+FNG_CACHE_TTL = timedelta(minutes=30)  # F&G aendert sich nur taeglich
+KLINE_CACHE_TTL = timedelta(minutes=5)  # Klines fuer DMA/Volume
+FUNDING_CACHE_TTL = timedelta(
+    minutes=15
+)  # OKX Funding Rate (alle 8h, aber wir pollen oefter)
 
 # Percentile-Fenster
 PERCENTILE_WINDOW = 90  # Tage
 
 # Request-Timeout
 REQUEST_TIMEOUT = 10  # Sekunden
-
-
-class CachedValue:
-    """Einfacher Cache-Eintrag mit TTL."""
-    def __init__(self, value, fetched_at: datetime, ttl: timedelta):
-        self.value = value
-        self.fetched_at = fetched_at
-        self.ttl = ttl
-
-    def is_expired(self, now: datetime) -> bool:
-        return (now - self.fetched_at) > self.ttl
-
-    def is_stale(self, now: datetime, stale_factor: int = 6) -> bool:
-        return (now - self.fetched_at) > (self.ttl * stale_factor)
 
 
 class SentimentDataService:
@@ -119,7 +107,9 @@ class SentimentDataService:
             hist_taker = list(self._hist_taker)
             hist_dma = list(self._hist_dma)
             hist_vol = list(self._hist_vol)
-            daily_returns = list(self._daily_returns) if len(self._daily_returns) >= 120 else None
+            daily_returns = (
+                list(self._daily_returns) if len(self._daily_returns) >= 120 else None
+            )
 
         # 4. Rohwerte berechnen (ausserhalb Lock - kein Shared-State-Zugriff)
         taker_ratio_7d = kline_data.get("taker_ratio_7d")
@@ -163,7 +153,9 @@ class SentimentDataService:
         today = now.strftime("%Y-%m-%d")
         with self._lock:
             if today != self._last_history_date:
-                self._update_daily_history(fng_value, taker_ratio_7d, dist_50dma_pct, vol_ratio, kline_data)
+                self._update_daily_history(
+                    fng_value, taker_ratio_7d, dist_50dma_pct, vol_ratio, kline_data
+                )
                 self._last_history_date = today
 
         return self._serialize_result(result, current_price, fng_value, funding_rate)
@@ -213,13 +205,8 @@ class SentimentDataService:
 
     def _fetch_and_compute_klines(self, symbol: str) -> dict:
         """Holt 200 Tages-Klines und berechnet alle technischen Indikatoren."""
-        resp = requests.get(
-            BINANCE_KLINES_URL,
-            params={"symbol": symbol, "interval": "1d", "limit": 201},
-            timeout=REQUEST_TIMEOUT,
-        )
-        resp.raise_for_status()
-        klines = resp.json()
+        client = get_binance_public_client()
+        klines = client.get_klines(symbol, "1d", limit=201)
 
         if len(klines) < 50:
             return {}
@@ -235,7 +222,9 @@ class SentimentDataService:
         sma200 = sum(closes[-200:]) / Decimal("200") if len(closes) >= 200 else None
 
         # Distance to 50-DMA
-        dist_50dma_pct = ((current_price - sma50) / sma50) * Decimal("100") if sma50 > 0 else None
+        dist_50dma_pct = (
+            ((current_price - sma50) / sma50) * Decimal("100") if sma50 > 0 else None
+        )
 
         # Volume Ratio (heute vs 20-Tage-Durchschnitt)
         vol_ratio = None
@@ -257,18 +246,13 @@ class SentimentDataService:
                 taker_ratios.append(taker_buy_vols[i] / sell_vol)
         taker_ratio_7d = (
             sum(taker_ratios) / Decimal(str(len(taker_ratios)))
-            if len(taker_ratios) >= 3 else None
+            if len(taker_ratios) >= 3
+            else None
         )
 
         # Aktuellen Ticker-Preis holen (genauer als Kline-Close)
         try:
-            ticker_resp = requests.get(
-                BINANCE_TICKER_URL,
-                params={"symbol": symbol},
-                timeout=REQUEST_TIMEOUT,
-            )
-            ticker_resp.raise_for_status()
-            current_price = Decimal(ticker_resp.json()["price"])
+            current_price = client.get_ticker_price(symbol)
         except Exception:
             logger.debug("Ticker-Fallback auf Kline-Close fuer %s", symbol)
 
@@ -319,7 +303,9 @@ class SentimentDataService:
 
         try:
             # F&G Historisch
-            resp = requests.get(FNG_URL, params={"limit": PERCENTILE_WINDOW}, timeout=30)
+            resp = requests.get(
+                FNG_URL, params={"limit": PERCENTILE_WINDOW}, timeout=30
+            )
             resp.raise_for_status()
             fng_data = resp.json().get("data", [])
             for entry in reversed(fng_data):
@@ -330,13 +316,8 @@ class SentimentDataService:
 
         try:
             # Klines (200+90 Tage fuer Warmup + Percentile)
-            resp = requests.get(
-                BINANCE_KLINES_URL,
-                params={"symbol": symbol, "interval": "1d", "limit": 300},
-                timeout=30,
-            )
-            resp.raise_for_status()
-            klines = resp.json()
+            client = get_binance_public_client()
+            klines = client.get_klines(symbol, "1d", limit=300)
 
             closes = [Decimal(str(k[4])) for k in klines]
             volumes = [Decimal(str(k[5])) for k in klines]
@@ -347,13 +328,15 @@ class SentimentDataService:
             for i in range(start, len(closes)):
                 # DMA Distance
                 if i >= 50:
-                    sma50 = sum(closes[i - 49:i + 1]) / Decimal("50")
+                    sma50 = sum(closes[i - 49 : i + 1]) / Decimal("50")
                     if sma50 > 0:
-                        self._hist_dma.append(((closes[i] - sma50) / sma50) * Decimal("100"))
+                        self._hist_dma.append(
+                            ((closes[i] - sma50) / sma50) * Decimal("100")
+                        )
 
                 # Volume Ratio
                 if i >= 21:
-                    vol_20d = sum(volumes[i - 20:i]) / Decimal("20")
+                    vol_20d = sum(volumes[i - 20 : i]) / Decimal("20")
                     if vol_20d > 0:
                         self._hist_vol.append(volumes[i] / vol_20d)
 
@@ -369,12 +352,16 @@ class SentimentDataService:
 
                 # Daily Returns
                 if i >= 1 and closes[i - 1] > 0:
-                    self._daily_returns.append((closes[i] - closes[i - 1]) / closes[i - 1])
+                    self._daily_returns.append(
+                        (closes[i] - closes[i - 1]) / closes[i - 1]
+                    )
 
             logger.info(
                 "  Kline Historie: DMA=%d, Vol=%d, Taker=%d, Returns=%d",
-                len(self._hist_dma), len(self._hist_vol),
-                len(self._hist_taker), len(self._daily_returns),
+                len(self._hist_dma),
+                len(self._hist_vol),
+                len(self._hist_taker),
+                len(self._daily_returns),
             )
         except Exception as e:
             logger.warning("  Kline Historie Fehler: %s", e)
@@ -432,18 +419,24 @@ class SentimentDataService:
                 "confidence_factor": float(disp.confidence_factor),
                 "high_dispersion": disp.high_dispersion,
             },
-            "volatility": {
-                "realized_vol_20d": float(vol.realized_vol_20d),
-                "avg_vol_120d": float(vol.avg_vol_120d),
-                "vol_ratio": float(vol.vol_ratio),
-                "regime": vol.regime,
-                "scaling_factor": float(vol.scaling_factor),
-            } if vol else None,
+            "volatility": (
+                {
+                    "realized_vol_20d": float(vol.realized_vol_20d),
+                    "avg_vol_120d": float(vol.avg_vol_120d),
+                    "vol_ratio": float(vol.vol_ratio),
+                    "regime": vol.regime,
+                    "scaling_factor": float(vol.scaling_factor),
+                }
+                if vol
+                else None
+            ),
             "pillars": [
                 {
                     "name": p.name,
                     "score": float(p.score),
-                    "raw_value": float(p.raw_value) if p.raw_value is not None else None,
+                    "raw_value": (
+                        float(p.raw_value) if p.raw_value is not None else None
+                    ),
                     "source": p.source,
                     "quality": p.quality,
                 }
@@ -452,7 +445,9 @@ class SentimentDataService:
             "market_data": {
                 "btc_price": float(current_price) if current_price else None,
                 "fng_raw": int(fng_value) if fng_value is not None else None,
-                "funding_rate": float(funding_rate) if funding_rate is not None else None,
+                "funding_rate": (
+                    float(funding_rate) if funding_rate is not None else None
+                ),
             },
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }

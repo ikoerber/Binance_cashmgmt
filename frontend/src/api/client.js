@@ -65,6 +65,13 @@ export const syncOrderStatuses = async (userId) => {
   return response.data;
 };
 
+export const importExternalOrders = async (userId, symbol = 'BTCEUR') => {
+  const response = await apiClient.post(`/api/orders/${userId}/import`, null, {
+    params: { symbol },
+  });
+  return response.data;
+};
+
 export const createOrderForLot = async (userId, lotId, targetMarginPct = 0.05, feeBufferPct = 0.002) => {
   const response = await apiClient.post(`/api/orders/${userId}/lot/${lotId}/create`, null, {
     params: { target_margin_pct: targetMarginPct, fee_buffer_pct: feeBufferPct },

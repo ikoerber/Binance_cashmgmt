@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/combined", tags=["combined"])
 
-ALLOWED_SYMBOLS = {"BTCEUR", "BTCUSDT"}
+ALLOWED_SYMBOLS = {"BTCEUR"}
 
 
 @router.get("/{user_id}/score")

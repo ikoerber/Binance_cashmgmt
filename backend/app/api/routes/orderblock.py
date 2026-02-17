@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/orderblock", tags=["orderblock"])
 
-ALLOWED_SYMBOLS = {"BTCEUR", "BTCUSDT"}
+ALLOWED_SYMBOLS = {"BTCEUR"}
 
 # Timeouts fuer async Operationen (Sekunden)
 _ANALYZE_TIMEOUT = 120

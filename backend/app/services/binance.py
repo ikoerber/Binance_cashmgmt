@@ -3,12 +3,12 @@ Binance API Client
 
 Holt Trades/Fills von Binance und konvertiert zu Ledger Events
 """
+
 import logging
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import List, Optional
 
-import requests
 from binance.client import Client
 from binance.exceptions import BinanceAPIException
 
@@ -45,7 +45,7 @@ class BinanceService:
         self,
         symbol: str = "BTCEUR",
         start_time: Optional[datetime] = None,
-        limit: int = 1000
+        limit: int = 1000,
     ) -> List[LedgerEvent]:
         """
         Holt Trades von Binance und konvertiert zu Ledger Events.
@@ -139,23 +139,11 @@ class BinanceService:
         Raises:
             Exception: Wenn keine Kline-Daten verfuegbar
         """
+        from app.services.binance_public_client import get_binance_public_client
+
         ts_ms = int(timestamp.timestamp() * 1000)
-
-        base_url = "https://testnet.binance.vision" if getattr(self.client, "testnet", False) else "https://api.binance.com"
-        url = f"{base_url}/api/v3/klines"
-
-        resp = requests.get(
-            url,
-            params={
-                "symbol": symbol,
-                "interval": "1m",
-                "startTime": ts_ms,
-                "limit": 1,
-            },
-            timeout=10,
-        )
-        resp.raise_for_status()
-        klines = resp.json()
+        client = get_binance_public_client()
+        klines = client.get_klines(symbol, "1m", limit=1, start_time=ts_ms)
 
         if not klines:
             raise Exception(f"No kline data for {symbol} at {timestamp}")
@@ -195,7 +183,9 @@ class BinanceService:
         commission = Decimal(trade["commission"])
         commission_asset = trade["commissionAsset"]
         # WICHTIG: Binance gibt UTC Timestamps - immer UTC verwenden!
-        timestamp = datetime.fromtimestamp(trade["time"] / 1000, tz=timezone.utc).replace(tzinfo=None)
+        timestamp = datetime.fromtimestamp(
+            trade["time"] / 1000, tz=timezone.utc
+        ).replace(tzinfo=None)
         is_buyer = trade["isBuyer"]
 
         # Buy oder Sell?
@@ -242,11 +232,7 @@ class BinanceService:
             total = free + locked
 
             if total > 0:
-                balances[asset] = {
-                    "free": free,
-                    "locked": locked,
-                    "total": total
-                }
+                balances[asset] = {"free": free, "locked": locked, "total": total}
 
         return balances
 
@@ -254,7 +240,7 @@ class BinanceService:
         self,
         coin: Optional[str] = None,
         start_time: Optional[datetime] = None,
-        limit: int = 1000
+        limit: int = 1000,
     ) -> List[LedgerEvent]:
         """
         Holt Deposit-Historie von Binance und konvertiert zu Ledger Events.
@@ -315,7 +301,7 @@ class BinanceService:
         self,
         coin: Optional[str] = None,
         start_time: Optional[datetime] = None,
-        limit: int = 1000
+        limit: int = 1000,
     ) -> List[LedgerEvent]:
         """
         Holt Withdrawal-Historie von Binance und konvertiert zu Ledger Events.
@@ -398,7 +384,9 @@ class BinanceService:
         amount = Decimal(deposit["amount"])
         coin = deposit["coin"]
         # WICHTIG: Binance gibt UTC Timestamps - immer UTC verwenden!
-        timestamp = datetime.fromtimestamp(deposit["insertTime"] / 1000, tz=timezone.utc).replace(tzinfo=None)
+        timestamp = datetime.fromtimestamp(
+            deposit["insertTime"] / 1000, tz=timezone.utc
+        ).replace(tzinfo=None)
 
         # EUR-Deposits sind EXTERNAL_CASHFLOW (Bank → Binance)
         # BTC-Deposits sind DEPOSIT (externe Wallet → Binance)
@@ -443,11 +431,15 @@ class BinanceService:
         amount = Decimal(withdrawal["amount"])
         coin = withdrawal["coin"]
         # WICHTIG: Binance gibt UTC Timestamps - immer UTC verwenden!
-        timestamp = datetime.fromtimestamp(withdrawal["applyTime"] / 1000, tz=timezone.utc).replace(tzinfo=None)
+        timestamp = datetime.fromtimestamp(
+            withdrawal["applyTime"] / 1000, tz=timezone.utc
+        ).replace(tzinfo=None)
 
         # EUR-Withdrawals sind EXTERNAL_CASHFLOW (Binance → Bank)
         # BTC-Withdrawals sind WITHDRAWAL (Binance → externe Wallet)
-        event_type = EventType.EXTERNAL_CASHFLOW if coin == "EUR" else EventType.WITHDRAWAL
+        event_type = (
+            EventType.EXTERNAL_CASHFLOW if coin == "EUR" else EventType.WITHDRAWAL
+        )
 
         # Bei EXTERNAL_CASHFLOW: Negativ, weil Geld rausgeht
         if event_type == EventType.EXTERNAL_CASHFLOW:

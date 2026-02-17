@@ -32,7 +32,7 @@ const LotsTable = () => {
     filters,
     sortColumn, sortDirection, toggleSort,
     isLoading, error,
-    lots, openOrders, openCostSum, totalOpenQty, filteredOpenQtySum,
+    lots, openOrders, openBuyOrders, openCostSum, totalOpenQty, filteredOpenQtySum,
     orderByLotId, mergeGroupByLotId, depotPnl,
   } = useLotsData();
 
@@ -185,7 +185,7 @@ const LotsTable = () => {
         depotPnl={depotPnl}
       />
 
-      <OpenOrdersPanel openOrders={openOrders} />
+      <OpenOrdersPanel openOrders={openOrders} openBuyOrders={openBuyOrders} />
 
       {/* Filter Bar */}
       <LotFilters

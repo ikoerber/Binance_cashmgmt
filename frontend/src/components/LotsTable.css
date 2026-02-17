@@ -346,6 +346,25 @@
   color: var(--color-text-primary);
 }
 
+/* Buy Orders Variante */
+.open-orders-buy {
+  background: linear-gradient(135deg, #eff6ff 0%, #eef2ff 100%);
+  border-color: #bfdbfe;
+}
+
+.open-orders-buy h3 {
+  color: #2563eb;
+}
+
+.open-orders-buy .open-orders-table th {
+  color: #2563eb;
+  border-bottom-color: #bfdbfe;
+}
+
+.open-orders-buy .open-orders-table td {
+  border-bottom-color: #dbeafe;
+}
+
 /* ─── Order Status Dot ─── */
 .order-status-dot {
   display: inline-block;

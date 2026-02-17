@@ -7,6 +7,7 @@ Datenquellen:
 
 Haelt eine In-Memory Rolling History fuer konfigurierbare Intervall-Vergleiche (1m/5m/15m).
 """
+
 import os
 import logging
 import threading
@@ -17,14 +18,17 @@ from typing import Optional
 
 import requests
 
-from app.domain.macro_signal import MacroIndicator, compute_macro_signal, MacroSignalResult
+from app.domain.macro_signal import (
+    MacroIndicator,
+    compute_macro_signal,
+    MacroSignalResult,
+)
+from app.services.binance_public_client import CachedValue, get_binance_public_client
 
 logger = logging.getLogger(__name__)
 
 # ─── Konfiguration ───
 
-BINANCE_TICKER_URL = "https://api.binance.com/api/v3/ticker/price"
-BINANCE_KLINES_URL = "https://api.binance.com/api/v3/klines"
 TWELVE_DATA_URL = "https://api.twelvedata.com/time_series"
 FRED_URL = "https://api.stlouisfed.org/fred/series/observations"
 ECB_URL = "https://data-api.ecb.europa.eu/service/data"
@@ -46,21 +50,6 @@ TWELVE_DATA_INTERVAL_MAP = {1: "1min", 5: "5min", 15: "15min"}
 
 # Request-Timeout
 REQUEST_TIMEOUT = 10  # Sekunden
-
-
-class CachedValue:
-    """Einfacher Cache-Eintrag mit TTL."""
-    def __init__(self, value, fetched_at: datetime, ttl: timedelta):
-        self.value = value
-        self.fetched_at = fetched_at
-        self.ttl = ttl
-
-    def is_expired(self, now: datetime) -> bool:
-        return (now - self.fetched_at) > self.ttl
-
-    def is_stale(self, now: datetime, stale_factor: int = 6) -> bool:
-        """Stale = deutlich aelter als TTL (z.B. 6x)."""
-        return (now - self.fetched_at) > (self.ttl * stale_factor)
 
 
 class MacroDataService:
@@ -100,17 +89,23 @@ class MacroDataService:
             ecb_data = self._get_ecb_yields(now)
 
             # 2. Indikatoren zusammenbauen
-            indicators = self._build_indicators(binance_data, twelve_data, fred_data, ecb_data, now)
+            indicators = self._build_indicators(
+                binance_data, twelve_data, fred_data, ecb_data, now
+            )
 
             # 3. History aktualisieren
             current_snapshot = {
-                k: ind.current for k, ind in indicators.items() if ind.current is not None
+                k: ind.current
+                for k, ind in indicators.items()
+                if ind.current is not None
             }
             if current_snapshot:
                 self._history.append((now, current_snapshot))
 
             # 4. Vergleichswerte einsetzen (Lookback = Intervall)
-            self._fill_previous_values(indicators, now, lookback_minutes=interval_minutes)
+            self._fill_previous_values(
+                indicators, now, lookback_minutes=interval_minutes
+            )
 
         # 5. Signal berechnen (pure Funktion, ausserhalb Lock)
         return compute_macro_signal(indicators, interval_minutes=interval_minutes)
@@ -137,6 +132,7 @@ class MacroDataService:
 
     def _fetch_binance_prices(self, interval_minutes: int = 15) -> dict:
         """Holt BTCUSDT, BTCEUR, EURUSDT von Binance Public API mit konfigurierbaren Klines."""
+        client = get_binance_public_client()
         symbols = ["BTCUSDT", "BTCEUR", "EURUSDT"]
         kline_interval = BINANCE_INTERVAL_MAP.get(interval_minutes, "15m")
         result = {}
@@ -144,23 +140,11 @@ class MacroDataService:
         for symbol in symbols:
             try:
                 # Aktueller Preis
-                resp = requests.get(
-                    BINANCE_TICKER_URL,
-                    params={"symbol": symbol},
-                    timeout=REQUEST_TIMEOUT,
-                )
-                resp.raise_for_status()
-                price = Decimal(resp.json()["price"])
+                price = client.get_ticker_price(symbol)
                 result[symbol] = {"current": price}
 
                 # Klines fuer Vergleichswert (limit=2: vorherige + aktuelle Kerze)
-                kline_resp = requests.get(
-                    BINANCE_KLINES_URL,
-                    params={"symbol": symbol, "interval": kline_interval, "limit": 2},
-                    timeout=REQUEST_TIMEOUT,
-                )
-                kline_resp.raise_for_status()
-                klines = kline_resp.json()
+                klines = client.get_klines(symbol, kline_interval, limit=2)
                 if len(klines) >= 2:
                     # klines[0] = vorherige abgeschlossene Kerze, close = index 4
                     result[symbol]["previous"] = Decimal(klines[0][4])
@@ -230,7 +214,9 @@ class MacroDataService:
                         prev_close = Decimal(data["values"][1]["close"])
                         result[key]["previous"] = prev_close
                 elif "code" in data:
-                    logger.warning(f"Twelve Data {symbol}: {data.get('message', 'API Error')}")
+                    logger.warning(
+                        f"Twelve Data {symbol}: {data.get('message', 'API Error')}"
+                    )
 
             except (requests.RequestException, InvalidOperation, KeyError) as e:
                 logger.warning(f"Twelve Data {symbol} Fehler: {e}")
@@ -276,8 +262,8 @@ class MacroDataService:
 
         # US 2Y Yield
         series_map = {
-            "DGS2": "us02y",    # US 2-Year Treasury
-            "DGS10": "us10y",   # US 10-Year (zusaetzlich)
+            "DGS2": "us02y",  # US 2-Year Treasury
+            "DGS10": "us10y",  # US 10-Year (zusaetzlich)
         }
 
         for series_id, key in series_map.items():
@@ -297,7 +283,8 @@ class MacroDataService:
                 data = resp.json()
 
                 observations = [
-                    obs for obs in data.get("observations", [])
+                    obs
+                    for obs in data.get("observations", [])
                     if obs.get("value") != "."
                 ]
 
@@ -374,7 +361,9 @@ class MacroDataService:
 
     # ─── Indikator-Zusammenbau ───
 
-    def _build_indicators(self, binance: dict, twelve: dict, fred: dict, ecb: dict, now: datetime) -> dict:
+    def _build_indicators(
+        self, binance: dict, twelve: dict, fred: dict, ecb: dict, now: datetime
+    ) -> dict:
         """Baut MacroIndicator-Objekte aus Rohdaten."""
         indicators = {}
 
@@ -383,55 +372,98 @@ class MacroDataService:
 
         # BTC/USD (von Binance BTCUSDT mit Kline-Vergleich)
         btc_usdt_data = binance.get("BTCUSDT", {})
-        btc_usdt = btc_usdt_data.get("current") if isinstance(btc_usdt_data, dict) else None
-        btc_usdt_prev = btc_usdt_data.get("previous") if isinstance(btc_usdt_data, dict) else None
+        btc_usdt = (
+            btc_usdt_data.get("current") if isinstance(btc_usdt_data, dict) else None
+        )
+        btc_usdt_prev = (
+            btc_usdt_data.get("previous") if isinstance(btc_usdt_data, dict) else None
+        )
         indicators["btc_usd"] = self._make_indicator(
-            "BTC/USD", btc_usdt, btc_usdt_prev, now, "binance", binance_quality,
+            "BTC/USD",
+            btc_usdt,
+            btc_usdt_prev,
+            now,
+            "binance",
+            binance_quality,
         )
 
         # EUR/USD: Primaer von Twelve Data, Fallback aus Binance (BTCEUR/BTCUSDT)
         eur_usd_td = twelve.get("eur_usd_td", {})
         btc_eur_data = binance.get("BTCEUR", {})
-        btc_eur = btc_eur_data.get("current") if isinstance(btc_eur_data, dict) else None
-        btc_eur_prev = btc_eur_data.get("previous") if isinstance(btc_eur_data, dict) else None
+        btc_eur = (
+            btc_eur_data.get("current") if isinstance(btc_eur_data, dict) else None
+        )
+        btc_eur_prev = (
+            btc_eur_data.get("previous") if isinstance(btc_eur_data, dict) else None
+        )
 
         if eur_usd_td.get("current"):
             indicators["eur_usd"] = self._make_indicator(
-                "EUR/USD", eur_usd_td["current"], eur_usd_td.get("previous"),
-                now, "twelvedata", td_quality,
+                "EUR/USD",
+                eur_usd_td["current"],
+                eur_usd_td.get("previous"),
+                now,
+                "twelvedata",
+                td_quality,
             )
         elif btc_eur and btc_usdt and btc_usdt > 0:
             eur_usd_curr = btc_eur / btc_usdt
-            eur_usd_prev = (btc_eur_prev / btc_usdt_prev) if (btc_eur_prev and btc_usdt_prev and btc_usdt_prev > 0) else None
+            eur_usd_prev = (
+                (btc_eur_prev / btc_usdt_prev)
+                if (btc_eur_prev and btc_usdt_prev and btc_usdt_prev > 0)
+                else None
+            )
             indicators["eur_usd"] = self._make_indicator(
-                "EUR/USD", eur_usd_curr, eur_usd_prev, now, "binance", binance_quality,
+                "EUR/USD",
+                eur_usd_curr,
+                eur_usd_prev,
+                now,
+                "binance",
+                binance_quality,
             )
         else:
             indicators["eur_usd"] = self._make_indicator(
-                "EUR/USD", None, None, now, "unavailable", "unavailable",
+                "EUR/USD",
+                None,
+                None,
+                now,
+                "unavailable",
+                "unavailable",
             )
 
         # DXY (via UUP ETF als Proxy)
         dxy_data = twelve.get("dxy", {})
         indicators["dxy"] = self._make_indicator(
-            "DXY (UUP)", dxy_data.get("current"), dxy_data.get("previous"),
-            now, "twelvedata", td_quality if dxy_data.get("current") else "unavailable",
+            "DXY (UUP)",
+            dxy_data.get("current"),
+            dxy_data.get("previous"),
+            now,
+            "twelvedata",
+            td_quality if dxy_data.get("current") else "unavailable",
         )
 
         # US 2Y Yield (von FRED, Tageswerte)
         fred_quality = self._get_quality("fred_yields", now)
         us02y_data = fred.get("us02y", {})
         indicators["us02y"] = self._make_indicator(
-            "US 2Y Yield", us02y_data.get("current"), us02y_data.get("previous"),
-            now, "fred", fred_quality if us02y_data.get("current") else "unavailable",
+            "US 2Y Yield",
+            us02y_data.get("current"),
+            us02y_data.get("previous"),
+            now,
+            "fred",
+            fred_quality if us02y_data.get("current") else "unavailable",
         )
 
         # DE 2Y Yield (von ECB, Tageswerte, kein API Key noetig)
         ecb_quality = self._get_quality("ecb_yields", now)
         de02y_data = ecb.get("de02y", {})
         indicators["de02y"] = self._make_indicator(
-            "DE 2Y Yield", de02y_data.get("current"), de02y_data.get("previous"),
-            now, "ecb", ecb_quality if de02y_data.get("current") else "unavailable",
+            "DE 2Y Yield",
+            de02y_data.get("current"),
+            de02y_data.get("previous"),
+            now,
+            "ecb",
+            ecb_quality if de02y_data.get("current") else "unavailable",
         )
 
         # Spread (berechnet aus FRED US02Y + ECB DE02Y)
@@ -440,18 +472,38 @@ class MacroDataService:
         us02y_prev = us02y_data.get("previous")
         de02y_prev = de02y_data.get("previous")
 
-        spread_curr = (us02y_curr - de02y_curr) if (us02y_curr is not None and de02y_curr is not None) else None
-        spread_prev = (us02y_prev - de02y_prev) if (us02y_prev is not None and de02y_prev is not None) else None
+        spread_curr = (
+            (us02y_curr - de02y_curr)
+            if (us02y_curr is not None and de02y_curr is not None)
+            else None
+        )
+        spread_prev = (
+            (us02y_prev - de02y_prev)
+            if (us02y_prev is not None and de02y_prev is not None)
+            else None
+        )
 
-        spread_quality = "live" if (us02y_curr is not None and de02y_curr is not None) else "unavailable"
+        spread_quality = (
+            "live"
+            if (us02y_curr is not None and de02y_curr is not None)
+            else "unavailable"
+        )
         indicators["spread"] = self._make_indicator(
-            "Spread US02Y-DE02Y", spread_curr, spread_prev,
-            now, "calculated", spread_quality,
+            "Spread US02Y-DE02Y",
+            spread_curr,
+            spread_prev,
+            now,
+            "calculated",
+            spread_quality,
         )
 
         # BTC/EUR (nur zur Anzeige)
         indicators["btc_eur"] = self._make_indicator(
-            "BTC/EUR", btc_eur, btc_eur_prev, now, "binance",
+            "BTC/EUR",
+            btc_eur,
+            btc_eur_prev,
+            now,
+            "binance",
             binance_quality if btc_eur else "unavailable",
         )
 
@@ -473,7 +525,9 @@ class MacroDataService:
             quality=quality,
         )
 
-    def _fill_previous_values(self, indicators: dict, now: datetime, lookback_minutes: int = 15):
+    def _fill_previous_values(
+        self, indicators: dict, now: datetime, lookback_minutes: int = 15
+    ):
         """Fuellt previous_15m aus History als Fallback (nur wenn API keinen Wert lieferte)."""
         target_time = now - timedelta(minutes=lookback_minutes)
 
@@ -502,7 +556,9 @@ class MacroDataService:
                 prev = best_entry[key]
                 if prev is not None and prev != 0:
                     indicator.previous_15m = prev
-                    indicator.change_pct = ((indicator.current - prev) / prev) * Decimal("100")
+                    indicator.change_pct = (
+                        (indicator.current - prev) / prev
+                    ) * Decimal("100")
 
     def _get_quality(self, cache_key: str, now: datetime) -> str:
         """Bestimmt Datenqualitaet basierend auf Cache-Alter."""

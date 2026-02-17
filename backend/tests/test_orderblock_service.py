@@ -69,16 +69,15 @@ class TestCachedValue:
 
 
 class TestKlineFetching:
-    """Tests fuer paginierte Kline-Abfrage mit gemockter API."""
+    """Tests fuer paginierte Kline-Abfrage mit gemocktem BinancePublicClient."""
 
-    @patch("app.services.orderblock_data_service.requests.get")
-    def test_fetch_single_page(self, mock_get):
+    @patch("app.services.orderblock_data_service.get_binance_public_client")
+    def test_fetch_single_page(self, mock_get_client):
         """Einzelne Seite (< 1000 Kerzen)."""
         klines = [_make_binance_kline(i) for i in range(50)]
-        mock_resp = MagicMock()
-        mock_resp.json.return_value = klines
-        mock_resp.raise_for_status = MagicMock()
-        mock_get.return_value = mock_resp
+        mock_client = MagicMock()
+        mock_client.get_klines.return_value = klines
+        mock_get_client.return_value = mock_client
 
         service = OrderblockDataService()
         result = service.fetch_candles("BTCEUR", "1h", months=1)
@@ -86,39 +85,32 @@ class TestKlineFetching:
         assert len(result) == 50
         assert isinstance(result[0], Candle)
         assert result[0].open == Decimal("100")
-        mock_get.assert_called_once()
+        mock_client.get_klines.assert_called_once()
 
-    @patch("app.services.orderblock_data_service.requests.get")
-    def test_fetch_pagination(self, mock_get):
+    @patch("app.services.orderblock_data_service.get_binance_public_client")
+    def test_fetch_pagination(self, mock_get_client):
         """Mehrere Seiten (> 1000 Kerzen simuliert)."""
         page1 = [_make_binance_kline(i) for i in range(1000)]
         page2 = [_make_binance_kline(1000 + i) for i in range(500)]
 
-        mock_resp1 = MagicMock()
-        mock_resp1.json.return_value = page1
-        mock_resp1.raise_for_status = MagicMock()
-
-        mock_resp2 = MagicMock()
-        mock_resp2.json.return_value = page2
-        mock_resp2.raise_for_status = MagicMock()
-
-        mock_get.side_effect = [mock_resp1, mock_resp2]
+        mock_client = MagicMock()
+        mock_client.get_klines.side_effect = [page1, page2]
+        mock_get_client.return_value = mock_client
 
         service = OrderblockDataService()
         result = service.fetch_candles("BTCEUR", "1h", months=3)
 
         assert len(result) == 1500
-        assert mock_get.call_count == 2
+        assert mock_client.get_klines.call_count == 2
 
-    @patch("app.services.orderblock_data_service.requests.get")
-    def test_fetch_api_error_returns_partial(self, mock_get):
+    @patch("app.services.orderblock_data_service.get_binance_public_client")
+    def test_fetch_api_error_returns_partial(self, mock_get_client):
         """API-Fehler nach erster Seite → partielle Daten."""
         page1 = [_make_binance_kline(i) for i in range(100)]
-        mock_resp = MagicMock()
-        mock_resp.json.return_value = page1
-        mock_resp.raise_for_status = MagicMock()
 
-        mock_get.side_effect = [mock_resp, Exception("Connection Error")]
+        mock_client = MagicMock()
+        mock_client.get_klines.side_effect = [page1, Exception("Connection Error")]
+        mock_get_client.return_value = mock_client
 
         service = OrderblockDataService()
         # Erzwingt Pagination durch kurzes Interval
@@ -131,14 +123,13 @@ class TestKlineFetching:
         # Erste Seite hat nur 100 → bricht nach erster Seite ab (< 1000)
         assert len(result) == 100
 
-    @patch("app.services.orderblock_data_service.requests.get")
-    def test_cache_hit(self, mock_get):
+    @patch("app.services.orderblock_data_service.get_binance_public_client")
+    def test_cache_hit(self, mock_get_client):
         """Zweiter Aufruf verwendet Cache."""
         klines = [_make_binance_kline(i) for i in range(10)]
-        mock_resp = MagicMock()
-        mock_resp.json.return_value = klines
-        mock_resp.raise_for_status = MagicMock()
-        mock_get.return_value = mock_resp
+        mock_client = MagicMock()
+        mock_client.get_klines.return_value = klines
+        mock_get_client.return_value = mock_client
 
         service = OrderblockDataService()
         r1 = service.fetch_candles("BTCEUR", "1h", months=1)
@@ -146,15 +137,14 @@ class TestKlineFetching:
 
         assert len(r1) == len(r2)
         # Nur ein API-Call (zweiter ist Cache-Hit)
-        assert mock_get.call_count == 1
+        assert mock_client.get_klines.call_count == 1
 
-    @patch("app.services.orderblock_data_service.requests.get")
-    def test_empty_response(self, mock_get):
+    @patch("app.services.orderblock_data_service.get_binance_public_client")
+    def test_empty_response(self, mock_get_client):
         """Leere API-Antwort → leere Liste."""
-        mock_resp = MagicMock()
-        mock_resp.json.return_value = []
-        mock_resp.raise_for_status = MagicMock()
-        mock_get.return_value = mock_resp
+        mock_client = MagicMock()
+        mock_client.get_klines.return_value = []
+        mock_get_client.return_value = mock_client
 
         service = OrderblockDataService()
         result = service.fetch_candles("BTCEUR", "1h", months=1)
@@ -164,14 +154,13 @@ class TestKlineFetching:
 class TestAnalyzeOrchestration:
     """Tests fuer analyze() Orchestrierung (Combined Detection + Backtest)."""
 
-    @patch("app.services.orderblock_data_service.requests.get")
-    def test_analyze_returns_structure(self, mock_get):
+    @patch("app.services.orderblock_data_service.get_binance_public_client")
+    def test_analyze_returns_structure(self, mock_get_client):
         """Analyze liefert korrektes Result-Dict mit Zonen, Metriken, Trades."""
         klines = [_make_binance_kline(i) for i in range(50)]
-        mock_resp = MagicMock()
-        mock_resp.json.return_value = klines
-        mock_resp.raise_for_status = MagicMock()
-        mock_get.return_value = mock_resp
+        mock_client = MagicMock()
+        mock_client.get_klines.return_value = klines
+        mock_get_client.return_value = mock_client
 
         service = OrderblockDataService()
         result = service.analyze("BTCEUR", "1h", months=1)
@@ -184,13 +173,12 @@ class TestAnalyzeOrchestration:
         assert result["meta"]["symbol"] == "BTCEUR"
         assert result["meta"]["interval"] == "1h"
 
-    @patch("app.services.orderblock_data_service.requests.get")
-    def test_analyze_empty_candles(self, mock_get):
+    @patch("app.services.orderblock_data_service.get_binance_public_client")
+    def test_analyze_empty_candles(self, mock_get_client):
         """Analyze mit leeren Daten → leere Zonen und Trades."""
-        mock_resp = MagicMock()
-        mock_resp.json.return_value = []
-        mock_resp.raise_for_status = MagicMock()
-        mock_get.return_value = mock_resp
+        mock_client = MagicMock()
+        mock_client.get_klines.return_value = []
+        mock_get_client.return_value = mock_client
 
         service = OrderblockDataService()
         result = service.analyze("BTCEUR", "1h", months=1)
@@ -199,14 +187,13 @@ class TestAnalyzeOrchestration:
         assert result["trades"] == []
         assert result["meta"]["candle_count"] == 0
 
-    @patch("app.services.orderblock_data_service.requests.get")
-    def test_analyze_contains_raw_zones_and_result(self, mock_get):
+    @patch("app.services.orderblock_data_service.get_binance_public_client")
+    def test_analyze_contains_raw_zones_and_result(self, mock_get_client):
         """Analyze liefert raw_zones und result fuer Persistenz."""
         klines = [_make_binance_kline(i) for i in range(50)]
-        mock_resp = MagicMock()
-        mock_resp.json.return_value = klines
-        mock_resp.raise_for_status = MagicMock()
-        mock_get.return_value = mock_resp
+        mock_client = MagicMock()
+        mock_client.get_klines.return_value = klines
+        mock_get_client.return_value = mock_client
 
         service = OrderblockDataService()
         result = service.analyze("BTCEUR", "1h", months=1)
@@ -799,14 +786,13 @@ class TestOrderblockAPIRoutes:
 
         test_app.dependency_overrides.clear()
 
-    @patch("app.services.orderblock_data_service.requests.get")
-    def test_analyze_endpoint(self, mock_get, client):
+    @patch("app.services.orderblock_data_service.get_binance_public_client")
+    def test_analyze_endpoint(self, mock_get_client, client):
         """POST /{user_id}/analyze liefert Zonen, Metriken, Trades."""
         klines = [_make_binance_kline(i) for i in range(50)]
-        mock_resp = MagicMock()
-        mock_resp.json.return_value = klines
-        mock_resp.raise_for_status = MagicMock()
-        mock_get.return_value = mock_resp
+        mock_client = MagicMock()
+        mock_client.get_klines.return_value = klines
+        mock_get_client.return_value = mock_client
 
         resp = client.post(
             "/api/orderblock/user1/analyze",
@@ -821,8 +807,7 @@ class TestOrderblockAPIRoutes:
         assert "trades" in data
         assert data["meta"]["symbol"] == "BTCEUR"
 
-    @patch("app.services.orderblock_data_service.requests.get")
-    def test_analyze_invalid_symbol(self, mock_get, client):
+    def test_analyze_invalid_symbol(self, client):
         """POST /{user_id}/analyze mit ungueltigem Symbol -> 400."""
         resp = client.post(
             "/api/orderblock/user1/analyze",
@@ -831,8 +816,7 @@ class TestOrderblockAPIRoutes:
         assert resp.status_code == 400
         assert "Symbol" in resp.json()["detail"]
 
-    @patch("app.services.orderblock_data_service.requests.get")
-    def test_analyze_invalid_interval(self, mock_get, client):
+    def test_analyze_invalid_interval(self, client):
         """POST /{user_id}/analyze mit ungueltigem Interval -> 400."""
         resp = client.post(
             "/api/orderblock/user1/analyze",
@@ -865,14 +849,13 @@ class TestOrderblockAPIRoutes:
         resp = client.get("/api/orderblock/user1/zones/nonexistent")
         assert resp.status_code == 404
 
-    @patch("app.services.orderblock_data_service.requests.get")
-    def test_analyze_with_custom_config(self, mock_get, client):
+    @patch("app.services.orderblock_data_service.get_binance_public_client")
+    def test_analyze_with_custom_config(self, mock_get_client, client):
         """POST /{user_id}/analyze mit Custom-Config."""
         klines = [_make_binance_kline(i) for i in range(50)]
-        mock_resp = MagicMock()
-        mock_resp.json.return_value = klines
-        mock_resp.raise_for_status = MagicMock()
-        mock_get.return_value = mock_resp
+        mock_client = MagicMock()
+        mock_client.get_klines.return_value = klines
+        mock_get_client.return_value = mock_client
 
         resp = client.post(
             "/api/orderblock/user1/analyze",
@@ -906,14 +889,13 @@ class TestOrderblockAPIRoutes:
         resp = client.get("/api/orderblock/user1/backtest/runs/nonexistent")
         assert resp.status_code == 404
 
-    @patch("app.services.orderblock_data_service.requests.get")
-    def test_analyze_and_get_zones_roundtrip(self, mock_get, client):
+    @patch("app.services.orderblock_data_service.get_binance_public_client")
+    def test_analyze_and_get_zones_roundtrip(self, mock_get_client, client):
         """Analyze -> Zones abrufbar (Roundtrip)."""
         klines = [_make_binance_kline(i) for i in range(50)]
-        mock_resp = MagicMock()
-        mock_resp.json.return_value = klines
-        mock_resp.raise_for_status = MagicMock()
-        mock_get.return_value = mock_resp
+        mock_client = MagicMock()
+        mock_client.get_klines.return_value = klines
+        mock_get_client.return_value = mock_client
 
         # Analyze (combined detection + backtest)
         resp = client.post(
@@ -931,14 +913,13 @@ class TestOrderblockAPIRoutes:
         # Flache Kerzen produzieren keine OBs, also 0
         assert resp.json()["count"] >= 0
 
-    @patch("app.services.orderblock_data_service.requests.get")
-    def test_analyze_and_get_runs_roundtrip(self, mock_get, client):
+    @patch("app.services.orderblock_data_service.get_binance_public_client")
+    def test_analyze_and_get_runs_roundtrip(self, mock_get_client, client):
         """Analyze -> Backtest-Run abrufbar (Roundtrip)."""
         klines = [_make_binance_kline(i) for i in range(50)]
-        mock_resp = MagicMock()
-        mock_resp.json.return_value = klines
-        mock_resp.raise_for_status = MagicMock()
-        mock_get.return_value = mock_resp
+        mock_client = MagicMock()
+        mock_client.get_klines.return_value = klines
+        mock_get_client.return_value = mock_client
 
         # Analyze ausfuehren
         resp = client.post(

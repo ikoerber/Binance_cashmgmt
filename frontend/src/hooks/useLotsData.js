@@ -81,7 +81,8 @@ export default function useLotsData() {
     return sortDirection === 'desc' ? sorted.reverse() : sorted;
   }, [lotsData, orderFilter, showClosed, sortColumn, sortDirection]);
 
-  const openOrders = useMemo(() => ordersData?.orders || [], [ordersData]);
+  const openOrders = useMemo(() => (ordersData?.orders || []).filter((o) => o.side === 'SELL'), [ordersData]);
+  const openBuyOrders = useMemo(() => (ordersData?.orders || []).filter((o) => o.side === 'BUY'), [ordersData]);
 
   const openCostSum = useMemo(() => {
     const allLots = lotsData?.lots || [];
@@ -148,7 +149,7 @@ export default function useLotsData() {
     // Query state
     isLoading, error,
     // Computed data
-    lots, openOrders, openCostSum, totalOpenQty, filteredOpenQtySum,
+    lots, openOrders, openBuyOrders, openCostSum, totalOpenQty, filteredOpenQtySum,
     orderByLotId, mergeGroupByLotId, depotPnl,
   };
 }

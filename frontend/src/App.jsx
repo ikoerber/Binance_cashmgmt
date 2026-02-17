@@ -59,7 +59,7 @@ function AppContent() {
                   {marketPrice ? marketPrice.toLocaleString('de-DE', {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2
-                  }) : '\u2014'} \u20AC
+                  }) : '\u2014'} €
                 </span>
                 {isFlashing && (
                   <span className={`price-alert ${direction === 'up' ? 'price-alert-up' : 'price-alert-down'}`}>

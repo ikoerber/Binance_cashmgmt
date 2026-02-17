@@ -23,8 +23,8 @@ from app.domain.models import LedgerEvent, EventType, EventSource, TradeSide
 
 def test_get_historical_price_returns_decimal():
     """Test: get_historical_price gibt Decimal Close-Preis zurueck"""
-    mock_response = MagicMock()
-    mock_response.json.return_value = [
+    mock_client = MagicMock()
+    mock_client.get_klines.return_value = [
         [
             1704067200000,  # open time
             "700.00",       # open
@@ -40,9 +40,8 @@ def test_get_historical_price_returns_decimal():
             "0",            # ignore
         ]
     ]
-    mock_response.raise_for_status = MagicMock()
 
-    with patch("app.services.binance.requests.get", return_value=mock_response) as mock_get:
+    with patch("app.services.binance_public_client.get_binance_public_client", return_value=mock_client):
         service = BinanceService("key", "secret")
         price = service.get_historical_price("BNBEUR", datetime(2024, 1, 1, 12, 0))
 
@@ -50,40 +49,42 @@ def test_get_historical_price_returns_decimal():
         assert isinstance(price, Decimal)
 
         # Pruefe API-Aufruf
-        mock_get.assert_called_once()
-        call_kwargs = mock_get.call_args
-        assert call_kwargs[1]["params"]["symbol"] == "BNBEUR"
-        assert call_kwargs[1]["params"]["interval"] == "1m"
-        assert call_kwargs[1]["params"]["limit"] == 1
+        mock_client.get_klines.assert_called_once()
+        args, kwargs = mock_client.get_klines.call_args
+        assert args == ("BNBEUR", "1m")
+        assert kwargs["limit"] == 1
+        assert "start_time" in kwargs
 
 
 def test_get_historical_price_no_data_raises():
     """Test: Leere Klines -> Exception"""
-    mock_response = MagicMock()
-    mock_response.json.return_value = []
-    mock_response.raise_for_status = MagicMock()
+    mock_client = MagicMock()
+    mock_client.get_klines.return_value = []
 
-    with patch("app.services.binance.requests.get", return_value=mock_response):
+    with patch("app.services.binance_public_client.get_binance_public_client", return_value=mock_client):
         service = BinanceService("key", "secret")
 
         with pytest.raises(Exception, match="No kline data"):
             service.get_historical_price("BNBEUR", datetime(2024, 1, 1, 12, 0))
 
 
-def test_get_historical_price_testnet_url():
-    """Test: Testnet verwendet alternative URL"""
-    mock_response = MagicMock()
-    mock_response.json.return_value = [
+def test_get_historical_price_uses_public_client():
+    """Test: get_historical_price nutzt BinancePublicClient statt direktem requests.get"""
+    mock_client = MagicMock()
+    mock_client.get_klines.return_value = [
         [0, "0", "0", "0", "500.00", "0", 0, "0", 0, "0", "0", "0"]
     ]
-    mock_response.raise_for_status = MagicMock()
 
-    with patch("app.services.binance.requests.get", return_value=mock_response) as mock_get:
-        service = BinanceService("key", "secret", testnet=True)
-        service.get_historical_price("BNBEUR", datetime(2024, 1, 1, 12, 0))
+    with patch("app.services.binance_public_client.get_binance_public_client", return_value=mock_client):
+        service = BinanceService("key", "secret")
+        price = service.get_historical_price("BNBEUR", datetime(2024, 1, 1, 12, 0))
 
-        url = mock_get.call_args[0][0]
-        assert "testnet" in url
+        assert price == Decimal("500.00")
+        mock_client.get_klines.assert_called_once()
+        args, kwargs = mock_client.get_klines.call_args
+        assert args == ("BNBEUR", "1m")
+        assert kwargs["limit"] == 1
+        assert "start_time" in kwargs
 
 
 # === SyncService._get_per_fill_fee_conversion_rates() ===

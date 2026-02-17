@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/sentiment", tags=["sentiment"])
 
-ALLOWED_SYMBOLS = {"BTCEUR", "BTCUSDT"}
+ALLOWED_SYMBOLS = {"BTCEUR"}
 
 
 @router.get("/{user_id}/current")

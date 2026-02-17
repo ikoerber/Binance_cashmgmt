@@ -14,8 +14,6 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import List, Optional
 
-import requests
-
 from app.domain.orderblock import (
     Candle,
     OBConfig,
@@ -25,12 +23,12 @@ from app.domain.orderblock import (
     update_zone_states,
 )
 from app.domain.orderblock_backtest import run_backtest
+from app.services.binance_public_client import CachedValue, get_binance_public_client
 
 logger = logging.getLogger(__name__)
 
 # ─── Konfiguration ───
 
-BINANCE_KLINES_URL = "https://api.binance.com/api/v3/klines"
 KLINE_CACHE_TTL = timedelta(hours=1)
 REQUEST_TIMEOUT = 15  # Sekunden
 MAX_KLINES_PER_REQUEST = 1000
@@ -47,18 +45,6 @@ INTERVAL_MS = {
 }
 
 ALLOWED_INTERVALS = set(INTERVAL_MS.keys())
-
-
-class CachedValue:
-    """Einfacher Cache-Eintrag mit TTL."""
-
-    def __init__(self, value, fetched_at: datetime, ttl: timedelta):
-        self.value = value
-        self.fetched_at = fetched_at
-        self.ttl = ttl
-
-    def is_expired(self, now: datetime) -> bool:
-        return (now - self.fetched_at) > self.ttl
 
 
 class OrderblockDataService:
@@ -186,7 +172,9 @@ class OrderblockDataService:
                 "candle_count": result.candle_count,
                 "data_start": utc_iso(result.data_start),
                 "data_end": utc_iso(result.data_end),
-                "sentiment_score": float(sentiment_score) if sentiment_score is not None else None,
+                "sentiment_score": (
+                    float(sentiment_score) if sentiment_score is not None else None
+                ),
             },
         }
 
@@ -233,6 +221,7 @@ class OrderblockDataService:
         end_time: datetime,
     ) -> List[Candle]:
         """Paginiertes Kline-Fetching (max 1000 pro Request)."""
+        client = get_binance_public_client()
         candles: List[Candle] = []
         start_ms = int(start_time.timestamp() * 1000)
         end_ms = int(end_time.timestamp() * 1000)
@@ -244,19 +233,13 @@ class OrderblockDataService:
         while current_start < end_ms:
             page += 1
             try:
-                resp = requests.get(
-                    BINANCE_KLINES_URL,
-                    params={
-                        "symbol": symbol,
-                        "interval": interval,
-                        "startTime": current_start,
-                        "endTime": end_ms,
-                        "limit": MAX_KLINES_PER_REQUEST,
-                    },
-                    timeout=REQUEST_TIMEOUT,
+                data = client.get_klines(
+                    symbol,
+                    interval,
+                    limit=MAX_KLINES_PER_REQUEST,
+                    start_time=current_start,
+                    end_time=end_ms,
                 )
-                resp.raise_for_status()
-                data = resp.json()
             except Exception as e:
                 logger.error("Binance Kline Fetch Fehler (Page %d): %s", page, e)
                 break
@@ -342,17 +325,29 @@ def serialize_zone(zone: Orderblock) -> dict:
         "impact_efficiency_ratio": str(zone.impact_efficiency_ratio),
         "conviction_score": str(zone.conviction_score),
         "is_high_conviction_zscore": zone.is_high_conviction_zscore,
-        "category": zone.category.value if hasattr(zone.category, "value") else "UNCLASSIFIED",
+        "category": (
+            zone.category.value if hasattr(zone.category, "value") else "UNCLASSIFIED"
+        ),
         "atr_at_formation": str(zone.atr_at_formation),
         "displacement_range": str(zone.displacement_range),
         "bos_swing_price": str(zone.bos_swing_price),
         # Liquidity Sweep
         "has_liquidity_sweep": zone.has_liquidity_sweep,
-        "liquidity_sweep_level": str(zone.liquidity_sweep_level) if zone.liquidity_sweep_level is not None else None,
+        "liquidity_sweep_level": (
+            str(zone.liquidity_sweep_level)
+            if zone.liquidity_sweep_level is not None
+            else None
+        ),
         # Sentiment Confluence
-        "sentiment_at_detection": str(zone.sentiment_at_detection) if zone.sentiment_at_detection is not None else None,
+        "sentiment_at_detection": (
+            str(zone.sentiment_at_detection)
+            if zone.sentiment_at_detection is not None
+            else None
+        ),
         "confluence_label": zone.confluence_label,
-        "confluence_score": str(zone.confluence_score) if zone.confluence_score is not None else None,
+        "confluence_score": (
+            str(zone.confluence_score) if zone.confluence_score is not None else None
+        ),
     }
 
 
