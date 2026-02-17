@@ -11,6 +11,7 @@ psycopg2-binary==2.9.11
 
 # Binance API
 python-binance==1.0.34
+aiohttp==3.13.3
 
 # HTTP Requests (für Twelve Data API)
 requests==2.32.5

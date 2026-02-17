@@ -7,16 +7,15 @@ import { formatNumber, formatEUR, formatBTC } from '../utils/formatters';
 import './Dashboard.css';
 
 const Dashboard = ({ userId = 'user_123', marketPrice = 50000 }) => {
+  // Portfolio wird per WebSocket balance_update Event invalidiert (kein Polling noetig)
   const { data: portfolio, isLoading, error } = useQuery({
     queryKey: ['portfolio', userId, marketPrice],
     queryFn: () => getPortfolio(userId, marketPrice),
-    refetchInterval: 30000,
   });
 
   const { data: daily } = useQuery({
     queryKey: ['daily-performance', userId, marketPrice],
     queryFn: () => getDailyPerformance(userId, marketPrice),
-    refetchInterval: 30000,
   });
 
   if (isLoading) return <div className="loading">Lade Portfolio...</div>;

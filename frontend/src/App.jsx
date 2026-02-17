@@ -7,7 +7,7 @@ import Settings from './components/Settings';
 import MacroSignal from './components/MacroSignal';
 import Sentiment from './components/Sentiment';
 import Orderblock from './components/Orderblock';
-import { useLivePrice } from './hooks/useLivePrice';
+import { WebSocketProvider, useLivePrice } from './contexts/WebSocketContext';
 import { getServerIp } from './api/client';
 import './App.css';
 
@@ -25,7 +25,7 @@ function AppContent() {
   const userId = 'user_123';
   
   // Live BTC/EUR Preis
-  const { price: marketPrice, loading: priceLoading, lastUpdate } = useLivePrice('BTCEUR', 10000);
+  const { price: marketPrice, loading: priceLoading, lastUpdate, source: priceSource } = useLivePrice('BTCEUR', 10000);
 
   // Server Public IP (für Binance Whitelisting)
   const { data: serverIpData } = useQuery({
@@ -54,6 +54,10 @@ function AppContent() {
                 </span>
                 <span className="price-update">
                   {lastUpdate ? `(${lastUpdate.toLocaleTimeString('de-DE')})` : ''}
+                </span>
+                <span className={`ws-status ${priceSource === 'websocket' ? 'ws-connected' : 'ws-polling'}`}
+                      title={priceSource === 'websocket' ? 'WebSocket verbunden' : 'REST Polling (Fallback)'}>
+                  {priceSource === 'websocket' ? 'WS' : 'REST'}
                 </span>
               </>
             )}
@@ -147,7 +151,9 @@ function AppContent() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <AppContent />
+      <WebSocketProvider userId="user_123">
+        <AppContent />
+      </WebSocketProvider>
     </QueryClientProvider>
   );
 }

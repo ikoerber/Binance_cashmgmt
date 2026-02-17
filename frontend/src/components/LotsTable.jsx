@@ -114,6 +114,7 @@ const LotsTable = ({ userId = 'user_123', marketPrice = 50000 }) => {
     },
   });
 
+  // Lots werden per WebSocket order_update Event invalidiert (kein Polling noetig)
   const { data: lotsData, isLoading, error } = useQuery({
     queryKey: ['lots', userId, statusFilter, fromDate, toDate],
     queryFn: () => getLots(
@@ -124,7 +125,6 @@ const LotsTable = ({ userId = 'user_123', marketPrice = 50000 }) => {
       fromDate || null,
       toDate ? `${toDate}T23:59:59` : null
     ),
-    refetchInterval: 30000,
   });
 
   // Client-side Filter + Sortierung (Hooks müssen vor Early Returns stehen)
@@ -185,27 +185,24 @@ const LotsTable = ({ userId = 'user_123', marketPrice = 50000 }) => {
     return lots.filter((lot) => selectedLotIds.has(lot.id));
   }, [lots, selectedLotIds]);
 
-  // Offene Sell Orders laden
+  // Orders werden per WebSocket order_update Event invalidiert (kein Polling noetig)
   const { data: ordersData } = useQuery({
     queryKey: ['orders', userId, 'open'],
     queryFn: () => getOrdersForUser(userId, 'OPEN'),
-    refetchInterval: 30000,
   });
 
   const openOrders = useMemo(() => ordersData?.orders || [], [ordersData]);
 
-  // Pairings laden (cached via PairingPanel) - für Pairing→Lot Zuordnung
+  // Pairings laden (cached via PairingPanel) - fuer Pairing→Lot Zuordnung
   const { data: pairingsData } = useQuery({
     queryKey: ['pairings', userId, null],
     queryFn: () => listPairings(userId),
-    refetchInterval: 60000,
   });
 
-  // Portfolio-Daten für Erholungspreis-Berechnung
+  // Portfolio wird per WebSocket balance_update Event invalidiert
   const { data: portfolio } = useQuery({
     queryKey: ['portfolio', userId, marketPrice],
     queryFn: () => getPortfolio(userId, marketPrice),
-    refetchInterval: 30000,
     enabled: !!marketPrice,
   });
 

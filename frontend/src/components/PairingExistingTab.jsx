@@ -36,7 +36,6 @@ const PairingExistingTab = ({ userId, marketPrice, onHighlightLots, showMessage 
   } = useQuery({
     queryKey: ['pairings', userId, existingStatusFilter],
     queryFn: () => listPairings(userId, existingStatusFilter),
-    refetchInterval: 30000,
   });
 
   // ─── Mutations ───

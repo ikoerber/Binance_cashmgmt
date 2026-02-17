@@ -142,6 +142,24 @@ code {
   opacity: 0.8;
 }
 
+.ws-status {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+}
+
+.ws-connected {
+  background: rgba(22, 163, 74, 0.3);
+  color: #86efac;
+}
+
+.ws-polling {
+  background: rgba(247, 147, 26, 0.3);
+  color: #fcd34d;
+}
+
 @media (max-width: 768px) {
   .navbar-content {
     flex-direction: column;
