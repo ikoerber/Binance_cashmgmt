@@ -181,6 +181,14 @@ export const getSentiment = async (userId, symbol = 'BTCEUR') => {
   return response.data;
 };
 
+// Combined Score API
+export const getCombinedScore = async (userId, interval = '15', symbol = 'BTCEUR') => {
+  const response = await apiClient.get(`/api/combined/${userId}/score`, {
+    params: { interval, symbol },
+  });
+  return response.data;
+};
+
 // Orderblock API
 export const analyzeOrderblocks = async (userId, { symbol = 'BTCEUR', interval, months = 6, config } = {}) => {
   const response = await apiClient.post(`/api/orderblock/${userId}/analyze`, {

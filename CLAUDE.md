@@ -39,21 +39,6 @@ BTC/EUR Cashflow-Management & Automation App für Binance Spot Trading. Ledger-b
 - Pairing-Heuristik v1.2: Minimum 2 Lots pro Pairing (einzelne profitable Lots direkt per Sell-Order verkaufbar)
 - WebSocket Phase 3: Echtzeit Fill-Verarbeitung (Lot-Erstellung + Sell-Allocation via executionReport, ohne manuellen Sync)
 
-**Offen (Iteration 4-6, priorisiert):**
-
-| Prio | Item | Bewertung |
-|------|------|-----------|
-| 1 | Auto-Order Automation (Trigger-basiert) | **HOCH** — Groesster operativer Hebel. Aktuell manuelle Order-Erstellung pro Lot/Pairing. Trigger-System ("Sell bei Break-even + X%") reduziert Aufwand massiv. |
-| 2 | Combined Score (MacroSignal + Sentiment) | **MITTEL-HOCH** — Beide Module existieren separat. Zusammenfuehrung (Timing x Sizing) liefert einheitliche Handlungsempfehlung statt zwei Dashboards. Technisch ueberschaubar. |
-| 3 | Sentiment History Persistierung | **MITTEL** — Aktuell nur Live-Score. `SentimentHistoryDB` + History-Endpoint fuer Trendanalyse und Combined-Score-Backtesting. Voraussetzung fuer Prio 2 Validierung. |
-| 4 | Hardening: Monitoring/Alerting, Rate-Limit | **MITTEL** — Health-Checks, Binance 429-Handling, Alerting bei Sync-Fehlern/Balance-Diskrepanzen. Notwendig vor produktivem Auto-Order-Einsatz (Prio 1). |
-| 5 | Frontend-Tests (Vitest) | **MITTEL** — 18 Backend-Testdateien, null Frontend-Tests. Regressionsrisiko steigt mit UI-Komplexitaet. Kritische Flows zuerst: Pairing-Lifecycle, Lot-Filter, Formatter-Utils. |
-| 6 | Aggregierte Pairing-Orders (v1.1+) | **NIEDRIG-MITTEL** — Aktuell separate Order pro Lot. Aggregierung spart Fees, ist aber komplex (Teilausfuehrungen, Referenzierung). Erst relevant bei hoher Lot-Anzahl. |
-| 7 | Social Sentiment (Twitter/X, Reddit) | **NIEDRIG** — 5-Pillar Engine v3 bereits robust. LunarCrush/Santiment wuerde marginalen Mehrwert bei hohen API-Kosten und Noise liefern. Erst nach stabilem Combined Score. |
-| 8 | Echte On-Chain-Daten (Glassnode/CryptoQuant) | **NIEDRIG** — Nice-to-have. APIs teuer (Glassnode ab ~$39/Monat), Mehrwert fuer Spot-Trading-App begrenzt. Aktuelle Pillars decken wichtigste Signale ab. |
-
-**Hinweis:** WebSocket Realtime-Sync (Phase 1+2 implementiert in `cd7fbc2`) kann bei Bedarf parallel als Phase 3 nachgezogen werden.
-
 ## Kernprinzipien
 
 - **Ledger-first**: Alle Berechnungen aus append-only Event-Ledger ableitbar
@@ -782,15 +767,13 @@ Persistierbar pro User in Settings (`ob_interval`, `ob_atr_multiplier`, `ob_targ
 | Prio | Item | Bewertung | Abhaengigkeiten |
 |------|------|-----------|-----------------|
 | 1 | **Auto-Order Automation** (Trigger-basiert) | **HOCH** — Groesster operativer Hebel. Trigger-System ("Sell bei Break-even + X%") reduziert manuellen Aufwand massiv. Kernfeature fuer Automatisierungsgrad. | Hardening (Prio 4) vor Produktiveinsatz |
-| 2 | **Combined Score** (MacroSignal + Sentiment) | **MITTEL-HOCH** — Zusammenfuehrung Timing (MacroSignal) x Sizing (Sentiment) zu einheitlicher Handlungsempfehlung. Konzeptionell klar, technisch ueberschaubar. | Sentiment History (Prio 3) fuer Backtesting-Validierung |
-| 3 | **Sentiment History Persistierung** | **MITTEL** — `SentimentHistoryDB` Tabelle + `/api/sentiment/{user_id}/history` Endpoint. Periodische Snapshots fuer Trendanalyse und Combined-Score-Backtesting. | — |
-| 4 | **Hardening** (Monitoring, Alerting, Rate-Limit) | **MITTEL** — Health-Checks, Binance 429-Handling, Alerting bei Sync-Fehlern / Balance-Diskrepanzen. Notwendig vor produktivem Auto-Order-Einsatz. | — |
-| 5 | **Frontend-Tests** (Vitest) | **MITTEL** — 18 Backend-Testdateien, null Frontend-Tests. Regressionsrisiko steigt. Kritische Flows zuerst: Pairing-Lifecycle, Lot-Filter, Formatter-Utils. | — |
-| 6 | **Aggregierte Pairing-Orders** (v1.1+) | **NIEDRIG-MITTEL** — Separate Order pro Lot → aggregierte Order. Spart Fees, aber komplex (Teilausfuehrungen, Referenzierung). Erst relevant bei hoher Lot-Anzahl. | — |
-| 7 | **Social Sentiment** (Twitter/X, Reddit) | **NIEDRIG** — LunarCrush/Santiment. Marginaler Mehrwert bei hohen API-Kosten und Noise. 5-Pillar Engine v3 bereits robust. | Combined Score (Prio 2) stabil |
-| 8 | **Echte On-Chain-Daten** (Glassnode/CryptoQuant) | **NIEDRIG** — APIs teuer (~$39/Monat+), Mehrwert fuer Spot-Trading begrenzt. Aktuelle Pillars decken wichtigste Signale ab. | Combined Score (Prio 2) stabil |
+| 2 | **Sentiment History Persistierung** | **MITTEL** — `SentimentHistoryDB` Tabelle + `/api/sentiment/{user_id}/history` Endpoint. Periodische Snapshots fuer Trendanalyse und Combined-Score-Backtesting. | — |
+| 3 | **Hardening** (Monitoring, Alerting, Rate-Limit) | **MITTEL** — Health-Checks, Binance 429-Handling, Alerting bei Sync-Fehlern / Balance-Diskrepanzen. Notwendig vor produktivem Auto-Order-Einsatz. | — |
+| 4 | **Frontend-Tests** (Vitest) | **MITTEL** — 18 Backend-Testdateien, null Frontend-Tests. Regressionsrisiko steigt. Kritische Flows zuerst: Pairing-Lifecycle, Lot-Filter, Formatter-Utils. | — |
+| 5 | **Aggregierte Pairing-Orders** (v1.1+) | **NIEDRIG-MITTEL** — Separate Order pro Lot → aggregierte Order. Spart Fees, aber komplex (Teilausfuehrungen, Referenzierung). Erst relevant bei hoher Lot-Anzahl. | — |
+| 6 | **Social Sentiment** (Twitter/X, Reddit) | **NIEDRIG** — LunarCrush/Santiment. Marginaler Mehrwert bei hohen API-Kosten und Noise. 5-Pillar Engine v3 bereits robust. | Combined Score (Prio 2) stabil |
+| 7 | **Echte On-Chain-Daten** (Glassnode/CryptoQuant) | **NIEDRIG** — APIs teuer (~$39/Monat+), Mehrwert fuer Spot-Trading begrenzt. Aktuelle Pillars decken wichtigste Signale ab. | Combined Score (Prio 2) stabil |
 
-**Hinweis:** WebSocket Realtime-Sync Phase 1+2 bereits implementiert (`cd7fbc2`). Phase 3 (Fill-Events, automatische Lot-Aktualisierung) kann parallel zu jedem Schritt nachgezogen werden.
 
 ## 5. Akzeptanzkriterien
 - Break-even und P&L reproduzierbar aus Ledger

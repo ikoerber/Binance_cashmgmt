@@ -1,4 +1,5 @@
 """FastAPI Main Application"""
+
 import asyncio
 import os
 from contextlib import asynccontextmanager
@@ -13,7 +14,20 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from app.db.database import init_db, create_tables
-from app.api.routes import portfolio, lots, sync, pairing, orders, reconciliation, cashflow, settings, macro, sentiment, orderblock
+from app.api.routes import (
+    portfolio,
+    lots,
+    sync,
+    pairing,
+    orders,
+    reconciliation,
+    cashflow,
+    settings,
+    macro,
+    sentiment,
+    orderblock,
+    combined,
+)
 from app.api.routes import websocket as websocket_route
 from app.services.websocket_manager import get_stream_manager
 
@@ -26,6 +40,7 @@ async def lifespan(app: FastAPI):
     create_tables()
     # Sentiment-Historien vorinitialisieren (vermeidet 60s Delay beim ersten Request)
     from app.services.sentiment_data_service import get_sentiment_data_service
+
     service = get_sentiment_data_service()
     await asyncio.to_thread(service.initialize)
 
@@ -73,6 +88,7 @@ app.include_router(settings.router, dependencies=api_auth)
 app.include_router(macro.router, dependencies=api_auth)
 app.include_router(sentiment.router, dependencies=api_auth)
 app.include_router(orderblock.router, dependencies=api_auth)
+app.include_router(combined.router, dependencies=api_auth)
 
 # WebSocket Route (eigene Auth via Query-Parameter, kein APIKeyHeader)
 app.include_router(websocket_route.router)
@@ -81,11 +97,7 @@ app.include_router(websocket_route.router)
 @app.get("/")
 def root():
     """Health Check"""
-    return {
-        "status": "ok",
-        "app": "BTC/EUR Cashflow Management",
-        "version": "0.1.0"
-    }
+    return {"status": "ok", "app": "BTC/EUR Cashflow Management", "version": "0.1.0"}
 
 
 @app.get("/api/websocket/stats")
@@ -104,6 +116,7 @@ def health():
 def server_ip():
     """Gibt die öffentliche IP des Servers zurück (für Binance IP-Whitelisting)"""
     import urllib.request
+
     try:
         ip = urllib.request.urlopen("https://api.ipify.org", timeout=5).read().decode()
         return {"ip": ip}

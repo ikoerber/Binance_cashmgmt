@@ -7,6 +7,7 @@ import Settings from './components/Settings';
 import MacroSignal from './components/MacroSignal';
 import Sentiment from './components/Sentiment';
 import Orderblock from './components/Orderblock';
+import CombinedScore from './components/CombinedScore';
 import { WebSocketProvider, useLivePrice } from './contexts/WebSocketContext';
 import FillNotification from './components/FillNotification';
 import { getServerIp } from './api/client';
@@ -18,6 +19,7 @@ const MemoSettings = memo(Settings);
 const MemoMacroSignal = memo(MacroSignal);
 const MemoSentiment = memo(Sentiment);
 const MemoOrderblock = memo(Orderblock);
+const MemoCombinedScore = memo(CombinedScore);
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -104,6 +106,12 @@ function AppContent() {
             Sentiment
           </button>
           <button
+            className={currentView === 'combined' ? 'active' : ''}
+            onClick={() => setCurrentView('combined')}
+          >
+            Combined Score
+          </button>
+          <button
             className={currentView === 'orderblock' ? 'active' : ''}
             onClick={() => setCurrentView('orderblock')}
           >
@@ -141,6 +149,9 @@ function AppContent() {
         )}
         {currentView === 'sentiment' && (
           <MemoSentiment userId={userId} />
+        )}
+        {currentView === 'combined' && (
+          <MemoCombinedScore userId={userId} />
         )}
         {currentView === 'orderblock' && (
           <MemoOrderblock userId={userId} marketPrice={marketPrice} />
