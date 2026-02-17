@@ -1,10 +1,13 @@
 """Orders API Endpoints"""
+import logging
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from decimal import Decimal
 from typing import Optional
 
 from app.db.database import get_db
+
+logger = logging.getLogger(__name__)
 from app.services.order_service import OrderService
 from app.services.order_tracking_service import OrderTrackingService
 from app.services.binance import BinanceService
@@ -62,7 +65,8 @@ def create_order_for_lot(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Orders endpoint failed")
+        raise HTTPException(status_code=500, detail="Interner Serverfehler")
 
 
 @router.get("/open")
@@ -88,7 +92,8 @@ def get_open_orders(
             "symbol": symbol
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Orders endpoint failed")
+        raise HTTPException(status_code=500, detail="Interner Serverfehler")
 
 
 @router.delete("/{order_id}")
@@ -116,7 +121,8 @@ def cancel_order(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Orders endpoint failed")
+        raise HTTPException(status_code=500, detail="Interner Serverfehler")
 
 
 @router.get("/{user_id}/list")
@@ -176,7 +182,8 @@ def list_orders(
             }
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Orders endpoint failed")
+        raise HTTPException(status_code=500, detail="Interner Serverfehler")
 
 
 @router.get("/{user_id}/{order_id}")
@@ -211,7 +218,8 @@ def get_order_detail(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Orders endpoint failed")
+        raise HTTPException(status_code=500, detail="Interner Serverfehler")
 
 
 @router.post("/{user_id}/import")
@@ -245,4 +253,5 @@ def import_external_orders(
             "report": report
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Orders endpoint failed")
+        raise HTTPException(status_code=500, detail="Interner Serverfehler")

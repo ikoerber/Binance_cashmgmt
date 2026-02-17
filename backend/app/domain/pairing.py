@@ -114,7 +114,8 @@ def suggest_pairings(
                 current_pnl = new_pnl
                 used_losers.add(loser.id)
 
-        # Nur Pairing erstellen, wenn >= Threshold UND mindestens 2 Lots (Gewinner + Verlierer)
+        # Pairing erstellen, wenn >= Threshold UND mindestens 2 Lots
+        # Einzelne profitable Lots brauchen kein Pairing — direkt per Sell-Order verkaufbar
         final_pnl_pct = current_pnl / current_cost if current_cost > 0 else Decimal("0")
         if final_pnl_pct >= threshold_pct and len(items) >= 2:
             pairing = Pairing(
@@ -134,7 +135,8 @@ def simulate_pairing(
     pairing: Pairing,
     market_price: Decimal,
     all_lots: List[TradeLot],
-    fee_pct: Decimal = Decimal("0.001")  # 0.1% Default
+    fee_pct: Decimal = Decimal("0.001"),  # 0.1% Default
+    sell_price: Decimal | None = None,
 ) -> PairingSimulation:
     """
     Simuliert einen Pairing-Verkauf
@@ -146,6 +148,8 @@ def simulate_pairing(
         market_price: Aktueller Marktpreis
         all_lots: Alle Lots (für Portfolio-Berechnung)
         fee_pct: Trading Fee (z.B. 0.001 für 0.1%)
+        sell_price: Tatsaechlicher Verkaufspreis (custom oder market+buffer).
+                    Wenn None, wird market_price verwendet.
 
     Returns:
         PairingSimulation mit allen Details
@@ -153,8 +157,11 @@ def simulate_pairing(
     # Total BTC zu verkaufen
     total_btc = pairing.net_qty_btc()
 
+    # Effektiver Verkaufspreis fuer Erloesberechnung
+    effective_price = sell_price if sell_price is not None else market_price
+
     # Erwarteter Erlös (vor Fee)
-    gross_proceeds = total_btc * market_price
+    gross_proceeds = total_btc * effective_price
 
     # Fee
     estimated_fee = gross_proceeds * fee_pct

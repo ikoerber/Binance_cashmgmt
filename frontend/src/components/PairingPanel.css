@@ -678,6 +678,91 @@
   margin-bottom: 20px;
 }
 
+/* ─── Sell Price Editor ─── */
+
+.sell-price-editor {
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.sell-price-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+  margin-bottom: 8px;
+}
+
+.custom-badge {
+  font-size: 11px;
+  font-weight: 500;
+  background: #6366f1;
+  color: white;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.sell-price-input-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.sell-price-input {
+  flex: 1;
+  max-width: 200px;
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.sell-price-input:focus {
+  outline: none;
+  border-color: #6366f1;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+}
+
+.btn-resimulate {
+  padding: 8px 14px;
+  background: #6366f1;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn-resimulate:hover:not(:disabled) {
+  background: #4f46e5;
+}
+
+.btn-resimulate:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-reset-price {
+  padding: 8px 12px;
+  background: #e2e8f0;
+  color: #475569;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.btn-reset-price:hover {
+  background: #cbd5e1;
+}
+
 /* ─── Responsive ─── */
 @media (max-width: 768px) {
   .pairing-panel {

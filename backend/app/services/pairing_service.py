@@ -57,6 +57,7 @@ def simulate_pairing_execution(
     market_price: Decimal,
     fee_pct: Decimal = Decimal("0.001"),
     fee_buffer_pct: Decimal = Decimal("0.002"),
+    custom_sell_price: Decimal | None = None,
 ) -> dict:
     """
     Simuliert Pairing-Ausfuehrung inkl. geplanter Binance-Order-Parameter
@@ -68,6 +69,7 @@ def simulate_pairing_execution(
         market_price: Aktueller Marktpreis
         fee_pct: Trading Fee (z.B. 0.001 fuer 0.1%)
         fee_buffer_pct: Fee-Puffer fuer Zielpreis (z.B. 0.002 fuer 0.2%)
+        custom_sell_price: Optionaler benutzerdefinierter Verkaufspreis
 
     Returns:
         Simulation-Details inkl. planned_orders
@@ -89,8 +91,15 @@ def simulate_pairing_execution(
 
     lots_domain = [_lot_db_to_domain(lot_db) for lot_db in lots_db]
 
-    # Simulation durchführen
-    simulation = simulate_pairing(pairing, market_price, lots_domain, fee_pct)
+    # Effektiven Verkaufspreis berechnen (fuer P&L-Berechnung)
+    if custom_sell_price is not None:
+        effective_sell_price = custom_sell_price
+    else:
+        effective_sell_price = market_price * (Decimal("1") + fee_buffer_pct)
+
+    # Simulation durchführen (mit effektivem Verkaufspreis fuer korrekte P&L)
+    simulation = simulate_pairing(pairing, market_price, lots_domain, fee_pct,
+                                   sell_price=effective_sell_price)
 
     # Lazy import um zirkulaere Abhaengigkeit zu vermeiden
     from app.services.order_service import compute_pairing_order_params
@@ -106,6 +115,7 @@ def simulate_pairing_execution(
         market_price=market_price,
         fee_buffer_pct=fee_buffer_pct,
         max_order_value_eur=max_value,
+        custom_sell_price=custom_sell_price,
     )
 
     has_max_value_violation = aggregated_order["exceeds_max_order_value"]
@@ -199,16 +209,24 @@ def create_pairing(
     Raises:
         ValueError: Wenn Lots nicht existieren oder qty unzureichend
     """
-    # Validierung: Prüfe dass alle Lots existieren und genug qty_btc_open haben
-    for item in items:
-        lot_db = db.query(TradeLotDB).filter(
-            TradeLotDB.id == item["lot_id"],
-            TradeLotDB.user_id == user_id
-        ).first()
+    # Validierung mit Row-Level Lock: Verhindert Race Conditions bei
+    # konkurrierenden Pairing-Erstellungen auf denselben Lots.
+    lot_ids = [item["lot_id"] for item in items]
+    locked_lots = (
+        db.query(TradeLotDB)
+        .filter(
+            TradeLotDB.id.in_(lot_ids),
+            TradeLotDB.user_id == user_id,
+        )
+        .with_for_update()
+        .all()
+    )
+    lots_map = {lot.id: lot for lot in locked_lots}
 
+    for item in items:
+        lot_db = lots_map.get(item["lot_id"])
         if not lot_db:
             raise ValueError(f"Lot {item['lot_id']} not found")
-
         if lot_db.qty_btc_open < item["qty_btc"]:
             raise ValueError(f"Lot {item['lot_id']} has insufficient qty_btc_open")
 
@@ -223,10 +241,9 @@ def create_pairing(
     )
     db.add(pairing_db)
 
-    # Erstelle Pairing Items
+    # Erstelle Pairing Items (Lots bereits gelocked und validiert)
     for item in items:
-        # Hole Lot für cost_eur Berechnung
-        lot_db = db.query(TradeLotDB).filter(TradeLotDB.id == item["lot_id"]).first()
+        lot_db = lots_map[item["lot_id"]]
         qty_btc = Decimal(str(item["qty_btc"]))
 
         # Anteilige Kosten berechnen
@@ -341,9 +358,18 @@ def lock_pairing(
     if pairing_db.status != PairingStatusEnum.DRAFT:
         raise ValueError(f"Pairing {pairing_id} is not in DRAFT status")
 
-    # Validiere dass Lots noch verfügbar sind
+    # Validiere dass Lots noch verfügbar sind (mit Row-Level Lock)
+    lot_ids = [item.lot_id for item in pairing_db.items]
+    locked_lots = (
+        db.query(TradeLotDB)
+        .filter(TradeLotDB.id.in_(lot_ids), TradeLotDB.user_id == user_id)
+        .with_for_update()
+        .all()
+    )
+    lots_map = {lot.id: lot for lot in locked_lots}
+
     for item in pairing_db.items:
-        lot_db = db.query(TradeLotDB).filter(TradeLotDB.id == item.lot_id).first()
+        lot_db = lots_map.get(item.lot_id)
         if not lot_db or lot_db.qty_btc_open < item.qty_btc:
             raise ValueError(f"Lot {item.lot_id} no longer has sufficient qty_btc_open")
 

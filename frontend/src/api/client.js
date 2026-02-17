@@ -83,10 +83,10 @@ export const getPairingSuggestions = async (userId, marketPrice, thresholdPct = 
   return response.data;
 };
 
-export const simulatePairing = async (userId, pairingId, marketPrice, feePct = 0.001, feeBufferPct = 0.002) => {
-  const response = await apiClient.get(`/api/pairing/${userId}/simulate/${pairingId}`, {
-    params: { market_price: marketPrice, fee_pct: feePct, fee_buffer_pct: feeBufferPct },
-  });
+export const simulatePairing = async (userId, pairingId, marketPrice, feePct = 0.001, feeBufferPct = 0.002, customSellPrice = null) => {
+  const params = { market_price: marketPrice, fee_pct: feePct, fee_buffer_pct: feeBufferPct };
+  if (customSellPrice !== null) params.custom_sell_price = customSellPrice;
+  const response = await apiClient.get(`/api/pairing/${userId}/simulate/${pairingId}`, { params });
   return response.data;
 };
 
@@ -115,10 +115,10 @@ export const unlockPairing = async (userId, pairingId) => {
   return response.data;
 };
 
-export const executePairing = async (userId, pairingId, marketPrice, feeBufferPct = 0.002) => {
-  const response = await apiClient.post(`/api/pairing/${userId}/${pairingId}/execute`, null, {
-    params: { market_price: marketPrice, fee_buffer_pct: feeBufferPct },
-  });
+export const executePairing = async (userId, pairingId, marketPrice, feeBufferPct = 0.002, customSellPrice = null) => {
+  const params = { market_price: marketPrice, fee_buffer_pct: feeBufferPct };
+  if (customSellPrice !== null) params.custom_sell_price = customSellPrice;
+  const response = await apiClient.post(`/api/pairing/${userId}/${pairingId}/execute`, null, { params });
   return response.data;
 };
 

@@ -1,10 +1,44 @@
 /**
  * SimulationModal - Simulation Preview Overlay fuer Pairings
+ *
+ * Zeigt Simulation-Details und erlaubt das Anpassen des Verkaufspreises.
  */
+import { useState } from 'react';
 import { formatNumber, formatEUR, formatBTC } from '../utils/formatters';
 
-const SimulationModal = ({ simulationData, onClose }) => {
+const SimulationModal = ({ simulationData, onClose, onResimulate }) => {
   if (!simulationData) return null;
+
+  // Aktuellen Sell-Preis aus planned_orders extrahieren
+  const currentSellPrice = simulationData.planned_orders?.[0]?.price
+    ? parseFloat(simulationData.planned_orders[0].price)
+    : null;
+
+  const [customPrice, setCustomPrice] = useState(
+    currentSellPrice ? currentSellPrice.toFixed(2) : ''
+  );
+  const [isResimulating, setIsResimulating] = useState(false);
+
+  const handleResimulate = async () => {
+    const price = parseFloat(customPrice);
+    if (!price || price <= 0 || isNaN(price)) return;
+    if (!onResimulate) return;
+
+    setIsResimulating(true);
+    try {
+      await onResimulate(price);
+    } finally {
+      setIsResimulating(false);
+    }
+  };
+
+  // Preis hat sich gegenueber dem berechneten Default geaendert?
+  const defaultPrice = simulationData.market_price
+    ? parseFloat(simulationData.market_price) * (1 + parseFloat(simulationData.fee_buffer_pct || 0.002))
+    : null;
+  const isCustom = customPrice && defaultPrice
+    ? Math.abs(parseFloat(customPrice) - defaultPrice) > 0.01
+    : false;
 
   return (
     <div className="simulation-overlay" onClick={onClose}>
@@ -26,7 +60,7 @@ const SimulationModal = ({ simulationData, onClose }) => {
             <span className="sim-value">{formatBTC(simulationData.total_btc_to_sell)}</span>
           </div>
           <div className="sim-card">
-            <span className="sim-label">Erwarteter Erlös</span>
+            <span className="sim-label">Erwarteter Erloes</span>
             <span className="sim-value">{formatEUR(simulationData.expected_proceeds_eur)}</span>
           </div>
           <div className="sim-card">
@@ -34,7 +68,7 @@ const SimulationModal = ({ simulationData, onClose }) => {
             <span className="sim-value">{formatEUR(simulationData.expected_costs_eur)}</span>
           </div>
           <div className="sim-card">
-            <span className="sim-label">Geschätzte Gebühren</span>
+            <span className="sim-label">Geschaetzte Gebuehren</span>
             <span className="sim-value">
               {formatEUR(simulationData.estimated_fee_eur)} ({formatNumber(parseFloat(simulationData.fee_pct) * 100)}%)
             </span>
@@ -88,6 +122,44 @@ const SimulationModal = ({ simulationData, onClose }) => {
               </div>
             )}
 
+            <div className="sell-price-editor">
+              <label className="sell-price-label">
+                Verkaufspreis (EUR)
+                {isCustom && <span className="custom-badge">Angepasst</span>}
+              </label>
+              <div className="sell-price-input-row">
+                <input
+                  type="number"
+                  className="sell-price-input"
+                  value={customPrice}
+                  onChange={(e) => setCustomPrice(e.target.value)}
+                  step="0.01"
+                  min="0"
+                />
+                {onResimulate && (
+                  <button
+                    className="btn-resimulate"
+                    onClick={handleResimulate}
+                    disabled={isResimulating || !customPrice || parseFloat(customPrice) <= 0}
+                  >
+                    {isResimulating ? 'Berechne...' : 'Neu berechnen'}
+                  </button>
+                )}
+                {isCustom && (
+                  <button
+                    className="btn-reset-price"
+                    onClick={() => {
+                      setCustomPrice(defaultPrice ? defaultPrice.toFixed(2) : '');
+                      if (onResimulate) onResimulate(null);
+                    }}
+                    title="Auf Standardpreis zuruecksetzen"
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
+            </div>
+
             {simulationData.planned_orders.map((order, idx) => (
               <div key={idx} className={`planned-order-card ${order.exceeds_max_order_value ? 'order-exceeds-max' : ''}`}>
                 <div className="simulation-grid">
@@ -135,7 +207,7 @@ const SimulationModal = ({ simulationData, onClose }) => {
 
         <div className="simulation-actions">
           <button className="btn-close-sim" onClick={onClose}>
-            Schließen
+            Schliessen
           </button>
         </div>
       </div>

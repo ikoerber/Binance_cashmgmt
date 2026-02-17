@@ -32,23 +32,23 @@ VALID_OB_INTERVALS = {"1h", "4h", "1d"}
 def _settings_to_dict(settings: UserSettingsDB) -> dict:
     return {
         "user_id": settings.user_id,
-        "max_order_value_eur": float(settings.max_order_value_eur),
+        "max_order_value_eur": str(settings.max_order_value_eur),
         "macro_signal_interval": settings.macro_signal_interval,
         "sell_allocation_strategy": settings.sell_allocation_strategy,
         "ob_interval": settings.ob_interval or "4h",
-        "ob_atr_multiplier": float(settings.ob_atr_multiplier) if settings.ob_atr_multiplier is not None else 2.0,
-        "ob_target_rr": float(settings.ob_target_rr) if settings.ob_target_rr is not None else 2.0,
+        "ob_atr_multiplier": str(settings.ob_atr_multiplier) if settings.ob_atr_multiplier is not None else "2.0",
+        "ob_target_rr": str(settings.ob_target_rr) if settings.ob_target_rr is not None else "2.0",
         "ob_impulse_window": int(settings.ob_impulse_window) if settings.ob_impulse_window is not None else 5,
     }
 
 
 DEFAULTS = {
-    "max_order_value_eur": 1000.0,
+    "max_order_value_eur": "1000",
     "macro_signal_interval": "15",
     "sell_allocation_strategy": "FIFO",
     "ob_interval": "4h",
-    "ob_atr_multiplier": 2.0,
-    "ob_target_rr": 2.0,
+    "ob_atr_multiplier": "2.0",
+    "ob_target_rr": "2.0",
     "ob_impulse_window": 5,
 }
 

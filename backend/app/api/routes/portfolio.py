@@ -1,5 +1,6 @@
 """Portfolio API Endpoints"""
 import logging
+import math
 from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -37,12 +38,15 @@ def get_portfolio(
     Returns:
         Portfolio-KPIs
     """
+    if not isinstance(market_price, (int, float)) or market_price <= 0 or math.isnan(market_price) or math.isinf(market_price):
+        raise HTTPException(status_code=400, detail="market_price muss eine positive Zahl sein")
+
     try:
         market_price_decimal = Decimal(str(market_price))
         return get_portfolio_state(db, user_id, market_price_decimal, binance)
     except Exception as e:
         logger.exception("Portfolio endpoint failed for user=%s", user_id)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Interner Serverfehler")
 
 
 @router.get("/{user_id}/daily")
@@ -52,9 +56,12 @@ def get_daily_performance_endpoint(
     db: Session = Depends(get_db),
 ):
     """Tages-Performance: Realized P&L, Buys/Sells, Unrealized P&L Change"""
+    if not isinstance(market_price, (int, float)) or market_price <= 0 or math.isnan(market_price) or math.isinf(market_price):
+        raise HTTPException(status_code=400, detail="market_price muss eine positive Zahl sein")
+
     try:
         market_price_decimal = Decimal(str(market_price))
         return get_daily_performance(db, user_id, market_price_decimal)
     except Exception as e:
         logger.exception("Daily performance endpoint failed for user=%s", user_id)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Interner Serverfehler")

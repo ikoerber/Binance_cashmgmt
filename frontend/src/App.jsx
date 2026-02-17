@@ -8,6 +8,7 @@ import MacroSignal from './components/MacroSignal';
 import Sentiment from './components/Sentiment';
 import Orderblock from './components/Orderblock';
 import { WebSocketProvider, useLivePrice } from './contexts/WebSocketContext';
+import FillNotification from './components/FillNotification';
 import { getServerIp } from './api/client';
 import './App.css';
 
@@ -151,6 +152,8 @@ function AppContent() {
           <MemoSettings userId={userId} />
         )}
       </div>
+
+      <FillNotification />
 
       <footer className="app-footer">
         <span>BTC/EUR Cashflow Management v0.1.0</span>

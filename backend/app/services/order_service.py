@@ -25,6 +25,7 @@ def compute_pairing_order_params(
     market_price: Decimal,
     fee_buffer_pct: Decimal = Decimal("0.002"),
     max_order_value_eur: Decimal = Decimal("1000"),
+    custom_sell_price: Decimal | None = None,
 ) -> Dict[str, Any]:
     """
     Berechnet aggregierte Binance-Order-Parameter fuer ein Pairing.
@@ -41,19 +42,23 @@ def compute_pairing_order_params(
         market_price: Aktueller Marktpreis
         fee_buffer_pct: Fee-Puffer (Default: 0.2%)
         max_order_value_eur: Max. Orderwert (aus UserSettings)
+        custom_sell_price: Optionaler benutzerdefinierter Verkaufspreis (ueberschreibt Berechnung)
 
     Returns:
         Dict mit aggregierten Binance-Order-Parametern
     """
-    target_price = market_price * (Decimal("1") + fee_buffer_pct)
-    target_price_rounded = target_price.quantize(Decimal("0.01"))
+    if custom_sell_price is not None:
+        target_price_rounded = custom_sell_price.quantize(Decimal("0.01"))
+    else:
+        target_price = market_price * (Decimal("1") + fee_buffer_pct)
+        target_price_rounded = target_price.quantize(Decimal("0.01"))
 
     total_qty = sum(item.qty_btc for item in items)
     total_qty_rounded = total_qty.quantize(Decimal("0.00001"))
 
     version = "v1"
     safe_pairing_id = re.sub(r'[^a-zA-Z0-9_-]', '', pairing_id)[:12]
-    client_order_id = f"{user_id}_pairing_{safe_pairing_id}_{int(target_price)}_{version}"[:36]
+    client_order_id = f"{user_id}_pairing_{safe_pairing_id}_{int(target_price_rounded)}_{version}"[:36]
 
     order_value = total_qty_rounded * target_price_rounded
     exceeds_max = order_value > max_order_value_eur
@@ -252,7 +257,8 @@ class OrderService:
         user_id: str,
         pairing_id: str,
         market_price: Decimal,
-        fee_buffer_pct: Decimal = Decimal("0.002")
+        fee_buffer_pct: Decimal = Decimal("0.002"),
+        custom_sell_price: Decimal | None = None,
     ) -> Dict[str, Any]:
         """
         Erstellt eine aggregierte Limit-Sell-Order fuer ein Pairing.
@@ -266,6 +272,7 @@ class OrderService:
             pairing_id: Pairing ID
             market_price: Aktueller Marktpreis (fuer sell price)
             fee_buffer_pct: Fee-Puffer (z.B. 0.002 fuer 0.2%)
+            custom_sell_price: Optionaler benutzerdefinierter Verkaufspreis
 
         Returns:
             Dict mit erstellter Order
@@ -302,8 +309,11 @@ class OrderService:
                 raise ValueError(f"Lot {item.lot_id} not found")
 
         # 4. Berechne aggregierte Order-Parameter
-        target_price = market_price * (Decimal("1") + fee_buffer_pct)
-        target_price_rounded = target_price.quantize(Decimal("0.01"))
+        if custom_sell_price is not None:
+            target_price_rounded = custom_sell_price.quantize(Decimal("0.01"))
+        else:
+            target_price = market_price * (Decimal("1") + fee_buffer_pct)
+            target_price_rounded = target_price.quantize(Decimal("0.01"))
 
         total_qty = sum(item.qty_btc for item in pairing_domain.items)
         total_qty_rounded = total_qty.quantize(Decimal("0.00001"))
@@ -320,7 +330,7 @@ class OrderService:
         # 5. Client Order ID (idempotent, pro Pairing)
         version = "v1"
         safe_pairing_id = re.sub(r'[^a-zA-Z0-9_-]', '', pairing_id)[:12]
-        client_order_id = f"{user_id}_pairing_{safe_pairing_id}_{int(target_price)}_{version}"[:36]
+        client_order_id = f"{user_id}_pairing_{safe_pairing_id}_{int(target_price_rounded)}_{version}"[:36]
 
         # Check idempotency
         existing = self.order_tracking.check_idempotency(db, client_order_id)

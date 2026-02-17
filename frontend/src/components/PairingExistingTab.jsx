@@ -26,6 +26,7 @@ const PairingExistingTab = ({ userId, marketPrice, onHighlightLots, showMessage 
   const [simulationData, setSimulationData] = useState(null);
   const [showSimulationModal, setShowSimulationModal] = useState(false);
   const [simulatingPairingId, setSimulatingPairingId] = useState(null);
+  const [customSellPrice, setCustomSellPrice] = useState(null);
 
   // ─── Query ───
 
@@ -63,15 +64,16 @@ const PairingExistingTab = ({ userId, marketPrice, onHighlightLots, showMessage 
   });
 
   const executeMutation = useMutation({
-    mutationFn: (pairingId) => executePairing(userId, pairingId, marketPrice),
+    mutationFn: ({ pairingId, sellPrice }) => executePairing(userId, pairingId, marketPrice, 0.002, sellPrice),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['pairings'] });
       queryClient.invalidateQueries({ queryKey: ['lots'] });
       queryClient.invalidateQueries({ queryKey: ['portfolio'] });
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       setSimulationData(null);
+      setCustomSellPrice(null);
       const lotCount = data?.lot_count || 0;
-      showMessage('success', `Pairing ausgeführt: 1 Order (${lotCount} Lots aggregiert) auf Binance platziert`);
+      showMessage('success', `Pairing ausgefuehrt: 1 Order (${lotCount} Lots aggregiert) auf Binance platziert`);
     },
     onError: (error) => {
       showMessage('error', error.response?.data?.detail || error.message);
@@ -92,11 +94,12 @@ const PairingExistingTab = ({ userId, marketPrice, onHighlightLots, showMessage 
 
   // ─── Handlers ───
 
-  const handleSimulate = async (pairingId) => {
+  const handleSimulate = async (pairingId, sellPrice = null) => {
     setSimulatingPairingId(pairingId);
     try {
-      const result = await simulatePairing(userId, pairingId, marketPrice);
+      const result = await simulatePairing(userId, pairingId, marketPrice, 0.001, 0.002, sellPrice);
       setSimulationData({ ...result, pairing_id: pairingId });
+      setCustomSellPrice(sellPrice);
       setShowSimulationModal(true);
     } catch (error) {
       showMessage('error', error.response?.data?.detail || error.message);
@@ -105,13 +108,18 @@ const PairingExistingTab = ({ userId, marketPrice, onHighlightLots, showMessage 
     }
   };
 
+  const handleResimulate = async (newPrice) => {
+    if (!simulationData?.pairing_id) return;
+    await handleSimulate(simulationData.pairing_id, newPrice);
+  };
+
   const handleExecute = (pairingId) => {
     if (!simulationData || simulationData.pairing_id !== pairingId) {
       showMessage('error', 'Bitte zuerst Simulation durchführen!');
       return;
     }
     if (window.confirm('Pairing wirklich ausführen? Orders werden auf Binance platziert.')) {
-      executeMutation.mutate(pairingId);
+      executeMutation.mutate({ pairingId, sellPrice: customSellPrice });
     }
   };
 
@@ -205,7 +213,7 @@ const PairingExistingTab = ({ userId, marketPrice, onHighlightLots, showMessage 
                   <>
                     <button
                       className="btn-simulate"
-                      onClick={() => handleSimulate(p.id)}
+                      onClick={() => handleSimulate(p.id, simulationData?.pairing_id === p.id ? customSellPrice : null)}
                       disabled={simulatingPairingId === p.id}
                     >
                       {simulatingPairingId === p.id ? 'Simuliere...' : 'Simulation'}
@@ -234,7 +242,7 @@ const PairingExistingTab = ({ userId, marketPrice, onHighlightLots, showMessage 
                   <>
                     <button
                       className="btn-simulate"
-                      onClick={() => handleSimulate(p.id)}
+                      onClick={() => handleSimulate(p.id, simulationData?.pairing_id === p.id ? customSellPrice : null)}
                       disabled={simulatingPairingId === p.id}
                     >
                       {simulatingPairingId === p.id ? 'Simuliere...' : 'Simulation ansehen'}
@@ -269,6 +277,7 @@ const PairingExistingTab = ({ userId, marketPrice, onHighlightLots, showMessage 
         <SimulationModal
           simulationData={simulationData}
           onClose={() => setShowSimulationModal(false)}
+          onResimulate={handleResimulate}
         />
       )}
     </div>

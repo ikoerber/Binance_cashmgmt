@@ -104,6 +104,8 @@ class SyncService:
                     errors.append(f"Error creating lot from buy fill {event_db.id}: {e}")
 
         # Phase 2: Sell-Fills chronologisch allokieren (FIFO)
+        # WICHTIG: Bei Fehler ABBRECHEN — weitermachen wuerde FIFO-Invariante verletzen,
+        # da nachfolgende Sells auf falschen Lots allokiert wuerden.
         sell_events = sorted(
             [(e, r) for e, r in created_events if e.side == TradeSideEnum.SELL],
             key=lambda pair: pair[0].timestamp
@@ -114,6 +116,12 @@ class SyncService:
                 allocations_count += len(result["allocations"])
             except Exception as e:
                 errors.append(f"Error processing sell fill {event_db.id}: {e}")
+                logger.error(
+                    "FIFO allocation aborted: sell fill %s failed for user=%s. "
+                    "Remaining sells skipped to preserve FIFO invariant.",
+                    event_db.id, user_id
+                )
+                break  # FIFO-Invariante schuetzen: nicht weitermachen
 
         status = "success" if not errors else "partial_success"
         return {

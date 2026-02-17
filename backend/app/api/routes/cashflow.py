@@ -1,4 +1,5 @@
 """External Cashflow API Endpoints"""
+import logging
 from fastapi import APIRouter, Depends, HTTPException, Body
 from sqlalchemy.orm import Session
 from typing import Optional, List
@@ -10,6 +11,8 @@ from app.db.database import get_db
 from app.db.models import LedgerEventDB, EventTypeEnum, EventSourceEnum
 from app.domain.models import utcnow
 import uuid
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/cashflow", tags=["cashflow"])
 
@@ -87,9 +90,10 @@ def create_external_cashflow(
         }
 
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=f"Invalid amount: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Ungueltiger Betrag: {str(e)}")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Cashflow create failed for user=%s", user_id)
+        raise HTTPException(status_code=500, detail="Interner Serverfehler")
 
 
 @router.get("/{user_id}/list")
@@ -164,7 +168,8 @@ def list_external_cashflows(
         }
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Cashflow endpoint failed for user=%s", user_id)
+        raise HTTPException(status_code=500, detail="Interner Serverfehler")
 
 
 @router.get("/{user_id}/{event_id}")
@@ -209,7 +214,8 @@ def get_cashflow_detail(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Cashflow endpoint failed for user=%s", user_id)
+        raise HTTPException(status_code=500, detail="Interner Serverfehler")
 
 
 @router.patch("/{user_id}/{event_id}")
@@ -275,7 +281,8 @@ def update_cashflow_note(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Cashflow endpoint failed for user=%s", user_id)
+        raise HTTPException(status_code=500, detail="Interner Serverfehler")
 
 
 @router.delete("/{user_id}/{event_id}")
@@ -335,4 +342,5 @@ def reverse_cashflow(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Cashflow endpoint failed for user=%s", user_id)
+        raise HTTPException(status_code=500, detail="Interner Serverfehler")

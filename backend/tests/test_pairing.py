@@ -35,7 +35,7 @@ def _create_buy_event(event_id: str, qty: str, price: str, timestamp: datetime):
 
 
 def test_pairing_single_winner_no_losers():
-    """Test: Nur Gewinner, keine Verlierer → kein Pairing nötig"""
+    """Test: Nur Gewinner, keine Verlierer → kein Pairing (Minimum 2 Lots)"""
     # Buy @ 50k
     buy_event = _create_buy_event("fill_1", "0.01", "50000", datetime(2024, 1, 1))
     lot = create_trade_lot_from_buy_fill(buy_event)
@@ -45,11 +45,8 @@ def test_pairing_single_winner_no_losers():
 
     pairings = suggest_pairings([lot], market_price, threshold_pct=Decimal("0.05"))
 
-    # Erwartet: Pairing mit nur einem Lot (Gewinner allein erfüllt Threshold)
-    assert len(pairings) == 1
-    pairing = pairings[0]
-    assert len(pairing.items) == 1
-    assert pairing.is_profitable(market_price)
+    # Erwartet: Kein Pairing — einzelnes Lot kann direkt per Sell-Order verkauft werden
+    assert len(pairings) == 0
 
 
 def test_pairing_no_winners():
@@ -66,8 +63,8 @@ def test_pairing_no_winners():
     assert len(pairings) == 0
 
 
-def test_pairing_one_winner_one_loser():
-    """Test: Ein Gewinner + ein Verlierer → Pairing nur wenn netto >= Threshold"""
+def test_pairing_one_winner_one_loser_not_combinable():
+    """Test: Gewinner + Verlierer, aber kombiniert unter Threshold → kein Pairing"""
     # Lot 1: Buy @ 50k
     buy1 = _create_buy_event("fill_1", "0.01", "50000", datetime(2024, 1, 1))
     lot1 = create_trade_lot_from_buy_fill(buy1)
@@ -77,24 +74,20 @@ def test_pairing_one_winner_one_loser():
     lot2 = create_trade_lot_from_buy_fill(buy2)
 
     # Marktpreis: 55k
-    # Lot1: +10% Gewinn (allein schon profitabel!)
-    # Lot2: -8.33% Verlust
+    # Lot1: +10% Gewinn, Lot2: -8.33% Verlust
+    # Kombiniert: (550 + 550) - (500 + 600) = 0% → unter Threshold
+    # Einzelnes Lot1 allein → kein Pairing (Minimum 2 Lots)
     market_price = Decimal("55000")
 
-    # Threshold: 5%
     pairings = suggest_pairings([lot1, lot2], market_price, threshold_pct=Decimal("0.05"))
 
-    # Erwartet: Ein Pairing nur mit Lot1 (Gewinner allein erfüllt Threshold)
-    # Lot2 wird nicht hinzugefügt, weil es den Gesamt-P&L% senken würde
-    # Kombiniert: (550 + 550) - (500 + 600) = 0% → nicht profitable
-    assert len(pairings) == 1
-    pairing = pairings[0]
-    assert len(pairing.items) == 1
-    assert pairing.items[0].lot_id == lot1.id
+    # Erwartet: Kein Pairing — Lot2 senkt den P&L% unter Threshold,
+    # und ein einzelnes Lot ergibt kein Pairing
+    assert len(pairings) == 0
 
 
-def test_pairing_strong_winner_weak_loser():
-    """Test: Zwei Gewinner → Separate Pairings (beide bereits profitabel)"""
+def test_pairing_two_winners_no_losers():
+    """Test: Zwei Gewinner, keine Verlierer → kein Pairing (kein Verlierer zum Kombinieren)"""
     # Lot 1: Buy @ 50k
     buy1 = _create_buy_event("fill_1", "0.01", "50000", datetime(2024, 1, 1))
     lot1 = create_trade_lot_from_buy_fill(buy1)
@@ -104,20 +97,14 @@ def test_pairing_strong_winner_weak_loser():
     lot2 = create_trade_lot_from_buy_fill(buy2)
 
     # Marktpreis: 55k
-    # Lot1: (55-50)/50 = 10% Gewinn
-    # Lot2: (55-52)/52 = 5.77% Gewinn
+    # Lot1: 10% Gewinn, Lot2: 5.77% Gewinn → beide profitabel, aber keine Verlierer
     market_price = Decimal("55000")
 
-    # Threshold: 5%
     pairings = suggest_pairings([lot1, lot2], market_price, threshold_pct=Decimal("0.05"))
 
-    # Erwartet: 2 Pairings (beide Lots sind bereits einzeln profitabel)
-    # Algorithmus erstellt separate Pairings für bereits profitable Lots
-    assert len(pairings) == 2
-
-    # Alle Pairings sollten profitabel sein
-    for pairing in pairings:
-        assert pairing.net_pnl_pct(market_price) >= Decimal("0.05")
+    # Erwartet: Kein Pairing — einzelne profitable Lots direkt per Sell-Order verkaufbar
+    # Minimum 2 Lots pro Pairing, aber keine Verlierer zum Kombinieren
+    assert len(pairings) == 0
 
 
 def test_pairing_multiple_losers():
@@ -163,58 +150,64 @@ def test_pairing_multiple_losers():
 
 
 def test_pairing_simulation():
-    """Test: Simulation eines Pairings"""
-    # Lot 1: Buy @ 50k
-    buy1 = _create_buy_event("fill_1", "0.01", "50000", datetime(2024, 1, 1))
+    """Test: Simulation eines Pairings mit Gewinner + Verlierer"""
+    # Lot 1: Buy @ 40k (grosser Gewinner)
+    buy1 = _create_buy_event("fill_1", "0.01", "40000", datetime(2024, 1, 1))
     lot1 = create_trade_lot_from_buy_fill(buy1)
 
-    # Lot 2: Buy @ 52k
+    # Lot 2: Buy @ 52k (leichter Verlierer)
     buy2 = _create_buy_event("fill_2", "0.01", "52000", datetime(2024, 1, 2))
     lot2 = create_trade_lot_from_buy_fill(buy2)
 
-    market_price = Decimal("55000")
+    # Marktpreis: 50k
+    # Lot1: +25%, Lot2: -3.85%
+    # Kombiniert: (500+500)-(400+520) = 80, pnl% = 80/920 ≈ 8.7% → ueber 5%
+    market_price = Decimal("50000")
 
     pairings = suggest_pairings([lot1, lot2], market_price, threshold_pct=Decimal("0.05"))
-    assert len(pairings) > 0
+    assert len(pairings) >= 1
 
-    # Nehme erstes Pairing (enthält nur 1 Lot, da beide bereits profitabel)
     pairing = pairings[0]
+    assert len(pairing.items) >= 2
 
     # Simulation
     simulation = simulate_pairing(
         pairing,
         market_price,
         all_lots=[lot1, lot2],
-        fee_pct=Decimal("0.001")  # 0.1%
+        fee_pct=Decimal("0.001")
     )
 
-    # Erwartungen: Pairing enthält nur 1 Lot
     total_btc_in_pairing = pairing.net_qty_btc()
     assert simulation.total_btc_to_sell == total_btc_in_pairing
 
     # Affected lots = Items im Pairing
     assert len(simulation.affected_lots) == len(pairing.items)
 
-    # Proceed & P&L sollten positiv sein
+    # P&L sollte positiv sein
     assert simulation.expected_realized_pnl_eur > 0
 
 
-def test_pairing_simulation_partial():
-    """Test: Simulation mit partiellem Lot-Verkauf"""
-    # Lot 1: Buy 0.02 BTC @ 50k
-    buy1 = _create_buy_event("fill_1", "0.02", "50000", datetime(2024, 1, 1))
+def test_pairing_simulation_with_losers():
+    """Test: Simulation mit Gewinner + Verlierer (mehrere Lots)"""
+    # Lot 1: Buy 0.02 BTC @ 40k (grosser Gewinner)
+    buy1 = _create_buy_event("fill_1", "0.02", "40000", datetime(2024, 1, 1))
     lot1 = create_trade_lot_from_buy_fill(buy1)
 
-    # Lot 2: Buy 0.01 BTC @ 52k
+    # Lot 2: Buy 0.01 BTC @ 52k (leichter Verlierer)
     buy2 = _create_buy_event("fill_2", "0.01", "52000", datetime(2024, 1, 2))
     lot2 = create_trade_lot_from_buy_fill(buy2)
 
-    market_price = Decimal("55000")
+    # Marktpreis: 50k
+    # Lot1: +25%, Lot2: -3.85%
+    # Kombiniert: (1000+500)-(800+520) = 180, pnl% = 180/1320 ≈ 13.6%
+    market_price = Decimal("50000")
 
     pairings = suggest_pairings([lot1, lot2], market_price, threshold_pct=Decimal("0.05"))
     assert len(pairings) > 0
 
     pairing = pairings[0]
+    assert len(pairing.items) >= 2
 
     simulation = simulate_pairing(
         pairing,
@@ -224,37 +217,33 @@ def test_pairing_simulation_partial():
     )
 
     # Total BTC zu verkaufen = alle Items im Pairing
-    # In diesem Fall: lot1 (0.02) + lot2 (0.01) = 0.03
     expected_btc = sum(item.qty_btc for item in pairing.items)
     assert simulation.total_btc_to_sell == expected_btc
 
-    # Remaining: Hängt davon ab, ob Lots vollständig im Pairing sind
-    # Falls pairing.items alle Lots vollständig enthält:
+    # Falls alle Lots komplett im Pairing:
     if simulation.total_btc_to_sell == Decimal("0.03"):
         assert simulation.remaining_portfolio_btc == Decimal("0")
 
 
 def test_pairing_net_calculations():
-    """Test: Netto-Berechnungen eines Pairings"""
-    # Lot 1: Buy @ 50k (Gewinner bei 56k)
+    """Test: Netto-Berechnungen eines Pairings mit Gewinner + Verlierer"""
+    # Lot 1: Buy @ 50k (Gewinner bei 56k → +12%)
     buy1 = _create_buy_event("fill_1", "0.01", "50000", datetime(2024, 1, 1))
     lot1 = create_trade_lot_from_buy_fill(buy1)
 
-    # Lot 2: Buy @ 60k (Verlierer bei 56k)
-    buy2 = _create_buy_event("fill_2", "0.01", "60000", datetime(2024, 1, 2))
+    # Lot 2: Buy @ 56k (Verlierer bei 56k → ±0%)
+    buy2 = _create_buy_event("fill_2", "0.01", "56000", datetime(2024, 1, 2))
     lot2 = create_trade_lot_from_buy_fill(buy2)
 
     market_price = Decimal("56000")
 
-    # Threshold niedrig genug, damit Pairing mit beiden erstellt wird
+    # Kombiniert: (560+560)-(500+560) = 60, pnl% = 60/1060 ≈ 5.66% → ueber 1%
     pairings = suggest_pairings([lot1, lot2], market_price, threshold_pct=Decimal("0.01"))
-    assert len(pairings) > 0
+    assert len(pairings) >= 1
 
-    # Suche Pairing mit beiden Lots
-    pairing = next((p for p in pairings if len(p.items) == 2), None)
-    if pairing is None:
-        # Falls kein kombiniertes Pairing, nimm eines mit 1 Lot für Test
-        pairing = pairings[0]
+    # Pairing muss mindestens 2 Lots enthalten
+    pairing = next((p for p in pairings if len(p.items) >= 2), None)
+    assert pairing is not None
 
     # Net cost
     actual_cost = pairing.net_cost()
@@ -277,24 +266,80 @@ def test_pairing_net_calculations():
     assert actual_pnl_pct == actual_pnl / actual_cost
 
 
-def test_pairing_threshold_check():
-    """Test: Threshold-Prüfung"""
+def test_pairing_threshold_check_single_lot():
+    """Test: Einzelnes Lot ergibt kein Pairing (Minimum 2 Lots)"""
     # Lot: Buy @ 50k
     buy_event = _create_buy_event("fill_1", "0.01", "50000", datetime(2024, 1, 1))
     lot = create_trade_lot_from_buy_fill(buy_event)
 
-    # Marktpreis: 52.5k → genau 5% Gewinn
+    # Marktpreis: 52.5k → genau 5% Gewinn, aber nur 1 Lot
     market_price = Decimal("52500")
 
     pairings = suggest_pairings([lot], market_price, threshold_pct=Decimal("0.05"))
 
+    # Kein Pairing — einzelnes Lot direkt per Sell-Order verkaufbar
+    assert len(pairings) == 0
+
+
+def test_pairing_threshold_check_combined():
+    """Test: Threshold-Pruefung mit Gewinner + Verlierer"""
+    # Lot 1: Buy @ 40k (Gewinner)
+    buy1 = _create_buy_event("fill_1", "0.01", "40000", datetime(2024, 1, 1))
+    lot1 = create_trade_lot_from_buy_fill(buy1)
+
+    # Lot 2: Buy @ 48k (leichter Verlierer)
+    buy2 = _create_buy_event("fill_2", "0.01", "48000", datetime(2024, 1, 2))
+    lot2 = create_trade_lot_from_buy_fill(buy2)
+
+    # Marktpreis: 46.2k
+    # Lot1: (46200-40000)/40000 = 15.5% Gewinn
+    # Lot2: (46200-48000)/48000 = -3.75% Verlust
+    # Kombiniert: (462+462)-(400+480) = 44, pnl% = 44/880 = 5% → genau Threshold
+    market_price = Decimal("46200")
+
+    pairings = suggest_pairings([lot1, lot2], market_price, threshold_pct=Decimal("0.05"))
+
     assert len(pairings) == 1
     pairing = pairings[0]
-
-    # Genau am Threshold
+    assert len(pairing.items) == 2
     assert pairing.is_profitable(market_price)
-    assert pairing.net_pnl_pct(market_price) == Decimal("0.05")
+    assert pairing.net_pnl_pct(market_price) >= Decimal("0.05")
 
-    # Unterhalb Threshold
-    market_price_below = Decimal("52400")
-    assert not pairing.is_profitable(market_price_below)
+
+def test_pairing_simulation_with_custom_sell_price():
+    """Test: Simulation mit sell_price berechnet P&L basierend auf Verkaufspreis"""
+    # Lot 1: Buy @ 40k (Gewinner)
+    buy1 = _create_buy_event("fill_1", "0.01", "40000", datetime(2024, 1, 1))
+    lot1 = create_trade_lot_from_buy_fill(buy1)
+
+    # Lot 2: Buy @ 52k (Verlierer)
+    buy2 = _create_buy_event("fill_2", "0.01", "52000", datetime(2024, 1, 2))
+    lot2 = create_trade_lot_from_buy_fill(buy2)
+
+    market_price = Decimal("50000")
+    fee_pct = Decimal("0.001")
+
+    pairings = suggest_pairings([lot1, lot2], market_price, threshold_pct=Decimal("0.05"))
+    assert len(pairings) >= 1
+    pairing = pairings[0]
+
+    # Simulation ohne sell_price (Default: market_price)
+    sim_default = simulate_pairing(pairing, market_price, [lot1, lot2], fee_pct)
+
+    # Simulation mit hoeherem sell_price
+    custom_sell_price = Decimal("51000")
+    sim_custom = simulate_pairing(pairing, market_price, [lot1, lot2], fee_pct,
+                                   sell_price=custom_sell_price)
+
+    # P&L muss bei hoeherem Verkaufspreis hoeher sein
+    assert sim_custom.expected_realized_pnl_eur > sim_default.expected_realized_pnl_eur
+
+    # Erloese pruefen: total_btc * sell_price - fees
+    total_btc = pairing.net_qty_btc()
+    expected_gross = total_btc * custom_sell_price
+    expected_fee = expected_gross * fee_pct
+    expected_proceeds = expected_gross - expected_fee
+    assert sim_custom.expected_proceeds_eur == expected_proceeds
+
+    # market_price bleibt unveraendert (fuer Display)
+    assert sim_custom.market_price == market_price

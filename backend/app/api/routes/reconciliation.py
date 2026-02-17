@@ -1,8 +1,11 @@
 """Reconciliation API Endpoints"""
+import logging
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
+
+logger = logging.getLogger(__name__)
 from app.services.reconciliation_service import ReconciliationService
 from app.services.binance import BinanceService
 from app.api.dependencies import get_binance_service
@@ -48,7 +51,8 @@ def run_full_reconciliation(
             "report": report
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Reconciliation endpoint failed for user=%s", user_id)
+        raise HTTPException(status_code=500, detail="Interner Serverfehler")
 
 
 @router.post("/{user_id}/orders")
@@ -80,7 +84,8 @@ def reconcile_orders_only(
             "report": report
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Reconciliation endpoint failed for user=%s", user_id)
+        raise HTTPException(status_code=500, detail="Interner Serverfehler")
 
 
 @router.post("/{user_id}/balances")
@@ -109,7 +114,8 @@ def reconcile_balances_only(
             "report": report
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Reconciliation endpoint failed for user=%s", user_id)
+        raise HTTPException(status_code=500, detail="Interner Serverfehler")
 
 
 @router.post("/{user_id}/fills")
@@ -143,4 +149,5 @@ def reconcile_fills_only(
             "report": report
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Reconciliation endpoint failed for user=%s", user_id)
+        raise HTTPException(status_code=500, detail="Interner Serverfehler")

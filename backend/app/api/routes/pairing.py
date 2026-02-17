@@ -1,11 +1,14 @@
 """Pairing API Endpoints"""
+import logging
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Optional, List
 from pydantic import BaseModel
 
 from app.db.database import get_db
+
+logger = logging.getLogger(__name__)
 from app.services.pairing_service import (
     get_pairing_suggestions,
     simulate_pairing_execution,
@@ -36,12 +39,12 @@ def _get_order_service(binance: BinanceService = Depends(get_binance_service)) -
 
 class PairingItemCreate(BaseModel):
     lot_id: str
-    qty_btc: float
+    qty_btc: str  # Decimal als String (Praezision)
 
 
 class PairingCreateRequest(BaseModel):
     items: List[PairingItemCreate]
-    threshold_pct: float
+    threshold_pct: str  # Decimal als String (Praezision)
 
 
 @router.get("/{user_id}/suggestions")
@@ -81,7 +84,8 @@ def get_suggestions(
             "threshold_pct": str(threshold_decimal),
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Pairing endpoint failed for user=%s", user_id)
+        raise HTTPException(status_code=500, detail="Interner Serverfehler")
 
 
 @router.get("/{user_id}/simulate/{pairing_id}")
@@ -91,6 +95,7 @@ def simulate(
     market_price: float,
     fee_pct: float = Query(0.001, description="Trading Fee (z.B. 0.001 fuer 0.1%)"),
     fee_buffer_pct: float = Query(0.002, description="Fee-Buffer fuer Zielpreis (z.B. 0.002 fuer 0.2%)"),
+    custom_sell_price: Optional[float] = Query(None, description="Benutzerdefinierter Verkaufspreis (ueberschreibt Marktpreis + Fee-Buffer)"),
     db: Session = Depends(get_db)
 ):
     """
@@ -102,6 +107,7 @@ def simulate(
         market_price: Aktueller Marktpreis
         fee_pct: Trading Fee (Default: 0.1%)
         fee_buffer_pct: Fee-Buffer fuer Zielpreis (Default: 0.2%)
+        custom_sell_price: Benutzerdefinierter Verkaufspreis (optional)
         db: Database Session (injected)
 
     Returns:
@@ -111,6 +117,7 @@ def simulate(
         market_price_decimal = Decimal(str(market_price))
         fee_pct_decimal = Decimal(str(fee_pct))
         fee_buffer_decimal = Decimal(str(fee_buffer_pct))
+        custom_price_decimal = Decimal(str(custom_sell_price)) if custom_sell_price is not None else None
 
         simulation = simulate_pairing_execution(
             db,
@@ -119,13 +126,15 @@ def simulate(
             market_price_decimal,
             fee_pct_decimal,
             fee_buffer_decimal,
+            custom_sell_price=custom_price_decimal,
         )
 
         return simulation
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Pairing endpoint failed for user=%s", user_id)
+        raise HTTPException(status_code=500, detail="Interner Serverfehler")
 
 
 # ============================================================================
@@ -163,7 +172,8 @@ def create_pairing_endpoint(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Pairing endpoint failed for user=%s", user_id)
+        raise HTTPException(status_code=500, detail="Interner Serverfehler")
 
 
 @router.get("/{user_id}/list")
@@ -192,7 +202,8 @@ def list_pairings_endpoint(
             "filter": {"status": status}
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Pairing endpoint failed for user=%s", user_id)
+        raise HTTPException(status_code=500, detail="Interner Serverfehler")
 
 
 @router.get("/{user_id}/{pairing_id}")
@@ -223,7 +234,8 @@ def get_pairing_endpoint(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Pairing endpoint failed for user=%s", user_id)
+        raise HTTPException(status_code=500, detail="Interner Serverfehler")
 
 
 @router.post("/{user_id}/{pairing_id}/lock")
@@ -253,7 +265,8 @@ def lock_pairing_endpoint(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Pairing endpoint failed for user=%s", user_id)
+        raise HTTPException(status_code=500, detail="Interner Serverfehler")
 
 
 @router.post("/{user_id}/{pairing_id}/unlock")
@@ -272,7 +285,8 @@ def unlock_pairing_endpoint(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Pairing endpoint failed for user=%s", user_id)
+        raise HTTPException(status_code=500, detail="Interner Serverfehler")
 
 
 @router.post("/{user_id}/{pairing_id}/execute")
@@ -281,6 +295,7 @@ def execute_pairing_endpoint(
     pairing_id: str,
     market_price: float = Query(..., description="Aktueller BTC/EUR Marktpreis"),
     fee_buffer_pct: float = Query(0.002, description="Fee-Buffer fuer Zielpreis (z.B. 0.002 fuer 0.2%)"),
+    custom_sell_price: Optional[float] = Query(None, description="Benutzerdefinierter Verkaufspreis (ueberschreibt Marktpreis + Fee-Buffer)"),
     db: Session = Depends(get_db),
     order_service: OrderService = Depends(_get_order_service),
 ):
@@ -298,6 +313,7 @@ def execute_pairing_endpoint(
         pairing_id: Pairing ID
         market_price: Aktueller BTC/EUR Marktpreis (fuer Sell Price Berechnung)
         fee_buffer_pct: Fee-Buffer fuer Zielpreis (Default: 0.2%)
+        custom_sell_price: Benutzerdefinierter Verkaufspreis (optional)
         db: Database Session (injected)
         order_service: Order Service (injected)
 
@@ -307,6 +323,7 @@ def execute_pairing_endpoint(
     try:
         market_price_decimal = Decimal(str(market_price))
         fee_buffer_decimal = Decimal(str(fee_buffer_pct))
+        custom_price_decimal = Decimal(str(custom_sell_price)) if custom_sell_price is not None else None
 
         result = order_service.create_limit_sell_for_pairing(
             db,
@@ -314,13 +331,15 @@ def execute_pairing_endpoint(
             pairing_id,
             market_price_decimal,
             fee_buffer_decimal,
+            custom_sell_price=custom_price_decimal,
         )
 
         return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Pairing endpoint failed for user=%s", user_id)
+        raise HTTPException(status_code=500, detail="Interner Serverfehler")
 
 
 @router.delete("/{user_id}/{pairing_id}")
@@ -350,4 +369,5 @@ def delete_pairing_endpoint(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Pairing endpoint failed for user=%s", user_id)
+        raise HTTPException(status_code=500, detail="Interner Serverfehler")

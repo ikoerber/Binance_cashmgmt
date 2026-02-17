@@ -36,6 +36,9 @@ export const WebSocketProvider = ({ userId = 'user_123', children }) => {
   const [lastOrderUpdate, setLastOrderUpdate] = useState(null);
   const [lastBalanceUpdate, setLastBalanceUpdate] = useState(null);
 
+  // Phase 3: Fill Events
+  const [lastFillEvent, setLastFillEvent] = useState(null);
+
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN ||
         wsRef.current?.readyState === WebSocket.CONNECTING) {
@@ -82,6 +85,14 @@ export const WebSocketProvider = ({ userId = 'user_123', children }) => {
           case 'balance_update':
             setLastBalanceUpdate(data);
             queryClient.invalidateQueries({ queryKey: ['portfolio'] });
+            break;
+
+          case 'fill_processed':
+            setLastFillEvent(data);
+            // Fill verarbeitet — alle relevanten Queries invalidieren
+            queryClient.invalidateQueries({ queryKey: ['lots'] });
+            queryClient.invalidateQueries({ queryKey: ['portfolio'] });
+            queryClient.invalidateQueries({ queryKey: ['orders'] });
             break;
 
           case 'pong':
@@ -157,6 +168,7 @@ export const WebSocketProvider = ({ userId = 'user_123', children }) => {
     priceLastUpdate,
     lastOrderUpdate,
     lastBalanceUpdate,
+    lastFillEvent,
   };
 
   return (

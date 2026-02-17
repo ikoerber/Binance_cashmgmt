@@ -1,10 +1,13 @@
 """Sync API Endpoints"""
+import logging
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 from typing import Optional
 
 from app.db.database import get_db
+
+logger = logging.getLogger(__name__)
 from app.services.binance import BinanceService
 from app.services.sync_service import SyncService
 from app.services.csv_import_service import import_trading_bots_csv
@@ -46,7 +49,8 @@ def sync_fills(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Sync endpoint failed for user=%s", user_id)
+        raise HTTPException(status_code=500, detail="Interner Serverfehler")
 
 
 @router.post("/{user_id}/fills/full")
@@ -102,7 +106,8 @@ def sync_all_fills(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Sync endpoint failed for user=%s", user_id)
+        raise HTTPException(status_code=500, detail="Interner Serverfehler")
 
 
 @router.post("/{user_id}/import/trading-bots-csv")
@@ -134,4 +139,5 @@ async def import_trading_bots_from_csv(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=f"CSV parse error: {e}")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Sync endpoint failed for user=%s", user_id)
+        raise HTTPException(status_code=500, detail="Interner Serverfehler")

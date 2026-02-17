@@ -74,17 +74,17 @@ const PairingPanel = ({
     if (selectedLots.length === 0) return;
     const items = selectedLots.map((lot) => ({
       lot_id: lot.id,
-      qty_btc: parseFloat(lot.qty_btc_open),
+      qty_btc: String(lot.qty_btc_open),
     }));
-    createMutation.mutate({ items, threshold: manualThreshold / 100 });
+    createMutation.mutate({ items, threshold: String(manualThreshold / 100) });
   };
 
   const handleCreateFromSuggestion = (suggestion) => {
     const items = suggestion.items.map((item) => ({
       lot_id: item.lot_id,
-      qty_btc: parseFloat(item.qty_btc),
+      qty_btc: String(item.qty_btc),
     }));
-    createMutation.mutate({ items, threshold: thresholdPct / 100 });
+    createMutation.mutate({ items, threshold: String(thresholdPct / 100) });
   };
 
   // ─── Computed Values ───

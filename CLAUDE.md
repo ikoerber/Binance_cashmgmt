@@ -32,12 +32,27 @@ BTC/EUR Cashflow-Management & Automation App für Binance Spot Trading. Ledger-b
 - Alternative Sell Allocation Strategien (FIFO, LIFO, HIGHEST_COST) konfigurierbar in Settings
 - Historische Fee-Umrechnung: BNB-Fees per Binance Klines API zum Fill-Zeitpunkt konvertiert (statt aktuellem Preis), `fee_eur_value` auf LedgerEvent persistiert, Portfolio BNB-Fee-Handling konsistent mit Lot-Ebene
 - Orderblock Detection Engine: Institutionelle Preiszonen-Erkennung mit 5-Phasen-Validierung, Conviction Scoring (Cont/Bouchaud), AlbaTherium-Klassifikation, Backtesting mit Triple-Barrier-Methode (Lopez de Prado), Candlestick-Chart-Visualisierung (lightweight-charts)
+- API Hardening: Error Message Sanitization (generische Fehlermeldungen, keine Stacktraces an Client), Structured Logging (`logger.exception()`) auf allen Route-Modulen, Input Validation (`market_price` NaN/Inf/negativ-Pruefung)
+- Decimal-String-Transport: Pairing API (`qty_btc`, `threshold_pct`) und Settings API (`max_order_value_eur`, `ob_atr_multiplier`, `ob_target_rr`) als String statt float (Praezisionsverlust vermeiden)
+- Race Condition Protection: Row-Level Locking (`with_for_update()`) in Pairing-Service (Create + Lock)
+- FIFO Abort-on-Error: Sync-Service bricht Sell-Allocation-Schleife bei Fehler ab (schuetzt FIFO-Invariante)
+- Pairing-Heuristik v1.2: Minimum 2 Lots pro Pairing (einzelne profitable Lots direkt per Sell-Order verkaufbar)
+- WebSocket Phase 3: Echtzeit Fill-Verarbeitung (Lot-Erstellung + Sell-Allocation via executionReport, ohne manuellen Sync)
 
-**Offen (Iteration 4-5):**
-- Auto-Order Automation (Trigger-basiert)
-- Sentiment History Persistierung (SentimentHistoryDB, History-Endpoint)
-- Combined Score (MacroSignal + Sentiment)
-- Hardening: Monitoring/Alerting, Rate-Limit-Optimierung, WebSocket
+**Offen (Iteration 4-6, priorisiert):**
+
+| Prio | Item | Bewertung |
+|------|------|-----------|
+| 1 | Auto-Order Automation (Trigger-basiert) | **HOCH** — Groesster operativer Hebel. Aktuell manuelle Order-Erstellung pro Lot/Pairing. Trigger-System ("Sell bei Break-even + X%") reduziert Aufwand massiv. |
+| 2 | Combined Score (MacroSignal + Sentiment) | **MITTEL-HOCH** — Beide Module existieren separat. Zusammenfuehrung (Timing x Sizing) liefert einheitliche Handlungsempfehlung statt zwei Dashboards. Technisch ueberschaubar. |
+| 3 | Sentiment History Persistierung | **MITTEL** — Aktuell nur Live-Score. `SentimentHistoryDB` + History-Endpoint fuer Trendanalyse und Combined-Score-Backtesting. Voraussetzung fuer Prio 2 Validierung. |
+| 4 | Hardening: Monitoring/Alerting, Rate-Limit | **MITTEL** — Health-Checks, Binance 429-Handling, Alerting bei Sync-Fehlern/Balance-Diskrepanzen. Notwendig vor produktivem Auto-Order-Einsatz (Prio 1). |
+| 5 | Frontend-Tests (Vitest) | **MITTEL** — 18 Backend-Testdateien, null Frontend-Tests. Regressionsrisiko steigt mit UI-Komplexitaet. Kritische Flows zuerst: Pairing-Lifecycle, Lot-Filter, Formatter-Utils. |
+| 6 | Aggregierte Pairing-Orders (v1.1+) | **NIEDRIG-MITTEL** — Aktuell separate Order pro Lot. Aggregierung spart Fees, ist aber komplex (Teilausfuehrungen, Referenzierung). Erst relevant bei hoher Lot-Anzahl. |
+| 7 | Social Sentiment (Twitter/X, Reddit) | **NIEDRIG** — 5-Pillar Engine v3 bereits robust. LunarCrush/Santiment wuerde marginalen Mehrwert bei hohen API-Kosten und Noise liefern. Erst nach stabilem Combined Score. |
+| 8 | Echte On-Chain-Daten (Glassnode/CryptoQuant) | **NIEDRIG** — Nice-to-have. APIs teuer (Glassnode ab ~$39/Monat), Mehrwert fuer Spot-Trading-App begrenzt. Aktuelle Pillars decken wichtigste Signale ab. |
+
+**Hinweis:** WebSocket Realtime-Sync (Phase 1+2 implementiert in `cd7fbc2`) kann bei Bedarf parallel als Phase 3 nachgezogen werden.
 
 ## Kernprinzipien
 
@@ -75,11 +90,11 @@ cashmgnt/
 │   │   │   └── orderblock_backtest.py # Backtesting: Triple-Barrier-Simulation, Hit-Rate-Metriken, Conviction-Breakdown
 │   │   ├── services/                  # DB-Integration, Binance API
 │   │   │   ├── binance.py            # Binance API Client (inkl. get_historical_price via Klines API)
-│   │   │   ├── sync_service.py       # Fills importieren (historische Fee-Konvertierung pro Fill)
+│   │   │   ├── sync_service.py       # Fills importieren (historische Fee-Konvertierung pro Fill, FIFO Abort-on-Error)
 │   │   │   ├── lot_service.py        # Lot CRUD + FIFO
 │   │   │   ├── order_service.py      # Order-Erstellung (TAKE_PROFIT_LIMIT)
 │   │   │   ├── order_tracking_service.py # Order State Lifecycle
-│   │   │   ├── pairing_service.py    # Pairing-Persistenz + Lifecycle
+│   │   │   ├── pairing_service.py    # Pairing-Persistenz + Lifecycle (Row-Level Locking)
 │   │   │   ├── portfolio_service.py  # Portfolio-State aus Ledger
 │   │   │   ├── reconciliation_service.py
 │   │   │   ├── csv_import_service.py  # CSV Import (nur fuer Trading Bot / Grid Bot Trades, da diese NICHT ueber die Binance API abrufbar sind)
@@ -260,7 +275,7 @@ API Routes (thin)  →  Services (DB + Binance)  →  Domain (pure, no I/O)
 - `_sort_lots_by_strategy()` - Sortierung nach Strategie (FIFO: created_at asc, LIFO: created_at desc, HIGHEST_COST: break_even desc)
 
 **`domain/pairing.py`**:
-- `suggest_pairings(lots, market_price, threshold_pct)` - Heuristik v1
+- `suggest_pairings(lots, market_price, threshold_pct)` - Heuristik v1.2 (Minimum 2 Lots, einzelne profitable Lots direkt per Sell-Order)
 - `simulate_pairing(pairing, market_price, all_lots, fee_pct)` - Deterministische Simulation
 
 **`domain/sentiment.py`** - Sentiment Engine v3 (pure, kein I/O):
@@ -453,9 +468,9 @@ Simuliert das Handeln an erkannten Orderblock-Zonen nach der **Triple-Barrier-Me
 ### Kritische Invarianten
 
 1. Ledger ist **append-only** - Korrekturen nur via ADJUSTMENT Events
-2. **Decimal überall** - niemals float für Geld/Preise
+2. **Decimal überall** - niemals float für Geld/Preise. API-Transport als String (`"1234.56"` statt `1234.56`) um IEEE 754 Praezisionsverlust zu vermeiden
 3. **1 Fill = 1 Lot** - deterministische Lot-Bildung, 1:1 Auditierbarkeit
-4. **Sell Allocation Strategy** - konfigurierbar (FIFO/LIFO/HIGHEST_COST), deterministisch pro Strategie. Lot-spezifische und Pairing-spezifische Allocations ueberschreiben die Default-Strategie
+4. **Sell Allocation Strategy** - konfigurierbar (FIFO/LIFO/HIGHEST_COST), deterministisch pro Strategie. Lot-spezifische und Pairing-spezifische Allocations ueberschreiben die Default-Strategie. **Abort-on-Error**: Sync bricht Sell-Allocation-Schleife bei Fehler ab — weitermachen wuerde FIFO-Invariante verletzen, da nachfolgende Sells auf falschen Lots allokiert wuerden
 5. **Idempotente Orders** - `clientOrderId` Format: `{userId}_{lotId}_{targetPrice}_{qty}_{version}`
 6. **Simulation vor Execution** - Pairing-Ausführung erzwingt vorherige Simulation
 7. Pairing-Lifecycle: **DRAFT → LOCKED → EXECUTED** (nur DRAFT löschbar)
@@ -470,6 +485,8 @@ Simuliert das Handeln an erkannten Orderblock-Zonen nach der **Triple-Barrier-Me
 16. **Conviction Scoring** - Vier gleichgewichtete Komponenten (Volume Percentile, Z-Score, OFI Divergence, Impulse Intensity). Percentile-basiert statt Z-Score-only wegen Heavy-Tail-Verteilung der Volumina (Cont).
 17. **Triple Barrier** - Backtesting mit drei Ausstiegsbedingungen (Target, Stop, Zeit). Time-Exit nach `max_holding_candles` verhindert unbegrenzte Haltezeiten.
 18. **Orderblock Config-Hierarchie** - Request > User-Settings > OBConfig-Defaults. Kein implizites Override — jede Stufe ist transparent nachvollziehbar.
+19. **Error Sanitization** - API-Responses enthalten niemals Stacktraces oder interne Fehlermeldungen. Alle unerwarteten Fehler → `logger.exception()` (server-seitig) + generisches `"Interner Serverfehler"` (client-seitig).
+20. **Pairing Race Protection** - `create_pairing()` und `lock_pairing()` verwenden `with_for_update()` Row-Level Locks. Verhindert, dass konkurrierende Requests dasselbe Lot doppelt allokieren.
 
 ## Styling-Konventionen (Frontend)
 
@@ -520,7 +537,9 @@ Simuliert das Handeln an erkannten Orderblock-Zonen nach der **Triple-Barrier-Me
 - **Niemals Secrets committen** - `.env` ist in `.gitignore`
 - API-Keys verschlüsselt oder im Secret Manager
 - Environment Variables für Konfiguration
-- Strukturiertes Logging ohne Secret-Exposure
+- **Error Message Sanitization** - Alle API-Routes geben generische Fehlermeldungen (`"Interner Serverfehler"`) zurueck, keine Stacktraces oder interne Details an Client. Fehler werden server-seitig via `logger.exception()` geloggt.
+- **Input Validation** - `market_price` Parameter wird auf NaN, Inf und negative Werte geprueft (HTTP 400). Decimal-Werte werden als String transportiert um Praezisionsverlust zu vermeiden.
+- **Race Condition Protection** - Pairing-Service verwendet Row-Level Locking (`with_for_update()`) bei Create und Lock, verhindert konkurrierende Pairing-Erstellungen auf denselben Lots.
 - **Test-Keys getrennt** - `TEST_BINANCE_API_KEY` in `.env`, automatisch via `conftest.py` verwendet
 - **Max Order-Wert** - Konfigurierbares Limit pro User (Default: 1000 EUR, via Settings-Seite)
 - **Transaction-Safety** - SQLAlchemy Sessions mit Auto-Commit/Rollback (`yield`-Pattern in `get_db()`)
@@ -602,10 +621,11 @@ KPIs: EUR verfügbar, BTC Bestand + Marktwert, External Net EUR, Realisierte/Unr
 Ein Pairing = Set von TradeLots (ggf. Teilmengen).
 - `net_pnl_pct >= threshold_pct` → verkaufsfähig
 
-#### 2.3.3 Algorithmus (Heuristik v1)
+#### 2.3.3 Algorithmus (Heuristik v1.2)
 1. Sortiere: Gewinner absteigend, Verlierer aufsteigend nach P&L%
-2. Pro Gewinner: Verlierer hinzufügen bis Threshold erreicht
-3. Ausgabe: Pairing-Vorschläge mit Netto-Effekt
+2. Pro Gewinner: Verlierer hinzufuegen bis Threshold erreicht
+3. Minimum 2 Lots pro Pairing (einzelne profitable Lots direkt per Sell-Order verkaufbar)
+4. Ausgabe: Pairing-Vorschlaege mit Netto-Effekt
 
 #### 2.3.4 Simulation (Pflicht vor Ausführung)
 Zeigt: betroffene Lots, erwartete P&L, Fees, verbleibende Bestände
@@ -757,15 +777,20 @@ Persistierbar pro User in Settings (`ob_interval`, `ob_atr_multiplier`, `ob_targ
 
 ---
 
-## 4. Offene Punkte
-- Aggregierte Pairing-Orders (v1.1+)
-- Frontend-Tests (Vitest)
-- Auto-Order Trigger-Logik
-- WebSocket für Realtime-Sync
-- Sentiment History Persistierung (SentimentHistoryDB Tabelle + `/api/sentiment/{user_id}/history`)
-- Combined Score: MacroSignal + Sentiment (Timing + Sizing)
-- Social Sentiment (Twitter/X, Reddit via LunarCrush/Santiment)
-- Echte On-Chain-Daten (Glassnode/CryptoQuant)
+## 4. Offene Punkte (priorisierte Roadmap)
+
+| Prio | Item | Bewertung | Abhaengigkeiten |
+|------|------|-----------|-----------------|
+| 1 | **Auto-Order Automation** (Trigger-basiert) | **HOCH** — Groesster operativer Hebel. Trigger-System ("Sell bei Break-even + X%") reduziert manuellen Aufwand massiv. Kernfeature fuer Automatisierungsgrad. | Hardening (Prio 4) vor Produktiveinsatz |
+| 2 | **Combined Score** (MacroSignal + Sentiment) | **MITTEL-HOCH** — Zusammenfuehrung Timing (MacroSignal) x Sizing (Sentiment) zu einheitlicher Handlungsempfehlung. Konzeptionell klar, technisch ueberschaubar. | Sentiment History (Prio 3) fuer Backtesting-Validierung |
+| 3 | **Sentiment History Persistierung** | **MITTEL** — `SentimentHistoryDB` Tabelle + `/api/sentiment/{user_id}/history` Endpoint. Periodische Snapshots fuer Trendanalyse und Combined-Score-Backtesting. | — |
+| 4 | **Hardening** (Monitoring, Alerting, Rate-Limit) | **MITTEL** — Health-Checks, Binance 429-Handling, Alerting bei Sync-Fehlern / Balance-Diskrepanzen. Notwendig vor produktivem Auto-Order-Einsatz. | — |
+| 5 | **Frontend-Tests** (Vitest) | **MITTEL** — 18 Backend-Testdateien, null Frontend-Tests. Regressionsrisiko steigt. Kritische Flows zuerst: Pairing-Lifecycle, Lot-Filter, Formatter-Utils. | — |
+| 6 | **Aggregierte Pairing-Orders** (v1.1+) | **NIEDRIG-MITTEL** — Separate Order pro Lot → aggregierte Order. Spart Fees, aber komplex (Teilausfuehrungen, Referenzierung). Erst relevant bei hoher Lot-Anzahl. | — |
+| 7 | **Social Sentiment** (Twitter/X, Reddit) | **NIEDRIG** — LunarCrush/Santiment. Marginaler Mehrwert bei hohen API-Kosten und Noise. 5-Pillar Engine v3 bereits robust. | Combined Score (Prio 2) stabil |
+| 8 | **Echte On-Chain-Daten** (Glassnode/CryptoQuant) | **NIEDRIG** — APIs teuer (~$39/Monat+), Mehrwert fuer Spot-Trading begrenzt. Aktuelle Pillars decken wichtigste Signale ab. | Combined Score (Prio 2) stabil |
+
+**Hinweis:** WebSocket Realtime-Sync Phase 1+2 bereits implementiert (`cd7fbc2`). Phase 3 (Fill-Events, automatische Lot-Aktualisierung) kann parallel zu jedem Schritt nachgezogen werden.
 
 ## 5. Akzeptanzkriterien
 - Break-even und P&L reproduzierbar aus Ledger

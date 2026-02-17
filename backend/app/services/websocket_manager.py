@@ -332,9 +332,37 @@ class BinanceStreamManager:
 
         await self._broadcast_to_user(user_id, message)
 
-        # DB-Update async ausfuehren
+        # Phase 2: DB-Update async ausfuehren
         from app.services.websocket_event_handler import handle_order_update
         asyncio.create_task(handle_order_update(user_id, message))
+
+        # Phase 3: Fill-Verarbeitung bei Trade-Ausfuehrung
+        trade_id = data.get("t", 0)
+        order_status = data.get("X", "")
+        if trade_id and trade_id > 0 and order_status in ("FILLED", "PARTIALLY_FILLED"):
+            asyncio.create_task(self._process_fill_and_broadcast(user_id, data))
+
+    async def _process_fill_and_broadcast(self, user_id: str, data: dict):
+        """
+        Phase 3: Verarbeitet Fill und broadcastet Ergebnis.
+
+        Der Fill Handler laeuft im Thread-Pool (non-blocking).
+        Bei Fehler wird nur geloggt — WebSocket laeuft weiter.
+        """
+        from app.services.websocket_fill_handler import handle_fill_event
+
+        try:
+            result = await handle_fill_event(user_id, data)
+
+            if result:
+                fill_message = {
+                    "type": "fill_processed",
+                    "data": result,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }
+                await self._broadcast_to_user(user_id, fill_message)
+        except Exception as e:
+            logger.error("Phase 3 Fill-Verarbeitung fehlgeschlagen: %s", e)
 
     async def _handle_account_update(self, user_id: str, data: dict):
         """Verarbeitet Balance-Updates von Binance."""
