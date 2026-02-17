@@ -28,7 +28,7 @@ const SortIcon = ({ sortConfig, col }) => {
   return <span className="sort-icon sort-active">{SORT_ICON[sortConfig.dir]}</span>;
 };
 
-const Orderblock = ({ userId = 'user_123' }) => {
+const Orderblock = ({ userId = 'user_123', marketPrice }) => {
   const queryClient = useQueryClient();
 
   // ─── State ───
@@ -38,7 +38,7 @@ const Orderblock = ({ userId = 'user_123' }) => {
   const [convictionFilter, setConvictionFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [confluenceFilter, setConfluenceFilter] = useState('');
-  const [zoneSortConfig, setZoneSortConfig] = useState({ key: 'formed_at', dir: 'desc' });
+  const [zoneSortConfig, setZoneSortConfig] = useState({ key: 'price_distance', dir: 'asc' });
   const [tradeSortConfig, setTradeSortConfig] = useState({ key: null, dir: 'asc' });
   const [analyzeResult, setAnalyzeResult] = useState(null);
   const [message, setMessage] = useState(null);
@@ -127,10 +127,28 @@ const Orderblock = ({ userId = 'user_123' }) => {
     return z;
   }, [allZones, zoneStateFilter, convictionFilter, categoryFilter, confluenceFilter]);
 
+  // Distanz vom Marktpreis zur Zone (0 wenn Preis innerhalb der Zone)
+  const zoneDistance = (zone, mp) => {
+    const top = parseFloat(zone.zone_top) || 0;
+    const bottom = parseFloat(zone.zone_bottom) || 0;
+    if (mp >= bottom && mp <= top) return 0;
+    return Math.min(Math.abs(mp - top), Math.abs(mp - bottom));
+  };
+
   const sortedZones = useMemo(() => {
     if (!zoneSortConfig.key) return filteredZones;
     return [...filteredZones].sort((a, b) => {
-      let av = a[zoneSortConfig.key], bv = b[zoneSortConfig.key];
+      let av, bv;
+      if (zoneSortConfig.key === 'price_distance') {
+        const mp = marketPrice || 0;
+        av = zoneDistance(a, mp);
+        bv = zoneDistance(b, mp);
+        const cmp = zoneSortConfig.dir === 'asc' ? av - bv : bv - av;
+        if (cmp !== 0) return cmp;
+        // Sekundaer: hoechster Score zuerst
+        return (parseFloat(b.conviction_score) || 0) - (parseFloat(a.conviction_score) || 0);
+      }
+      av = a[zoneSortConfig.key]; bv = b[zoneSortConfig.key];
       if (zoneSortConfig.key === 'conviction_score' || zoneSortConfig.key === 'zone_top') {
         av = parseFloat(av) || 0; bv = parseFloat(bv) || 0;
       }
@@ -138,7 +156,7 @@ const Orderblock = ({ userId = 'user_123' }) => {
       if (av > bv) return zoneSortConfig.dir === 'asc' ? 1 : -1;
       return 0;
     });
-  }, [filteredZones, zoneSortConfig]);
+  }, [filteredZones, zoneSortConfig, marketPrice]);
 
   const trades = analyzeResult?.trades || [];
   const sortedTrades = useMemo(() => {
@@ -501,6 +519,9 @@ const Orderblock = ({ userId = 'user_123' }) => {
                 <th onClick={() => handleZoneSort('zone_top')}>
                   Zone Range <SortIcon sortConfig={zoneSortConfig} col="zone_top" />
                 </th>
+                <th onClick={() => handleZoneSort('price_distance')}>
+                  Distanz <SortIcon sortConfig={zoneSortConfig} col="price_distance" />
+                </th>
                 <th onClick={() => handleZoneSort('formed_at')}>
                   Formed At <SortIcon sortConfig={zoneSortConfig} col="formed_at" />
                 </th>
@@ -571,6 +592,13 @@ const Orderblock = ({ userId = 'user_123' }) => {
                   <td>
                     <div className="cell-mono">{formatEUR(zone.zone_top)}</div>
                     <div className="cell-secondary">{formatEUR(zone.zone_bottom)}</div>
+                  </td>
+                  <td>
+                    {marketPrice ? (
+                      <span className="cell-mono">
+                        {formatEUR(zoneDistance(zone, marketPrice))}
+                      </span>
+                    ) : '—'}
                   </td>
                   <td>{formatDate(zone.formed_at)} {formatTime(zone.formed_at)}</td>
                 </tr>

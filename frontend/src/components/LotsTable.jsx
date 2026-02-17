@@ -10,6 +10,9 @@ import OpenOrdersPanel from './OpenOrdersPanel';
 import { formatNumber, formatEUR, formatBTC, formatDate, formatTime } from '../utils/formatters';
 import './LotsTable.css';
 
+// Preis auf 50 EUR runden, damit der queryKey nicht bei jedem Tick wechselt
+const roundPrice = (p) => Math.round(p / 50) * 50;
+
 const LotsTable = ({ userId = 'user_123', marketPrice = 50000 }) => {
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState(null);
@@ -253,8 +256,10 @@ const LotsTable = ({ userId = 'user_123', marketPrice = 50000 }) => {
   });
 
   // Portfolio wird per WebSocket balance_update Event invalidiert
+  // stablePrice im queryKey: Refetch nur bei >= 50 EUR Aenderung
+  const stablePrice = roundPrice(marketPrice);
   const { data: portfolio } = useQuery({
-    queryKey: ['portfolio', userId, marketPrice],
+    queryKey: ['portfolio', userId, stablePrice],
     queryFn: () => getPortfolio(userId, marketPrice),
     enabled: !!marketPrice,
   });

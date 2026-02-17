@@ -130,6 +130,15 @@ code {
   font-size: 20px;
   font-weight: bold;
   color: #ffd700;
+  transition: color 0.3s ease;
+}
+
+.price-value.price-up {
+  color: #4ade80;
+}
+
+.price-value.price-down {
+  color: #f87171;
 }
 
 .price-update {
@@ -140,6 +149,50 @@ code {
 .price-loading {
   font-size: 14px;
   opacity: 0.8;
+}
+
+/* Flash-Animation bei starker Kursaenderung */
+.live-price.price-flash {
+  animation: price-flash-pulse 0.6s ease-in-out 3;
+}
+
+@keyframes price-flash-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+  50% {
+    box-shadow: 0 0 16px 4px rgba(250, 204, 21, 0.5);
+  }
+}
+
+/* Alert-Badge fuer starke Kursaenderung */
+.price-alert {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+  animation: alert-fade-in 0.3s ease-out;
+}
+
+.price-alert-up {
+  background: rgba(22, 163, 74, 0.35);
+  color: #4ade80;
+}
+
+.price-alert-down {
+  background: rgba(220, 38, 38, 0.35);
+  color: #f87171;
+}
+
+@keyframes alert-fade-in {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 .ws-status {

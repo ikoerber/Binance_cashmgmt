@@ -6,15 +6,21 @@ import { getPortfolio, getDailyPerformance } from '../api/client';
 import { formatNumber, formatEUR, formatBTC } from '../utils/formatters';
 import './Dashboard.css';
 
+// Preis auf 50 EUR runden, damit der queryKey nicht bei jedem Tick wechselt
+const roundPrice = (p) => Math.round(p / 50) * 50;
+
 const Dashboard = ({ userId = 'user_123', marketPrice = 50000 }) => {
+  const stablePrice = roundPrice(marketPrice);
+
   // Portfolio wird per WebSocket balance_update Event invalidiert (kein Polling noetig)
+  // stablePrice im queryKey: Refetch nur bei >= 50 EUR Aenderung
   const { data: portfolio, isLoading, error } = useQuery({
-    queryKey: ['portfolio', userId, marketPrice],
+    queryKey: ['portfolio', userId, stablePrice],
     queryFn: () => getPortfolio(userId, marketPrice),
   });
 
   const { data: daily } = useQuery({
-    queryKey: ['daily-performance', userId, marketPrice],
+    queryKey: ['daily-performance', userId, stablePrice],
     queryFn: () => getDailyPerformance(userId, marketPrice),
   });
 
@@ -95,37 +101,6 @@ const Dashboard = ({ userId = 'user_123', marketPrice = 50000 }) => {
           </div>
         </div>
       )}
-
-      {/* Detail-Kacheln */}
-      <div className="dashboard-grid">
-        {/* Marktpreis */}
-        <div className="card">
-          <h3>Aktueller Marktpreis</h3>
-          <div className="value large">{formatCurrency(marketPrice)}</div>
-        </div>
-
-        {/* Break-even */}
-        <div className="card">
-          <h3>Portfolio Break-even</h3>
-          <div className="value">
-            {portfolio.break_even ? formatCurrency(portfolio.break_even) : 'N/A'}
-          </div>
-          <div className="sub-value">
-            Kostenbasis: {formatCurrency(portfolio.btc_cost_basis_eur)}
-          </div>
-        </div>
-
-        {/* Zielpreis */}
-        <div className="card">
-          <h3>Zielpreis (5%)</h3>
-          <div className="value">
-            {portfolio.target_price ? formatCurrency(portfolio.target_price) : 'N/A'}
-          </div>
-          <div className="sub-value">
-            Margin: {portfolio.target_margin_pct ? `${parseFloat(portfolio.target_margin_pct) * 100}%` : 'N/A'}
-          </div>
-        </div>
-      </div>
 
       <div className="info-box">
         <p><strong>Letzte Aktualisierung:</strong> {new Date(portfolio.timestamp).toLocaleString('de-DE')}</p>

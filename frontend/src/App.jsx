@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, memo } from 'react';
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
 import Dashboard from './components/Dashboard';
 import LotsTable from './components/LotsTable';
@@ -10,6 +10,13 @@ import Orderblock from './components/Orderblock';
 import { WebSocketProvider, useLivePrice } from './contexts/WebSocketContext';
 import { getServerIp } from './api/client';
 import './App.css';
+
+// Memoize Komponenten, die nicht vom Preis abhaengen
+const MemoReconciliation = memo(Reconciliation);
+const MemoSettings = memo(Settings);
+const MemoMacroSignal = memo(MacroSignal);
+const MemoSentiment = memo(Sentiment);
+const MemoOrderblock = memo(Orderblock);
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -25,7 +32,7 @@ function AppContent() {
   const userId = 'user_123';
   
   // Live BTC/EUR Preis
-  const { price: marketPrice, loading: priceLoading, lastUpdate, source: priceSource } = useLivePrice('BTCEUR', 10000);
+  const { price: marketPrice, loading: priceLoading, lastUpdate, source: priceSource, direction, changePct, isFlashing } = useLivePrice('BTCEUR', 10000);
 
   // Server Public IP (für Binance Whitelisting)
   const { data: serverIpData } = useQuery({
@@ -40,18 +47,25 @@ function AppContent() {
       <nav className="navbar">
         <div className="navbar-content">
           <h1>💰 BTC/EUR Cashflow Management</h1>
-          <div className="live-price">
+          <div className={`live-price ${isFlashing ? 'price-flash' : ''}`}>
             {priceLoading ? (
               <span className="price-loading">Lade Preis...</span>
             ) : (
               <>
                 <span className="price-label">Live BTC/EUR:</span>
-                <span className="price-value">
-                  {marketPrice ? marketPrice.toLocaleString('de-DE', { 
-                    minimumFractionDigits: 2, 
-                    maximumFractionDigits: 2 
+                <span className={`price-value ${direction === 'up' ? 'price-up' : direction === 'down' ? 'price-down' : ''}`}>
+                  {direction === 'up' && '▲ '}
+                  {direction === 'down' && '▼ '}
+                  {marketPrice ? marketPrice.toLocaleString('de-DE', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
                   }) : '—'} €
                 </span>
+                {isFlashing && (
+                  <span className={`price-alert ${direction === 'up' ? 'price-alert-up' : 'price-alert-down'}`}>
+                    {changePct.toFixed(2)}%
+                  </span>
+                )}
                 <span className="price-update">
                   {lastUpdate ? `(${lastUpdate.toLocaleTimeString('de-DE')})` : ''}
                 </span>
@@ -122,19 +136,19 @@ function AppContent() {
           <LotsTable userId={userId} marketPrice={marketPrice || 50000} />
         )}
         {currentView === 'macro' && (
-          <MacroSignal userId={userId} />
+          <MemoMacroSignal userId={userId} />
         )}
         {currentView === 'sentiment' && (
-          <Sentiment userId={userId} />
+          <MemoSentiment userId={userId} />
         )}
         {currentView === 'orderblock' && (
-          <Orderblock userId={userId} />
+          <MemoOrderblock userId={userId} marketPrice={marketPrice} />
         )}
         {currentView === 'reconciliation' && (
-          <Reconciliation userId={userId} />
+          <MemoReconciliation userId={userId} />
         )}
         {currentView === 'settings' && (
-          <Settings userId={userId} />
+          <MemoSettings userId={userId} />
         )}
       </div>
 

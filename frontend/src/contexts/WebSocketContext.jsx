@@ -182,6 +182,11 @@ export const useWebSocket = () => {
  *
  * Nutzt WebSocket wenn verbunden, faellt automatisch auf REST-Polling zurueck.
  */
+// Schwellwert fuer "starke Aenderung" in Prozent
+const LARGE_CHANGE_THRESHOLD_PCT = 1.0;
+// Dauer der Flash-Animation in ms
+const FLASH_DURATION_MS = 3000;
+
 export const useLivePrice = (symbol = 'BTCEUR', intervalMs = 10000) => {
   const { connected, price: wsPrice, priceLastUpdate } = useWebSocket();
 
@@ -190,6 +195,51 @@ export const useLivePrice = (symbol = 'BTCEUR', intervalMs = 10000) => {
   const [pollingLoading, setPollingLoading] = useState(true);
   const [pollingError, setPollingError] = useState(null);
   const [pollingLastUpdate, setPollingLastUpdate] = useState(null);
+
+  // Richtung und Aenderungstracking
+  const prevPriceRef = useRef(null);
+  const [direction, setDirection] = useState(null); // 'up' | 'down' | null
+  const [changePct, setChangePct] = useState(0);
+  const [isFlashing, setIsFlashing] = useState(false);
+  const flashTimeoutRef = useRef(null);
+
+  // Aktuellen Preis bestimmen (WS oder Polling)
+  const currentPrice = (connected && wsPrice !== null) ? wsPrice : pollingPrice;
+
+  // Richtung und Aenderung berechnen wenn sich der Preis aendert
+  useEffect(() => {
+    if (currentPrice === null) return;
+
+    const prev = prevPriceRef.current;
+    if (prev !== null && prev !== currentPrice) {
+      // Richtung
+      if (currentPrice > prev) {
+        setDirection('up');
+      } else if (currentPrice < prev) {
+        setDirection('down');
+      }
+
+      // Prozentuale Aenderung
+      const pctChange = Math.abs(((currentPrice - prev) / prev) * 100);
+      setChangePct(pctChange);
+
+      // Flash bei starker Aenderung
+      if (pctChange >= LARGE_CHANGE_THRESHOLD_PCT) {
+        setIsFlashing(true);
+        if (flashTimeoutRef.current) clearTimeout(flashTimeoutRef.current);
+        flashTimeoutRef.current = setTimeout(() => setIsFlashing(false), FLASH_DURATION_MS);
+      }
+    }
+
+    prevPriceRef.current = currentPrice;
+  }, [currentPrice]);
+
+  // Cleanup Flash-Timeout
+  useEffect(() => {
+    return () => {
+      if (flashTimeoutRef.current) clearTimeout(flashTimeoutRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     // Kein Polling noetig wenn WebSocket Preis liefert
@@ -230,6 +280,8 @@ export const useLivePrice = (symbol = 'BTCEUR', intervalMs = 10000) => {
     };
   }, [connected, wsPrice, symbol, intervalMs]);
 
+  const extra = { direction, changePct, isFlashing };
+
   // WebSocket hat Prioritaet
   if (connected && wsPrice !== null) {
     return {
@@ -238,6 +290,7 @@ export const useLivePrice = (symbol = 'BTCEUR', intervalMs = 10000) => {
       error: null,
       lastUpdate: priceLastUpdate,
       source: 'websocket',
+      ...extra,
     };
   }
 
@@ -248,5 +301,6 @@ export const useLivePrice = (symbol = 'BTCEUR', intervalMs = 10000) => {
     error: pollingError,
     lastUpdate: pollingLastUpdate,
     source: 'polling',
+    ...extra,
   };
 };
