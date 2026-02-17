@@ -492,6 +492,19 @@
   color: #64748b;
 }
 
+.import-source-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  background: #f1f5f9;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  font-family: inherit;
+  letter-spacing: 0.2px;
+}
+
 .lots-table td.date,
 .lots-table td.time {
   white-space: nowrap;
@@ -765,4 +778,31 @@
   .lots-summary {
     grid-template-columns: 1fr;
   }
+}
+
+/* ─── Lot Merge ─── */
+.lot-merge-group {
+  border-left: 3px solid #6366f1;
+}
+
+.btn-merge {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: white;
+  border: none;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+  margin-left: 6px;
+  transition: opacity 0.15s;
+}
+
+.btn-merge:hover {
+  opacity: 0.9;
+}
+
+.btn-merge:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }

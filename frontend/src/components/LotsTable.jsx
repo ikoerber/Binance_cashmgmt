@@ -1,9 +1,9 @@
 /**
  * LotsTable - Zeigt alle TradeLots mit Filtern und Binance-Sync
  */
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getLots, getOrdersForUser, syncLots, createOrderForLot, listPairings, getPortfolio } from '../api/client';
+import { getLots, getOrdersForUser, syncLots, createOrderForLot, listPairings, getPortfolio, getMergeGroups, mergeLots } from '../api/client';
 import PairingPanel from './PairingPanel';
 import LotFilters from './LotFilters';
 import OpenOrdersPanel from './OpenOrdersPanel';
@@ -114,6 +114,45 @@ const LotsTable = ({ userId = 'user_123', marketPrice = 50000 }) => {
     },
   });
 
+  // Merge Groups Query
+  const { data: mergeGroupsData } = useQuery({
+    queryKey: ['merge-groups', userId],
+    queryFn: () => getMergeGroups(userId),
+  });
+
+  // Merge-Lookup: lotId -> mergeGroup
+  const mergeGroupByLotId = useMemo(() => {
+    const map = {};
+    for (const group of mergeGroupsData?.groups || []) {
+      for (const lot of group.lots) {
+        map[lot.id] = group;
+      }
+    }
+    return map;
+  }, [mergeGroupsData]);
+
+  // Merge Mutation
+  const mergeMutation = useMutation({
+    mutationFn: ({ lotIds }) => mergeLots(userId, lotIds),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['lots'] });
+      queryClient.invalidateQueries({ queryKey: ['portfolio'] });
+      queryClient.invalidateQueries({ queryKey: ['merge-groups'] });
+      setSyncMessage({
+        type: 'success',
+        text: `${data.merged_count} Lot${data.merged_count !== 1 ? 's' : ''} zusammengefasst`,
+      });
+      setTimeout(() => setSyncMessage(null), 8000);
+    },
+    onError: (error) => {
+      setSyncMessage({
+        type: 'error',
+        text: error.response?.data?.detail || error.message,
+      });
+      setTimeout(() => setSyncMessage(null), 8000);
+    },
+  });
+
   // Lots werden per WebSocket order_update Event invalidiert (kein Polling noetig)
   const { data: lotsData, isLoading, error } = useQuery({
     queryKey: ['lots', userId, statusFilter, fromDate, toDate],
@@ -151,6 +190,20 @@ const LotsTable = ({ userId = 'user_123', marketPrice = 50000 }) => {
     });
     return sortDirection === 'desc' ? sorted.reverse() : sorted;
   }, [lotsData, orderFilter, showClosed, sortColumn, sortDirection]);
+
+  // Stale Selections bereinigen: IDs entfernen die nicht mehr in den sichtbaren Lots sind
+  useEffect(() => {
+    if (selectedLotIds.size === 0) return;
+    const visibleIds = new Set(lots.map((lot) => lot.id));
+    const stale = [...selectedLotIds].filter((id) => !visibleIds.has(id));
+    if (stale.length > 0) {
+      setSelectedLotIds((prev) => {
+        const next = new Set(prev);
+        stale.forEach((id) => next.delete(id));
+        return next;
+      });
+    }
+  }, [lots]);
 
   const selectAllVisible = () => {
     const openLotIds = lots
@@ -403,7 +456,7 @@ const LotsTable = ({ userId = 'user_123', marketPrice = 50000 }) => {
                 const isProfitable = unrealizedPnl >= 0;
 
                 return (
-                  <tr key={lot.id} className={`${selectedLotIds.has(lot.id) ? 'lot-selected' : ''} ${highlightedLotIds.has(lot.id) ? 'lot-highlighted' : ''}`}>
+                  <tr key={lot.id} className={`${selectedLotIds.has(lot.id) ? 'lot-selected' : ''} ${highlightedLotIds.has(lot.id) ? 'lot-highlighted' : ''} ${mergeGroupByLotId[lot.id] ? 'lot-merge-group' : ''}`}>
                     <td className="checkbox-col">
                       {lot.status !== 'CLOSED' && (
                         <input
@@ -413,7 +466,30 @@ const LotsTable = ({ userId = 'user_123', marketPrice = 50000 }) => {
                         />
                       )}
                     </td>
-                    <td className="order-id">{lot.binance_order_id || '-'}</td>
+                    <td className="order-id">
+                      {lot.binance_order_id || (lot.import_source === 'trading_bots_csv' ? <span className="import-source-badge">Bot-Import</span> : '–')}
+                      {mergeGroupByLotId[lot.id] && (
+                        <button
+                          className="btn-merge"
+                          onClick={() => {
+                            const group = mergeGroupByLotId[lot.id];
+                            const lotIds = group.lots.map((l) => l.id);
+                            if (
+                              window.confirm(
+                                `${lotIds.length} Lots der Order ${group.binance_order_id} zusammenfassen?\n` +
+                                  `Gesamt: ${formatBTC(group.total_qty_btc)} BTC, ${formatEUR(group.total_cost_eur)}`
+                              )
+                            ) {
+                              mergeMutation.mutate({ lotIds });
+                            }
+                          }}
+                          disabled={mergeMutation.isPending}
+                          title="Partial Fills zusammenfassen"
+                        >
+                          Zusammenfassen
+                        </button>
+                      )}
+                    </td>
                     <td className="date">{formatDate(lot.created_at)}</td>
                     <td className="time">{formatTime(lot.created_at)}</td>
                     <td>{formatBTC(lot.qty_btc_initial)}</td>

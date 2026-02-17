@@ -39,6 +39,7 @@ class LotStatus(Enum):
     OPEN = "OPEN"
     PARTIAL_CLOSED = "PARTIAL_CLOSED"
     CLOSED = "CLOSED"
+    MERGED = "MERGED"
 
 
 class AllocationStrategy(Enum):

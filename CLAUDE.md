@@ -53,7 +53,7 @@ BTC/EUR Cashflow-Management & Automation App für Binance Spot Trading. Ledger-b
 
 **Backend:** Python 3 + FastAPI, SQLAlchemy 2, Alembic, python-binance
 **Frontend:** React 19 + Vite 7, TanStack Query, Axios, Recharts
-**Datenbank:** PostgreSQL (Prod) / SQLite (Dev)
+**Datenbank:** SQLite (Alembic mit `render_as_batch=True` fuer volle Migrations-Kompatibilitaet)
 **Testing:** pytest (Backend), ruff + black (Linting)
 **Infrastruktur:** Redis (geplant für Celery/RQ Worker)
 

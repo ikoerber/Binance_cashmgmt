@@ -17,8 +17,7 @@ def init_db(database_url: str):
 
     Args:
         database_url: SQLAlchemy Database URL
-                      z.B. "postgresql://user:pass@localhost/db"
-                      oder "sqlite:///./cashmgnt.db" für Development
+                      z.B. "sqlite:///./cashmgnt.db"
     """
     global engine, SessionLocal
 

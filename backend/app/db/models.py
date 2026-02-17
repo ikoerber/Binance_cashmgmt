@@ -49,6 +49,7 @@ class LotStatusEnum(str, enum.Enum):
     OPEN = "OPEN"
     PARTIAL_CLOSED = "PARTIAL_CLOSED"
     CLOSED = "CLOSED"
+    MERGED = "MERGED"
 
 
 class OrderStatusEnum(str, enum.Enum):
@@ -169,6 +170,10 @@ class TradeLotDB(Base):
     status = Column(SQLEnum(LotStatusEnum), nullable=False, default=LotStatusEnum.OPEN)
     target_margin_pct = Column(Numeric(precision=10, scale=6), nullable=True)
     auto_order_enabled = Column(Boolean, default=False, nullable=False)
+
+    # Merge-Tracking (Soft-Delete)
+    merged_into_lot_id = Column(String, ForeignKey("trade_lots.id"), nullable=True)
+    merged_at = Column(DateTime, nullable=True)
 
     # Relationships
     user = relationship("User", back_populates="trade_lots")

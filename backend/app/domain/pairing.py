@@ -114,9 +114,9 @@ def suggest_pairings(
                 current_pnl = new_pnl
                 used_losers.add(loser.id)
 
-        # Nur Pairing erstellen, wenn >= Threshold
+        # Nur Pairing erstellen, wenn >= Threshold UND mindestens 2 Lots (Gewinner + Verlierer)
         final_pnl_pct = current_pnl / current_cost if current_cost > 0 else Decimal("0")
-        if final_pnl_pct >= threshold_pct:
+        if final_pnl_pct >= threshold_pct and len(items) >= 2:
             pairing = Pairing(
                 id=f"pairing_{uuid.uuid4().hex[:8]}",
                 items=items,

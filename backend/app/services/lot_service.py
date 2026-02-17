@@ -1,4 +1,5 @@
 """TradeLot Service - DB Integration für Lot-Management"""
+
 from datetime import datetime
 from decimal import Decimal
 from typing import List, Optional, Dict, Any
@@ -18,7 +19,21 @@ from app.domain.lots import (
     _sort_lots_by_strategy,
 )
 from app.domain.models import LotStatus, TradeLot as DomainLot, AllocationStrategy
-from app.db.models import TradeLotDB, SellAllocationDB, LedgerEventDB, LotStatusEnum, OrderDB, PairingItemDB, UserSettingsDB
+from app.db.models import (
+    TradeLotDB,
+    SellAllocationDB,
+    LedgerEventDB,
+    LotStatusEnum,
+    OrderDB,
+    OrderStatusEnum,
+    PairingItemDB,
+    PairingDB,
+    PairingStatusEnum,
+    EventTypeEnum,
+    EventSourceEnum,
+    UserSettingsDB,
+)
+from app.domain.lot_merge import validate_merge, compute_merge
 
 logger = logging.getLogger(__name__)
 from app.services.portfolio_service import _db_event_to_domain
@@ -31,7 +46,7 @@ def get_lots_for_user(
     from_date: Optional[datetime] = None,
     to_date: Optional[datetime] = None,
     limit: int = 100,
-    offset: int = 0
+    offset: int = 0,
 ) -> List[dict]:
     """
     Holt TradeLots für einen User
@@ -52,6 +67,9 @@ def get_lots_for_user(
 
     if status:
         query = query.filter(TradeLotDB.status == LotStatusEnum[status])
+    else:
+        # Default: MERGED Lots ausblenden
+        query = query.filter(TradeLotDB.status != LotStatusEnum.MERGED)
 
     if from_date:
         query = query.filter(TradeLotDB.created_at >= from_date)
@@ -60,11 +78,7 @@ def get_lots_for_user(
         query = query.filter(TradeLotDB.created_at <= to_date)
 
     lots_db = (
-        query
-        .order_by(desc(TradeLotDB.created_at))
-        .limit(limit)
-        .offset(offset)
-        .all()
+        query.order_by(desc(TradeLotDB.created_at)).limit(limit).offset(offset).all()
     )
 
     return [_lot_db_to_dict(lot_db, db) for lot_db in lots_db]
@@ -118,7 +132,7 @@ def create_lot_from_buy_fill(
     db: Session,
     user_id: str,
     fill_event_id: str,
-    fee_conversion_rates: dict[str, Decimal] | None = None
+    fee_conversion_rates: dict[str, Decimal] | None = None,
 ) -> dict:
     """
     Erstellt TradeLot aus Buy-Fill Event
@@ -139,10 +153,7 @@ def create_lot_from_buy_fill(
     # Event aus DB holen
     event_db = (
         db.query(LedgerEventDB)
-        .filter(
-            LedgerEventDB.id == fill_event_id,
-            LedgerEventDB.user_id == user_id
-        )
+        .filter(LedgerEventDB.id == fill_event_id, LedgerEventDB.user_id == user_id)
         .first()
     )
 
@@ -154,6 +165,16 @@ def create_lot_from_buy_fill(
 
     # TradeLot erstellen (Domain-Logik)
     lot_domain = create_trade_lot_from_buy_fill(event_domain, fee_conversion_rates)
+
+    # Safety-Check: Lot existiert bereits (z.B. nach Merge)?
+    existing = db.query(TradeLotDB).filter(TradeLotDB.id == lot_domain.id).first()
+    if existing:
+        logger.info(
+            "Lot %s already exists (status=%s), skipping creation",
+            lot_domain.id,
+            existing.status.value,
+        )
+        return _lot_db_to_dict(existing, db)
 
     # In DB persistieren
     lot_db = TradeLotDB(
@@ -179,7 +200,7 @@ def process_sell_fill_fifo(
     db: Session,
     user_id: str,
     sell_event_id: str,
-    fee_conversion_rates: dict[str, Decimal] | None = None
+    fee_conversion_rates: dict[str, Decimal] | None = None,
 ) -> dict:
     """
     Verarbeitet Sell-Fill mit FIFO Allocation
@@ -200,10 +221,7 @@ def process_sell_fill_fifo(
     # Sell Event holen
     sell_event_db = (
         db.query(LedgerEventDB)
-        .filter(
-            LedgerEventDB.id == sell_event_id,
-            LedgerEventDB.user_id == user_id
-        )
+        .filter(LedgerEventDB.id == sell_event_id, LedgerEventDB.user_id == user_id)
         .first()
     )
 
@@ -215,10 +233,7 @@ def process_sell_fill_fifo(
     # Offene Lots holen (chronologisch sortiert für FIFO)
     lots_db = (
         db.query(TradeLotDB)
-        .filter(
-            TradeLotDB.user_id == user_id,
-            TradeLotDB.qty_btc_open > 0
-        )
+        .filter(TradeLotDB.user_id == user_id, TradeLotDB.qty_btc_open > 0)
         .order_by(TradeLotDB.created_at.asc())
         .all()
     )
@@ -228,9 +243,7 @@ def process_sell_fill_fifo(
 
     # FIFO Allocation (Domain-Logik)
     updated_lots_domain, allocations_domain = allocate_sell_fifo(
-        sell_event_domain,
-        lots_domain,
-        fee_conversion_rates
+        sell_event_domain, lots_domain, fee_conversion_rates
     )
 
     # In DB persistieren
@@ -255,13 +268,15 @@ def process_sell_fill_fifo(
             created_at=allocation.created_at,
         )
         db.add(alloc_db)
-        allocation_dicts.append({
-            "id": allocation.id,
-            "sell_fill_id": allocation.sell_fill_id,
-            "trade_lot_id": allocation.trade_lot_id,
-            "qty_allocated": str(allocation.qty_allocated),
-            "realized_pnl_eur": str(allocation.realized_pnl_eur),
-        })
+        allocation_dicts.append(
+            {
+                "id": allocation.id,
+                "sell_fill_id": allocation.sell_fill_id,
+                "trade_lot_id": allocation.trade_lot_id,
+                "qty_allocated": str(allocation.qty_allocated),
+                "realized_pnl_eur": str(allocation.realized_pnl_eur),
+            }
+        )
 
     db.flush()
 
@@ -276,7 +291,7 @@ def process_sell_fill_lot_specific(
     user_id: str,
     sell_event_id: str,
     target_lot_id: str,
-    fee_conversion_rates: dict[str, Decimal] | None = None
+    fee_conversion_rates: dict[str, Decimal] | None = None,
 ) -> dict:
     """
     Verarbeitet Sell-Fill mit lot-spezifischer Allocation
@@ -322,7 +337,7 @@ def process_sell_fill_lot_specific(
         .filter(
             TradeLotDB.user_id == user_id,
             TradeLotDB.qty_btc_open > 0,
-            TradeLotDB.id != target_lot_id
+            TradeLotDB.id != target_lot_id,
         )
         .order_by(TradeLotDB.created_at.asc())
         .all()
@@ -334,7 +349,7 @@ def process_sell_fill_lot_specific(
         sell_event_domain,
         target_lot_domain,
         remaining_lots_domain,
-        fee_conversion_rates
+        fee_conversion_rates,
     )
 
     # In DB persistieren
@@ -357,13 +372,15 @@ def process_sell_fill_lot_specific(
             created_at=allocation.created_at,
         )
         db.add(alloc_db)
-        allocation_dicts.append({
-            "id": allocation.id,
-            "sell_fill_id": allocation.sell_fill_id,
-            "trade_lot_id": allocation.trade_lot_id,
-            "qty_allocated": str(allocation.qty_allocated),
-            "realized_pnl_eur": str(allocation.realized_pnl_eur),
-        })
+        allocation_dicts.append(
+            {
+                "id": allocation.id,
+                "sell_fill_id": allocation.sell_fill_id,
+                "trade_lot_id": allocation.trade_lot_id,
+                "qty_allocated": str(allocation.qty_allocated),
+                "realized_pnl_eur": str(allocation.realized_pnl_eur),
+            }
+        )
 
     db.flush()
 
@@ -378,7 +395,7 @@ def process_sell_fill_for_pairing(
     user_id: str,
     sell_event_id: str,
     pairing_id: str,
-    fee_conversion_rates: dict[str, Decimal] | None = None
+    fee_conversion_rates: dict[str, Decimal] | None = None,
 ) -> dict:
     """
     Verarbeitet Sell-Fill mit Pairing-spezifischer Allocation.
@@ -409,15 +426,12 @@ def process_sell_fill_for_pairing(
 
     # Pairing Items holen
     pairing_items = (
-        db.query(PairingItemDB)
-        .filter(PairingItemDB.pairing_id == pairing_id)
-        .all()
+        db.query(PairingItemDB).filter(PairingItemDB.pairing_id == pairing_id).all()
     )
 
     if not pairing_items:
         logger.warning(
-            "No pairing items found for pairing %s — falling back to FIFO",
-            pairing_id
+            "No pairing items found for pairing %s — falling back to FIFO", pairing_id
         )
         return process_sell_fill_fifo(db, user_id, sell_event_id, fee_conversion_rates)
 
@@ -430,7 +444,7 @@ def process_sell_fill_for_pairing(
         .filter(
             TradeLotDB.id.in_(pairing_lot_ids),
             TradeLotDB.user_id == user_id,
-            TradeLotDB.qty_btc_open > 0
+            TradeLotDB.qty_btc_open > 0,
         )
         .all()
     )
@@ -447,7 +461,7 @@ def process_sell_fill_for_pairing(
         .filter(
             TradeLotDB.user_id == user_id,
             TradeLotDB.qty_btc_open > 0,
-            ~TradeLotDB.id.in_(pairing_lot_ids)
+            ~TradeLotDB.id.in_(pairing_lot_ids),
         )
         .all()
     )
@@ -455,12 +469,16 @@ def process_sell_fill_for_pairing(
 
     # Overflow-Lots nach User-Strategie sortieren
     overflow_strategy = _get_user_allocation_strategy(db, user_id)
-    remaining_lots_domain = _sort_lots_by_strategy(remaining_lots_domain, overflow_strategy)
+    remaining_lots_domain = _sort_lots_by_strategy(
+        remaining_lots_domain, overflow_strategy
+    )
 
     # Pairing-Lots zuerst, dann Overflow-Lots (nach User-Strategie)
     all_lots = pairing_lots_domain + remaining_lots_domain
 
-    net_proceeds_per_btc = _compute_net_proceeds_per_btc(sell_event_domain, fee_conversion_rates)
+    net_proceeds_per_btc = _compute_net_proceeds_per_btc(
+        sell_event_domain, fee_conversion_rates
+    )
 
     updated_lots_domain, allocations_domain, remaining = _allocate_qty_to_lots(
         sell_event_domain, all_lots, sell_event_domain.amount, net_proceeds_per_btc
@@ -491,19 +509,24 @@ def process_sell_fill_for_pairing(
             created_at=allocation.created_at,
         )
         db.add(alloc_db)
-        allocation_dicts.append({
-            "id": allocation.id,
-            "sell_fill_id": allocation.sell_fill_id,
-            "trade_lot_id": allocation.trade_lot_id,
-            "qty_allocated": str(allocation.qty_allocated),
-            "realized_pnl_eur": str(allocation.realized_pnl_eur),
-        })
+        allocation_dicts.append(
+            {
+                "id": allocation.id,
+                "sell_fill_id": allocation.sell_fill_id,
+                "trade_lot_id": allocation.trade_lot_id,
+                "qty_allocated": str(allocation.qty_allocated),
+                "realized_pnl_eur": str(allocation.realized_pnl_eur),
+            }
+        )
 
     db.flush()
 
     logger.info(
         "Pairing %s: allocated sell %s to %d lots (%d from pairing)",
-        pairing_id, sell_event_id, len(allocation_dicts), len(pairing_lots_domain)
+        pairing_id,
+        sell_event_id,
+        len(allocation_dicts),
+        len(pairing_lots_domain),
     )
 
     return {
@@ -514,9 +537,9 @@ def process_sell_fill_for_pairing(
 
 def _get_user_allocation_strategy(db: Session, user_id: str) -> AllocationStrategy:
     """Laedt die bevorzugte Sell-Allocation-Strategie des Users aus den Settings."""
-    settings = db.query(UserSettingsDB).filter(
-        UserSettingsDB.user_id == user_id
-    ).first()
+    settings = (
+        db.query(UserSettingsDB).filter(UserSettingsDB.user_id == user_id).first()
+    )
 
     if settings and settings.sell_allocation_strategy:
         try:
@@ -524,7 +547,8 @@ def _get_user_allocation_strategy(db: Session, user_id: str) -> AllocationStrate
         except ValueError:
             logger.warning(
                 "Invalid strategy '%s' for user %s, falling back to FIFO",
-                settings.sell_allocation_strategy, user_id
+                settings.sell_allocation_strategy,
+                user_id,
             )
     return AllocationStrategy.FIFO
 
@@ -534,7 +558,7 @@ def process_sell_fill_with_strategy(
     user_id: str,
     sell_event_id: str,
     strategy: AllocationStrategy = AllocationStrategy.FIFO,
-    fee_conversion_rates: dict[str, Decimal] | None = None
+    fee_conversion_rates: dict[str, Decimal] | None = None,
 ) -> dict:
     """
     Verarbeitet Sell-Fill mit konfigurierbarer Allocation Strategy.
@@ -551,10 +575,7 @@ def process_sell_fill_with_strategy(
     """
     sell_event_db = (
         db.query(LedgerEventDB)
-        .filter(
-            LedgerEventDB.id == sell_event_id,
-            LedgerEventDB.user_id == user_id
-        )
+        .filter(LedgerEventDB.id == sell_event_id, LedgerEventDB.user_id == user_id)
         .first()
     )
 
@@ -565,20 +586,14 @@ def process_sell_fill_with_strategy(
 
     lots_db = (
         db.query(TradeLotDB)
-        .filter(
-            TradeLotDB.user_id == user_id,
-            TradeLotDB.qty_btc_open > 0
-        )
+        .filter(TradeLotDB.user_id == user_id, TradeLotDB.qty_btc_open > 0)
         .all()
     )
 
     lots_domain = [_lot_db_to_domain(lot_db) for lot_db in lots_db]
 
     updated_lots_domain, allocations_domain = allocate_sell_with_strategy(
-        sell_event_domain,
-        lots_domain,
-        strategy,
-        fee_conversion_rates
+        sell_event_domain, lots_domain, strategy, fee_conversion_rates
     )
 
     # In DB persistieren
@@ -601,13 +616,15 @@ def process_sell_fill_with_strategy(
             created_at=allocation.created_at,
         )
         db.add(alloc_db)
-        allocation_dicts.append({
-            "id": allocation.id,
-            "sell_fill_id": allocation.sell_fill_id,
-            "trade_lot_id": allocation.trade_lot_id,
-            "qty_allocated": str(allocation.qty_allocated),
-            "realized_pnl_eur": str(allocation.realized_pnl_eur),
-        })
+        allocation_dicts.append(
+            {
+                "id": allocation.id,
+                "sell_fill_id": allocation.sell_fill_id,
+                "trade_lot_id": allocation.trade_lot_id,
+                "qty_allocated": str(allocation.qty_allocated),
+                "realized_pnl_eur": str(allocation.realized_pnl_eur),
+            }
+        )
 
     db.flush()
 
@@ -621,7 +638,7 @@ def process_sell_fill(
     db: Session,
     user_id: str,
     sell_event_id: str,
-    fee_conversion_rates: dict[str, Decimal] | None = None
+    fee_conversion_rates: dict[str, Decimal] | None = None,
 ) -> dict:
     """
     Routing-Funktion: Entscheidet ob lot-spezifisch, pairing-spezifisch oder User-Strategie
@@ -681,7 +698,8 @@ def process_sell_fill(
         if target_lot_db and target_lot_db.qty_btc_open > 0:
             logger.info(
                 "Sell %s linked to lot %s via order — using lot-specific allocation",
-                sell_event_id, linked_lot_id
+                sell_event_id,
+                linked_lot_id,
             )
             return process_sell_fill_lot_specific(
                 db, user_id, sell_event_id, linked_lot_id, fee_conversion_rates
@@ -689,14 +707,16 @@ def process_sell_fill(
         else:
             logger.warning(
                 "Sell %s linked to lot %s but lot is already closed — falling back to FIFO",
-                sell_event_id, linked_lot_id
+                sell_event_id,
+                linked_lot_id,
             )
 
     # Priority 2: Pairing-spezifische Allocation
     if linked_pairing_id:
         logger.info(
             "Sell %s linked to pairing %s via order — using pairing-specific allocation",
-            sell_event_id, linked_pairing_id
+            sell_event_id,
+            linked_pairing_id,
         )
         return process_sell_fill_for_pairing(
             db, user_id, sell_event_id, linked_pairing_id, fee_conversion_rates
@@ -781,7 +801,9 @@ def sync_and_refresh_lots(
     sync_report["fiat_deposits"] = fiat_report.get("new_deposits", 0)
     sync_report["fiat_withdrawals"] = fiat_report.get("new_withdrawals", 0)
     if "error" in fiat_report:
-        sync_report.setdefault("errors", []).append(f"Fiat sync: {fiat_report['error']}")
+        sync_report.setdefault("errors", []).append(
+            f"Fiat sync: {fiat_report['error']}"
+        )
 
     # Alle Lots nach Sync abrufen (neueste zuerst)
     lots = get_lots_for_user(db, user_id)
@@ -794,8 +816,9 @@ def sync_and_refresh_lots(
 
 
 def _lot_db_to_dict(lot_db: TradeLotDB, db: Session = None) -> dict:
-    """Konvertiert DB Model zu Dict, inkl. Binance Order ID aus raw_payload"""
+    """Konvertiert DB Model zu Dict, inkl. Binance Order ID und Import-Quelle aus raw_payload"""
     binance_order_id = None
+    import_source = None
     if db:
         fill_event = (
             db.query(LedgerEventDB)
@@ -804,6 +827,7 @@ def _lot_db_to_dict(lot_db: TradeLotDB, db: Session = None) -> dict:
         )
         if fill_event and fill_event.raw_payload:
             binance_order_id = str(fill_event.raw_payload.get("orderId", "")) or None
+            import_source = fill_event.raw_payload.get("import_source")
 
     return {
         "id": lot_db.id,
@@ -812,11 +836,18 @@ def _lot_db_to_dict(lot_db: TradeLotDB, db: Session = None) -> dict:
         "qty_btc_initial": str(lot_db.qty_btc_initial),
         "qty_btc_open": str(lot_db.qty_btc_open),
         "cost_eur": str(lot_db.cost_eur),
-        "break_even": str(lot_db.cost_eur / lot_db.qty_btc_initial) if lot_db.qty_btc_initial else "0",
+        "break_even": (
+            str(lot_db.cost_eur / lot_db.qty_btc_initial)
+            if lot_db.qty_btc_initial
+            else "0"
+        ),
         "status": lot_db.status.value,
-        "target_margin_pct": str(lot_db.target_margin_pct) if lot_db.target_margin_pct else None,
+        "target_margin_pct": (
+            str(lot_db.target_margin_pct) if lot_db.target_margin_pct else None
+        ),
         "auto_order_enabled": bool(lot_db.auto_order_enabled),
         "binance_order_id": binance_order_id,
+        "import_source": import_source,
     }
 
 
@@ -832,3 +863,262 @@ def _lot_db_to_domain(lot_db: TradeLotDB) -> DomainLot:
         status=LotStatus[lot_db.status.value],
         target_margin_pct=lot_db.target_margin_pct,
     )
+
+
+# ============================================================
+# Lot Merge
+# ============================================================
+
+
+def _utcnow():
+    """Naive UTC now."""
+    from datetime import timezone
+
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def get_mergeable_groups(db: Session, user_id: str) -> List[dict]:
+    """
+    Gibt Gruppen von OPEN Lots zurueck, die zusammengefasst werden koennen
+    (gleiche binance_order_id, keine Orders/Allocations/Pairings).
+    """
+    from collections import defaultdict
+
+    # 1. Alle OPEN Lots laden
+    open_lots = (
+        db.query(TradeLotDB)
+        .filter(
+            TradeLotDB.user_id == user_id,
+            TradeLotDB.status == LotStatusEnum.OPEN,
+        )
+        .all()
+    )
+
+    if not open_lots:
+        return []
+
+    # 2. Batch-Load Fill-Events fuer binance_order_id
+    fill_ids = [lot.created_from_fill_id for lot in open_lots]
+    fill_events = db.query(LedgerEventDB).filter(LedgerEventDB.id.in_(fill_ids)).all()
+    fill_map = {e.id: e for e in fill_events}
+
+    # 3. Nach binance_order_id gruppieren
+    groups = defaultdict(list)
+    for lot in open_lots:
+        fill = fill_map.get(lot.created_from_fill_id)
+        if fill and fill.raw_payload:
+            order_id = str(fill.raw_payload.get("orderId", "")) or None
+            if order_id:
+                groups[order_id].append(lot)
+
+    # 4. Constraint-Check: Lots mit Orders, Allocations, Pairings ausschliessen
+    lot_ids = [lot.id for lot in open_lots]
+
+    # Aktive Orders (nicht CANCELLED/REJECTED/EXPIRED)
+    terminal_statuses = [
+        OrderStatusEnum.CANCELLED,
+        OrderStatusEnum.REJECTED,
+        OrderStatusEnum.EXPIRED,
+    ]
+    lots_with_orders = set(
+        row[0]
+        for row in db.query(OrderDB.linked_lot_id)
+        .filter(
+            OrderDB.linked_lot_id.in_(lot_ids),
+            ~OrderDB.status.in_(terminal_statuses),
+        )
+        .all()
+    )
+
+    lots_with_allocations = set(
+        row[0]
+        for row in db.query(SellAllocationDB.trade_lot_id)
+        .filter(SellAllocationDB.trade_lot_id.in_(lot_ids))
+        .all()
+    )
+
+    lots_in_pairings = set(
+        row[0]
+        for row in db.query(PairingItemDB.lot_id)
+        .filter(PairingItemDB.lot_id.in_(lot_ids))
+        .join(PairingDB)
+        .filter(PairingDB.status != PairingStatusEnum.EXECUTED)
+        .all()
+    )
+
+    # 5. Nur eligible Gruppen mit 2+ Lots
+    result = []
+    for order_id, lot_list in groups.items():
+        eligible = [
+            lot
+            for lot in lot_list
+            if lot.id not in lots_with_orders
+            and lot.id not in lots_with_allocations
+            and lot.id not in lots_in_pairings
+        ]
+        if len(eligible) >= 2:
+            result.append(
+                {
+                    "binance_order_id": order_id,
+                    "lots": [_lot_db_to_dict(lot, db) for lot in eligible],
+                    "total_qty_btc": str(sum(lot.qty_btc_initial for lot in eligible)),
+                    "total_cost_eur": str(sum(lot.cost_eur for lot in eligible)),
+                }
+            )
+
+    return result
+
+
+def merge_lots(db: Session, user_id: str, lot_ids: List[str]) -> dict:
+    """
+    Fasst die gegebenen Lots zu einem Keeper-Lot zusammen.
+
+    1. Validiert Merge-Berechtigung (Domain-Logik)
+    2. Berechnet aggregierte Werte (Domain-Logik)
+    3. Aktualisiert Keeper-Lot
+    4. Setzt gemergte Lots auf Status MERGED mit merged_into_lot_id
+    5. Erstellt ADJUSTMENT LedgerEvent fuer Audit-Trail
+    """
+    import uuid
+
+    # Lots laden
+    lots_db = (
+        db.query(TradeLotDB)
+        .filter(
+            TradeLotDB.id.in_(lot_ids),
+            TradeLotDB.user_id == user_id,
+        )
+        .all()
+    )
+
+    if len(lots_db) != len(lot_ids):
+        found_ids = {lot.id for lot in lots_db}
+        missing = set(lot_ids) - found_ids
+        raise ValueError(f"Lots nicht gefunden: {missing}")
+
+    # binance_order_ids aus Fill-Events extrahieren
+    fill_ids = [lot.created_from_fill_id for lot in lots_db]
+    fill_events = db.query(LedgerEventDB).filter(LedgerEventDB.id.in_(fill_ids)).all()
+    fill_map = {e.id: e for e in fill_events}
+
+    binance_order_ids = {}
+    for lot in lots_db:
+        fill = fill_map.get(lot.created_from_fill_id)
+        if fill and fill.raw_payload:
+            binance_order_ids[lot.id] = str(fill.raw_payload.get("orderId", "")) or None
+
+    # Constraint-Check
+    terminal_statuses = [
+        OrderStatusEnum.CANCELLED,
+        OrderStatusEnum.REJECTED,
+        OrderStatusEnum.EXPIRED,
+    ]
+    lots_with_orders = set(
+        row[0]
+        for row in db.query(OrderDB.linked_lot_id)
+        .filter(
+            OrderDB.linked_lot_id.in_(lot_ids),
+            ~OrderDB.status.in_(terminal_statuses),
+        )
+        .all()
+    )
+    lots_with_allocations = set(
+        row[0]
+        for row in db.query(SellAllocationDB.trade_lot_id)
+        .filter(SellAllocationDB.trade_lot_id.in_(lot_ids))
+        .all()
+    )
+    lots_in_pairings = set(
+        row[0]
+        for row in db.query(PairingItemDB.lot_id)
+        .filter(PairingItemDB.lot_id.in_(lot_ids))
+        .join(PairingDB)
+        .filter(PairingDB.status != PairingStatusEnum.EXECUTED)
+        .all()
+    )
+
+    # Domain-Validierung
+    lots_domain = [_lot_db_to_domain(lot) for lot in lots_db]
+    validation = validate_merge(
+        lots_domain,
+        binance_order_ids,
+        lots_with_orders,
+        lots_with_allocations,
+        lots_in_pairings,
+    )
+
+    if not validation.valid:
+        raise ValueError(f"Merge nicht moeglich: {'; '.join(validation.errors)}")
+
+    # Domain-Berechnung
+    keeper_domain = next(
+        lot for lot in lots_domain if lot.id == validation.keeper_lot_id
+    )
+    to_merge_domain = [
+        lot for lot in lots_domain if lot.id in validation.merged_lot_ids
+    ]
+    merge_result = compute_merge(keeper_domain, to_merge_domain)
+
+    # Persistieren: Keeper aktualisieren
+    keeper_db = next(lot for lot in lots_db if lot.id == validation.keeper_lot_id)
+    keeper_db.qty_btc_initial = merge_result.new_qty_btc_initial
+    keeper_db.qty_btc_open = merge_result.new_qty_btc_open
+    keeper_db.cost_eur = merge_result.new_cost_eur
+
+    # Persistieren: Gemergte Lots markieren
+    now = _utcnow()
+    for lot_db in lots_db:
+        if lot_db.id in validation.merged_lot_ids:
+            lot_db.status = LotStatusEnum.MERGED
+            lot_db.merged_into_lot_id = validation.keeper_lot_id
+            lot_db.merged_at = now
+            lot_db.qty_btc_open = Decimal("0")
+
+    # Audit-Trail: ADJUSTMENT LedgerEvent
+    binance_oid = next((v for v in binance_order_ids.values() if v), None)
+    adjustment_event = LedgerEventDB(
+        id=f"merge_{validation.keeper_lot_id}_{uuid.uuid4().hex[:8]}",
+        user_id=user_id,
+        type=EventTypeEnum.ADJUSTMENT,
+        timestamp=now,
+        asset="BTC",
+        amount=Decimal("0"),
+        source=EventSourceEnum.ADJUSTMENT,
+        note=f"Lot merge: {validation.merged_lot_ids} -> {validation.keeper_lot_id}",
+        raw_payload={
+            "action": "LOT_MERGE",
+            "keeper_lot_id": validation.keeper_lot_id,
+            "merged_lot_ids": validation.merged_lot_ids,
+            "binance_order_id": binance_oid,
+            "before": {
+                "keeper": {
+                    "qty_initial": str(keeper_domain.qty_btc_initial),
+                    "qty_open": str(keeper_domain.qty_btc_open),
+                    "cost_eur": str(keeper_domain.cost_eur),
+                },
+                "merged": [
+                    {
+                        "lot_id": lot.id,
+                        "qty_initial": str(lot.qty_btc_initial),
+                        "qty_open": str(lot.qty_btc_open),
+                        "cost_eur": str(lot.cost_eur),
+                    }
+                    for lot in to_merge_domain
+                ],
+            },
+            "after": {
+                "qty_initial": str(merge_result.new_qty_btc_initial),
+                "qty_open": str(merge_result.new_qty_btc_open),
+                "cost_eur": str(merge_result.new_cost_eur),
+                "break_even": str(merge_result.new_break_even),
+            },
+        },
+    )
+    db.add(adjustment_event)
+    db.flush()
+
+    return {
+        "keeper": _lot_db_to_dict(keeper_db, db),
+        "merged_lot_ids": validation.merged_lot_ids,
+        "merged_count": len(validation.merged_lot_ids),
+    }

@@ -41,6 +41,17 @@ export const getLotDetail = async (userId, lotId) => {
   return response.data;
 };
 
+// Lot Merge API
+export const getMergeGroups = async (userId) => {
+  const response = await apiClient.get(`/api/lots/${userId}/merge-groups`);
+  return response.data;
+};
+
+export const mergeLots = async (userId, lotIds) => {
+  const response = await apiClient.post(`/api/lots/${userId}/merge`, lotIds);
+  return response.data;
+};
+
 // Orders API
 export const getOrdersForUser = async (userId, status = null) => {
   const response = await apiClient.get(`/api/orders/${userId}/list`, {
