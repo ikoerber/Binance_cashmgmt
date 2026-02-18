@@ -25,7 +25,7 @@ from app.services.pairing_service import (
     create_pairing, get_pairing_by_id, list_pairings, lock_pairing, execute_pairing,
     delete_pairing, simulate_pairing_execution
 )
-from app.services.order_service import compute_pairing_order_params
+from app.domain.orders import compute_pairing_order_params
 from app.db.models import UserSettingsDB
 
 

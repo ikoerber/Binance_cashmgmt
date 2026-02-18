@@ -81,7 +81,19 @@ def get_lots_for_user(
         query.order_by(desc(TradeLotDB.created_at)).limit(limit).offset(offset).all()
     )
 
-    return [_lot_db_to_dict(lot_db, db) for lot_db in lots_db]
+    # Batch-Load Fill-Events (vermeidet N+1 Queries)
+    fill_ids = [lot.created_from_fill_id for lot in lots_db if lot.created_from_fill_id]
+    fill_events = (
+        db.query(LedgerEventDB).filter(LedgerEventDB.id.in_(fill_ids)).all()
+        if fill_ids
+        else []
+    )
+    fill_map = {e.id: e for e in fill_events}
+
+    return [
+        _lot_db_to_dict(lot_db, db, fill_event=fill_map.get(lot_db.created_from_fill_id))
+        for lot_db in lots_db
+    ]
 
 
 def get_lot_detail(db: Session, user_id: str, lot_id: str) -> Optional[dict]:
@@ -231,10 +243,12 @@ def process_sell_fill_fifo(
     sell_event_domain = _db_event_to_domain(sell_event_db)
 
     # Offene Lots holen (chronologisch sortiert für FIFO)
+    # Row-Level Lock: verhindert Race Conditions bei konkurrierenden Sell-Fills
     lots_db = (
         db.query(TradeLotDB)
         .filter(TradeLotDB.user_id == user_id, TradeLotDB.qty_btc_open > 0)
         .order_by(TradeLotDB.created_at.asc())
+        .with_for_update()
         .all()
     )
 
@@ -321,9 +335,11 @@ def process_sell_fill_lot_specific(
     sell_event_domain = _db_event_to_domain(sell_event_db)
 
     # Ziel-Lot holen
+    # Row-Level Lock: verhindert Race Conditions bei konkurrierenden Sell-Fills
     target_lot_db = (
         db.query(TradeLotDB)
         .filter(TradeLotDB.id == target_lot_id, TradeLotDB.user_id == user_id)
+        .with_for_update()
         .first()
     )
     if not target_lot_db:
@@ -332,6 +348,7 @@ def process_sell_fill_lot_specific(
     target_lot_domain = _lot_db_to_domain(target_lot_db)
 
     # Restliche offene Lots für Overflow (FIFO)
+    # Row-Level Lock: konsistent mit Target-Lot Lock
     remaining_lots_db = (
         db.query(TradeLotDB)
         .filter(
@@ -340,6 +357,7 @@ def process_sell_fill_lot_specific(
             TradeLotDB.id != target_lot_id,
         )
         .order_by(TradeLotDB.created_at.asc())
+        .with_for_update()
         .all()
     )
     remaining_lots_domain = [_lot_db_to_domain(lot_db) for lot_db in remaining_lots_db]
@@ -439,6 +457,7 @@ def process_sell_fill_for_pairing(
     pairing_lot_ids = [item.lot_id for item in pairing_items]
 
     # Pairing-Lots laden (nur offene)
+    # Row-Level Lock: verhindert Race Conditions bei konkurrierenden Sell-Fills
     pairing_lots_db = (
         db.query(TradeLotDB)
         .filter(
@@ -446,6 +465,7 @@ def process_sell_fill_for_pairing(
             TradeLotDB.user_id == user_id,
             TradeLotDB.qty_btc_open > 0,
         )
+        .with_for_update()
         .all()
     )
 
@@ -456,6 +476,7 @@ def process_sell_fill_for_pairing(
     pairing_lots_domain = [_lot_db_to_domain(lot_db) for lot_db in pairing_lots_db]
 
     # Restliche offene Lots fuer Overflow (nach User-Strategie sortiert, Pairing-Lots ausgeschlossen)
+    # Row-Level Lock: konsistent mit Pairing-Lots Lock
     remaining_lots_db = (
         db.query(TradeLotDB)
         .filter(
@@ -463,6 +484,7 @@ def process_sell_fill_for_pairing(
             TradeLotDB.qty_btc_open > 0,
             ~TradeLotDB.id.in_(pairing_lot_ids),
         )
+        .with_for_update()
         .all()
     )
     remaining_lots_domain = [_lot_db_to_domain(lot_db) for lot_db in remaining_lots_db]
@@ -584,9 +606,11 @@ def process_sell_fill_with_strategy(
 
     sell_event_domain = _db_event_to_domain(sell_event_db)
 
+    # Row-Level Lock: verhindert Race Conditions bei konkurrierenden Sell-Fills
     lots_db = (
         db.query(TradeLotDB)
         .filter(TradeLotDB.user_id == user_id, TradeLotDB.qty_btc_open > 0)
+        .with_for_update()
         .all()
     )
 
@@ -815,19 +839,26 @@ def sync_and_refresh_lots(
     }
 
 
-def _lot_db_to_dict(lot_db: TradeLotDB, db: Session = None) -> dict:
-    """Konvertiert DB Model zu Dict, inkl. Binance Order ID und Import-Quelle aus raw_payload"""
+def _lot_db_to_dict(lot_db: TradeLotDB, db: Session = None, fill_event=None) -> dict:
+    """Konvertiert DB Model zu Dict, inkl. Binance Order ID und Import-Quelle aus raw_payload.
+
+    Args:
+        lot_db: TradeLotDB instance
+        db: Optional DB Session (Fallback fuer Einzelabrufe)
+        fill_event: Optional vorgeladenes LedgerEventDB (Batch-Load-Modus, vermeidet N+1)
+    """
     binance_order_id = None
     import_source = None
-    if db:
-        fill_event = (
+    _fill = fill_event
+    if _fill is None and db:
+        _fill = (
             db.query(LedgerEventDB)
             .filter(LedgerEventDB.id == lot_db.created_from_fill_id)
             .first()
         )
-        if fill_event and fill_event.raw_payload:
-            binance_order_id = str(fill_event.raw_payload.get("orderId", "")) or None
-            import_source = fill_event.raw_payload.get("import_source")
+    if _fill and _fill.raw_payload:
+        binance_order_id = str(_fill.raw_payload.get("orderId", "")) or None
+        import_source = _fill.raw_payload.get("import_source")
 
     return {
         "id": lot_db.id,
@@ -960,7 +991,12 @@ def get_mergeable_groups(db: Session, user_id: str) -> List[dict]:
             result.append(
                 {
                     "binance_order_id": order_id,
-                    "lots": [_lot_db_to_dict(lot, db) for lot in eligible],
+                    "lots": [
+                        _lot_db_to_dict(
+                            lot, db, fill_event=fill_map.get(lot.created_from_fill_id)
+                        )
+                        for lot in eligible
+                    ],
                     "total_qty_btc": str(sum(lot.qty_btc_initial for lot in eligible)),
                     "total_cost_eur": str(sum(lot.cost_eur for lot in eligible)),
                 }

@@ -7,6 +7,7 @@ import uuid
 
 from app.domain.pairing import suggest_pairings, simulate_pairing
 from app.domain.models import TradeLot as DomainLot, Pairing as DomainPairing, PairingItem, PairingStatus, utcnow
+from app.domain.orders import compute_pairing_order_params
 from app.db.models import TradeLotDB, LotStatusEnum, PairingDB, PairingItemDB, PairingStatusEnum, UserSettingsDB
 from app.services.lot_service import _lot_db_to_domain
 
@@ -100,9 +101,6 @@ def simulate_pairing_execution(
     # Simulation durchführen (mit effektivem Verkaufspreis fuer korrekte P&L)
     simulation = simulate_pairing(pairing, market_price, lots_domain, fee_pct,
                                    sell_price=effective_sell_price)
-
-    # Lazy import um zirkulaere Abhaengigkeit zu vermeiden
-    from app.services.order_service import compute_pairing_order_params
 
     # Aggregierte Binance-Order-Parameter berechnen (eine Order fuer alle Lots)
     settings = db.query(UserSettingsDB).filter(UserSettingsDB.user_id == user_id).first()
