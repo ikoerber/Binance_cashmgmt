@@ -8,13 +8,13 @@ Channels:
 - user_data: Order-Status + Balance-Updates (Binance User Data Stream)
 
 Auth: First-Message-Auth — Client sendet {"action": "auth", "api_key": "..."} als erste Nachricht.
-      Alternativ: Query-Parameter X-API-Key (Legacy, wird in Server-Logs mitgeloggt — nicht empfohlen).
 """
 import asyncio
+import hmac
 import logging
 import os
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from app.services.websocket_manager import get_stream_manager
 
@@ -30,13 +30,12 @@ _AUTH_TIMEOUT_SECONDS = 10
 async def websocket_endpoint(
     websocket: WebSocket,
     user_id: str,
-    api_key: str = Query(None, alias="X-API-Key"),
 ):
     """
     WebSocket Endpoint fuer Echtzeit-Updates.
 
     Protokoll:
-    - Client -> Server: {"action": "auth", "api_key": "..."} (MUSS erste Nachricht sein, wenn kein Query-Param)
+    - Client -> Server: {"action": "auth", "api_key": "..."} (MUSS erste Nachricht sein)
     - Client -> Server: {"action": "subscribe", "channel": "price"|"user_data"}
     - Client -> Server: {"action": "unsubscribe", "channel": "price"|"user_data"}
     - Client -> Server: {"action": "ping"}
@@ -48,18 +47,15 @@ async def websocket_endpoint(
     """
     expected_key = os.getenv("API_SECRET_KEY")
 
-    # Legacy: Query-Parameter Auth (abwaertskompatibel)
-    if expected_key and api_key and api_key == expected_key:
-        await websocket.accept()
-        logger.info("WebSocket verbunden (Query-Auth): user=%s", user_id)
-    elif expected_key and not api_key:
+    if expected_key:
         # First-Message-Auth: Accept, dann auf Auth-Nachricht warten
         await websocket.accept()
         try:
             data = await asyncio.wait_for(
                 websocket.receive_json(), timeout=_AUTH_TIMEOUT_SECONDS
             )
-            if data.get("action") != "auth" or data.get("api_key") != expected_key:
+            received_key = data.get("api_key", "")
+            if data.get("action") != "auth" or not received_key or not hmac.compare_digest(received_key, expected_key):
                 await websocket.send_json({"type": "auth_error", "detail": "Invalid API key"})
                 await websocket.close(code=4001, reason="Invalid API key")
                 return
@@ -68,13 +64,10 @@ async def websocket_endpoint(
         except asyncio.TimeoutError:
             await websocket.close(code=4001, reason="Auth timeout")
             return
-    elif expected_key and api_key != expected_key:
-        await websocket.close(code=4001, reason="Invalid API key")
-        return
     else:
-        # Kein API_SECRET_KEY konfiguriert — kein Auth noetig
+        # Kein API_SECRET_KEY konfiguriert — kein Auth noetig (dev mode)
         await websocket.accept()
-        logger.info("WebSocket verbunden (no auth): user=%s", user_id)
+        logger.warning("WebSocket verbunden (no auth — dev mode): user=%s", user_id)
 
     stream_manager = get_stream_manager()
 

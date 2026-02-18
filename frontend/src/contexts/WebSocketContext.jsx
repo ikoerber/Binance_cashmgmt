@@ -85,10 +85,13 @@ export const WebSocketProvider = ({ userId = 'user_123', children }) => {
             wsRef.current?.close(4001, 'Auth failed');
             return;
 
-          case 'price_update':
-            setPrice(parseFloat(data.price));
+          case 'price_update': {
+            const p = parseFloat(data.price);
+            if (isNaN(p) || !isFinite(p) || p <= 0) break;
+            setPrice(p);
             setPriceLastUpdate(new Date(data.timestamp));
             break;
+          }
 
           case 'order_update':
             setLastOrderUpdate(data);

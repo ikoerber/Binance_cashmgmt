@@ -4,7 +4,7 @@ import asyncio
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.auth import require_api_key
@@ -63,15 +63,27 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS für Frontend
+# CORS für Frontend (explizite Methods/Headers statt Wildcard)
 allowed_origins = os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allow_headers=["Content-Type", "X-API-Key"],
+    max_age=3600,
 )
+
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    """Security-Headers fuer alle HTTP-Responses."""
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response
 
 # API-Key Auth als Router-Dependency (statt global, weil APIKeyHeader nicht mit WebSocket kompatibel)
 api_auth = [Depends(require_api_key)]

@@ -140,14 +140,18 @@ async def import_trading_bots_from_csv(
     Returns:
         Import-Report
     """
+    MAX_CSV_SIZE = 10 * 1024 * 1024  # 10 MB
     try:
-        content = await file.read()
+        content = await file.read(MAX_CSV_SIZE + 1)
+        if len(content) > MAX_CSV_SIZE:
+            raise HTTPException(status_code=413, detail="CSV ueberschreitet 10 MB Limit")
         csv_content = content.decode("utf-8-sig")
 
         return import_trading_bots_csv(db, user_id, csv_content)
 
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=f"CSV parse error: {e}")
+        logger.warning("CSV parse error for user=%s: %s", user_id, e)
+        raise HTTPException(status_code=400, detail="CSV-Format ungueltig")
     except Exception as e:
         logger.exception("Sync endpoint failed for user=%s", user_id)
         raise HTTPException(status_code=500, detail="Interner Serverfehler")

@@ -1,5 +1,6 @@
 """Pairing API Endpoints"""
 import logging
+import math
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from decimal import Decimal, InvalidOperation
@@ -25,6 +26,12 @@ from app.services.binance import BinanceService
 from app.api.dependencies import get_binance_service
 
 router = APIRouter(prefix="/api/pairing", tags=["pairing"])
+
+
+def _validate_market_price(market_price: float) -> None:
+    """Validiert market_price auf NaN, Infinity und negative Werte."""
+    if math.isnan(market_price) or math.isinf(market_price) or market_price <= 0:
+        raise HTTPException(status_code=400, detail="market_price muss positiv und endlich sein")
 
 
 def _get_order_service(binance: BinanceService = Depends(get_binance_service)) -> OrderService:
@@ -66,6 +73,7 @@ def get_suggestions(
     Returns:
         Liste von Pairing-Vorschlägen
     """
+    _validate_market_price(market_price)
     try:
         market_price_decimal = Decimal(str(market_price))
         threshold_decimal = Decimal(str(threshold_pct))
@@ -113,6 +121,7 @@ def simulate(
     Returns:
         Simulation-Details inkl. planned_orders
     """
+    _validate_market_price(market_price)
     try:
         market_price_decimal = Decimal(str(market_price))
         fee_pct_decimal = Decimal(str(fee_pct))
@@ -324,6 +333,7 @@ def execute_pairing_endpoint(
     Returns:
         Erstellte Orders + Pairing Status
     """
+    _validate_market_price(market_price)
     try:
         market_price_decimal = Decimal(str(market_price))
         fee_buffer_decimal = Decimal(str(fee_buffer_pct))

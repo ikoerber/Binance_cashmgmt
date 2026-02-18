@@ -99,8 +99,8 @@ def update_settings(
         raise HTTPException(status_code=400, detail="max_order_value_eur muss eine gueltige Zahl sein")
     if max_val.is_nan() or max_val.is_infinite():
         raise HTTPException(status_code=400, detail="max_order_value_eur darf nicht NaN oder Infinity sein")
-    if max_val <= 0:
-        raise HTTPException(status_code=400, detail="max_order_value_eur muss > 0 sein")
+    if not (Decimal("1") <= max_val <= Decimal("1000000")):
+        raise HTTPException(status_code=400, detail="max_order_value_eur muss zwischen 1 und 1000000 liegen")
 
     ob_atr_mult = None
     if body.ob_atr_multiplier is not None:
@@ -168,8 +168,7 @@ def update_settings(
             )
             db.add(settings)
 
-        db.commit()
-        db.refresh(settings)
+        db.flush()
 
         return _settings_to_dict(settings)
     except HTTPException:
