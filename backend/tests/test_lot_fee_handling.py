@@ -3,6 +3,7 @@ Unit Tests für TradeLot Fee-Behandlung
 
 Testet insbesondere BNB-Fee-Konvertierung
 """
+
 import pytest
 from datetime import datetime
 from decimal import Decimal
@@ -48,8 +49,8 @@ def test_lot_creation_with_bnb_fee():
     expected_fee_cost = Decimal("0.00082344") * bnb_eur_price
     expected_total_cost = expected_base_cost + expected_fee_cost
 
-    assert lot.qty_btc_initial == Decimal("0.01")
-    assert lot.qty_btc_open == Decimal("0.01")
+    assert lot.qty_base_initial == Decimal("0.01")
+    assert lot.qty_base_open == Decimal("0.01")
     assert abs(lot.cost_eur - expected_total_cost) < Decimal("0.01")
 
     # Break-even sollte höher sein als der Fill-Preis (wegen Fee)
@@ -85,7 +86,7 @@ def test_lot_creation_without_bnb_conversion_rate():
     # - Total Cost: 725.4875 EUR
     expected_cost = Decimal("0.0125") * Decimal("58039.00")
 
-    assert lot.qty_btc_initial == Decimal("0.0125")
+    assert lot.qty_base_initial == Decimal("0.0125")
     assert lot.cost_eur == expected_cost
     assert lot.break_even == Decimal("58039.00")  # Ohne Fee-Korrektur
 
@@ -149,9 +150,7 @@ def test_sell_allocation_with_bnb_fee():
     fee_conversion_rates = {"BNB": bnb_eur_price}
 
     updated_lots, allocations = allocate_sell_fifo(
-        sell_event,
-        [lot],
-        fee_conversion_rates
+        sell_event, [lot], fee_conversion_rates
     )
 
     # Erwartet:
@@ -174,7 +173,7 @@ def test_sell_allocation_with_bnb_fee():
     assert allocation.qty_allocated == Decimal("0.01")
 
     # Lot sollte geschlossen sein
-    assert updated_lots[0].qty_btc_open == Decimal("0")
+    assert updated_lots[0].qty_base_open == Decimal("0")
 
 
 def test_multiple_fee_assets_in_batch():
@@ -234,13 +233,13 @@ def test_multiple_fee_assets_in_batch():
 
     # Lot 1 (BNB Fee): 500 + (0.001 * 700) = 500.7 EUR, qty = 0.01 (BNB-Fee betrifft BTC nicht)
     assert abs(lots[0].cost_eur - Decimal("500.70")) < Decimal("0.01")
-    assert lots[0].qty_btc_initial == Decimal("0.01")
+    assert lots[0].qty_base_initial == Decimal("0.01")
 
     # Lot 2 (EUR Fee): 510 + 1 = 511 EUR, qty = 0.01 (EUR-Fee betrifft BTC nicht)
     assert lots[1].cost_eur == Decimal("511.00")
-    assert lots[1].qty_btc_initial == Decimal("0.01")
+    assert lots[1].qty_base_initial == Decimal("0.01")
 
     # Lot 3 (BTC Fee): cost = 0.01 * 52000 = 520 EUR (KEINE Fee-Addition!)
     # qty = 0.01 - 0.00001 = 0.00999 (Fee von BTC-Menge abgezogen)
     assert lots[2].cost_eur == Decimal("520.00")
-    assert lots[2].qty_btc_initial == Decimal("0.00999")
+    assert lots[2].qty_base_initial == Decimal("0.00999")

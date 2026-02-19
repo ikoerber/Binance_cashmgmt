@@ -35,7 +35,7 @@ def suggest_pairings(
     3. Return: Pairing-Vorschläge
 
     Args:
-        lots: Liste offener TradeLots
+        lots: Liste offener TradeLots (Caller ist verantwortlich, nur Same-Symbol-Lots zu übergeben)
         market_price: Aktueller Marktpreis
         threshold_pct: Zielmarge (z.B. 0.05 für 5%)
 
@@ -64,6 +64,9 @@ def suggest_pairings(
         # Keine Gewinner → keine Pairings möglich
         return []
 
+    # Symbol aus erstem Lot ableiten (Caller stellt Same-Symbol sicher)
+    symbol = lots[0].symbol if lots else "BTCEUR"
+
     # 2. Pairings bauen
     pairings = []
     used_winners = set()
@@ -77,13 +80,13 @@ def suggest_pairings(
         items = [
             PairingItem(
                 lot_id=winner.id,
-                qty_btc=winner.qty_btc_open,
-                cost_eur=winner.break_even * winner.qty_btc_open
+                qty_base=winner.qty_base_open,
+                cost_eur=winner.break_even * winner.qty_base_open
             )
         ]
 
         current_cost = items[0].cost_eur
-        current_value = market_price * items[0].qty_btc
+        current_value = market_price * items[0].qty_base
         current_pnl = current_value - current_cost
 
         # Verlierer hinzufügen, bis Threshold erreicht
@@ -92,8 +95,8 @@ def suggest_pairings(
                 continue
 
             # Simuliere: Was passiert wenn wir diesen Loser hinzufügen?
-            loser_cost = loser.break_even * loser.qty_btc_open
-            loser_value = market_price * loser.qty_btc_open
+            loser_cost = loser.break_even * loser.qty_base_open
+            loser_value = market_price * loser.qty_base_open
 
             new_cost = current_cost + loser_cost
             new_value = current_value + loser_value
@@ -105,7 +108,7 @@ def suggest_pairings(
                 items.append(
                     PairingItem(
                         lot_id=loser.id,
-                        qty_btc=loser.qty_btc_open,
+                        qty_base=loser.qty_base_open,
                         cost_eur=loser_cost
                     )
                 )
@@ -124,6 +127,7 @@ def suggest_pairings(
                 threshold_pct=threshold_pct,
                 status=PairingStatus.DRAFT,
                 created_at=utcnow(),
+                symbol=symbol,
             )
             pairings.append(pairing)
             used_winners.add(winner.id)
@@ -154,14 +158,14 @@ def simulate_pairing(
     Returns:
         PairingSimulation mit allen Details
     """
-    # Total BTC zu verkaufen
-    total_btc = pairing.net_qty_btc()
+    # Total Base-Asset zu verkaufen
+    total_base = pairing.net_qty_base()
 
     # Effektiver Verkaufspreis fuer Erloesberechnung
     effective_price = sell_price if sell_price is not None else market_price
 
     # Erwarteter Erlös (vor Fee)
-    gross_proceeds = total_btc * effective_price
+    gross_proceeds = total_base * effective_price
 
     # Fee
     estimated_fee = gross_proceeds * fee_pct
@@ -182,33 +186,33 @@ def simulate_pairing(
         lot = next((l for l in all_lots if l.id == item.lot_id), None)
         if lot:
             # Wird das Lot vollständig geschlossen?
-            is_full = item.qty_btc == lot.qty_btc_open
+            is_full = item.qty_base == lot.qty_base_open
 
             affected_lots_info.append({
                 "lot_id": lot.id,
-                "qty_btc_to_sell": str(item.qty_btc),
-                "qty_btc_remaining": str(lot.qty_btc_open - item.qty_btc),
+                "qty_base_to_sell": str(item.qty_base),
+                "qty_base_remaining": str(lot.qty_base_open - item.qty_base),
                 "is_full_close": is_full,
                 "current_status": lot.status.value,
                 "new_status": "CLOSED" if is_full else "PARTIAL_CLOSED",
             })
 
     # Verbleibende Portfolio-Bestände nach Pairing
-    total_portfolio_btc = sum(lot.qty_btc_open for lot in all_lots)
-    total_portfolio_cost = sum(lot.break_even * lot.qty_btc_open for lot in all_lots)
+    total_portfolio_base = sum(lot.qty_base_open for lot in all_lots)
+    total_portfolio_cost = sum(lot.break_even * lot.qty_base_open for lot in all_lots)
 
-    remaining_btc = total_portfolio_btc - total_btc
+    remaining_base = total_portfolio_base - total_base
     remaining_cost = total_portfolio_cost - total_cost
 
     return PairingSimulation(
         pairing=pairing,
         market_price=market_price,
-        total_btc_to_sell=total_btc,
+        total_base_to_sell=total_base,
         expected_proceeds_eur=net_proceeds,
         expected_costs_eur=total_cost,
         expected_realized_pnl_eur=realized_pnl,
         affected_lots=affected_lots_info,
-        remaining_portfolio_btc=remaining_btc,
+        remaining_portfolio_base=remaining_base,
         remaining_portfolio_cost_eur=remaining_cost,
         estimated_fee_eur=estimated_fee,
         fee_pct=fee_pct,

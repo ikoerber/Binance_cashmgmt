@@ -22,6 +22,7 @@ from .models import (
     AllocationStrategy,
 )
 from app.constants import MIN_BTC_PRECISION
+from app.symbol_registry import get_base_asset
 from app.utils.fee_conversion import compute_fee_eur_value  # noqa: F401 — Re-Export fuer Abwaertskompatibilitaet
 
 
@@ -62,9 +63,13 @@ def create_trade_lot_from_buy_fill(
     cost_eur = fill_event.price * fill_event.amount
     qty_net = fill_event.amount
 
-    if fill_event.fee_asset == "BTC" and fill_event.fee_amount and fill_event.price:
-        # Fee in BTC: Menge reduzieren, KEINE zusätzlichen EUR-Kosten
-        # (die BTC-Fee wird von der erhaltenen Menge abgezogen, nicht extra bezahlt)
+    # Base-Asset aus Symbol ableiten
+    symbol = fill_event.symbol or "BTCEUR"
+    base_asset = get_base_asset(symbol)
+
+    if fill_event.fee_asset == base_asset and fill_event.fee_amount and fill_event.price:
+        # Fee in Base-Asset: Menge reduzieren, KEINE zusätzlichen EUR-Kosten
+        # (die Fee wird von der erhaltenen Menge abgezogen, nicht extra bezahlt)
         qty_net = fill_event.amount - fill_event.fee_amount
     elif fill_event.fee_asset == "EUR" and fill_event.fee_amount:
         # Fee in EUR: zusätzliche EUR-Kosten
@@ -90,10 +95,11 @@ def create_trade_lot_from_buy_fill(
         id=f"lot_{fill_event.id}",
         created_from_fill_id=fill_event.id,
         created_at=fill_event.timestamp,
-        qty_btc_initial=qty_net,
-        qty_btc_open=qty_net,
+        qty_base_initial=qty_net,
+        qty_base_open=qty_net,
         cost_eur=cost_eur,
         status=LotStatus.OPEN,
+        symbol=symbol,
     )
 
     return lot
@@ -168,11 +174,11 @@ def _allocate_qty_to_lots(
             updated_lots.append(lot)
             continue
 
-        qty_from_this_lot = min(qty_to_allocate, lot.qty_btc_open)
+        qty_from_this_lot = min(qty_to_allocate, lot.qty_base_open)
 
-        cost_per_btc = lot.break_even
+        cost_per_unit = lot.break_even
         proceeds_this_allocation = net_proceeds_per_btc * qty_from_this_lot
-        cost_this_allocation = cost_per_btc * qty_from_this_lot
+        cost_this_allocation = cost_per_unit * qty_from_this_lot
         realized_pnl = proceeds_this_allocation - cost_this_allocation
 
         allocation = SellAllocation(
@@ -185,17 +191,17 @@ def _allocate_qty_to_lots(
         )
         allocations.append(allocation)
 
-        new_qty_open = lot.qty_btc_open - qty_from_this_lot
+        new_qty_open = lot.qty_base_open - qty_from_this_lot
 
         if new_qty_open <= MIN_BTC_PRECISION:
             new_qty_open = Decimal("0")
             new_status = LotStatus.CLOSED
-        elif new_qty_open < lot.qty_btc_initial:
+        elif new_qty_open < lot.qty_base_initial:
             new_status = LotStatus.PARTIAL_CLOSED
         else:
             new_status = lot.status
 
-        updated_lot = replace(lot, qty_btc_open=new_qty_open, status=new_status)
+        updated_lot = replace(lot, qty_base_open=new_qty_open, status=new_status)
         updated_lots.append(updated_lot)
 
         qty_to_allocate -= qty_from_this_lot
@@ -325,7 +331,7 @@ def allocate_sell_to_lot(
     if sell_event.price is None or sell_event.amount is None:
         raise ValueError("Sell fill must have price and amount")
 
-    if target_lot.qty_btc_open <= MIN_BTC_PRECISION:
+    if target_lot.qty_base_open <= MIN_BTC_PRECISION:
         raise ValueError(f"Target lot {target_lot.id} has no open quantity")
 
     net_proceeds_per_btc = _compute_net_proceeds_per_btc(sell_event, fee_conversion_rates)

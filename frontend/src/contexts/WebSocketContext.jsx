@@ -2,7 +2,7 @@
  * WebSocket Context Provider
  *
  * Verwaltet die WebSocket-Verbindung zum Backend und stellt Echtzeit-Daten bereit:
- * - Live BTC/EUR Preis (Phase 1)
+ * - Live Preise fuer alle bekannten Paare (Phase 1, Multi-Pair)
  * - Order-Status-Updates (Phase 2)
  * - Balance-Updates (Phase 2)
  *
@@ -28,9 +28,9 @@ export const WebSocketProvider = ({ userId = 'user_123', children }) => {
   const reconnectTimeoutRef = useRef(null);
   const reconnectAttempts = useRef(0);
 
-  // Phase 1: Price
-  const [price, setPrice] = useState(null);
-  const [priceLastUpdate, setPriceLastUpdate] = useState(null);
+  // Phase 1: Prices (Multi-Pair Map)
+  const [prices, setPrices] = useState({});
+  const [priceLastUpdates, setPriceLastUpdates] = useState({});
 
   // Phase 2: Orders + Balances
   const [lastOrderUpdate, setLastOrderUpdate] = useState(null);
@@ -88,8 +88,9 @@ export const WebSocketProvider = ({ userId = 'user_123', children }) => {
           case 'price_update': {
             const p = parseFloat(data.price);
             if (isNaN(p) || !isFinite(p) || p <= 0) break;
-            setPrice(p);
-            setPriceLastUpdate(new Date(data.timestamp));
+            const sym = data.symbol || 'BTCEUR';
+            setPrices(prev => ({ ...prev, [sym]: p }));
+            setPriceLastUpdates(prev => ({ ...prev, [sym]: new Date(data.timestamp) }));
             break;
           }
 
@@ -183,8 +184,11 @@ export const WebSocketProvider = ({ userId = 'user_123', children }) => {
 
   const value = {
     connected,
-    price,
-    priceLastUpdate,
+    prices,
+    priceLastUpdates,
+    // Backward-compat: single price (BTCEUR)
+    price: prices['BTCEUR'] ?? null,
+    priceLastUpdate: priceLastUpdates['BTCEUR'] ?? null,
     lastOrderUpdate,
     lastBalanceUpdate,
     lastFillEvent,
@@ -210,6 +214,7 @@ export const useWebSocket = () => {
 
 /**
  * Live-Preis Hook: WebSocket wenn verbunden, REST-Polling als Fallback.
+ * Unterstuetzt Multi-Pair via symbol Parameter.
  */
 // Schwellwert fuer "starke Aenderung" in Prozent
 const LARGE_CHANGE_THRESHOLD_PCT = 1.0;
@@ -217,9 +222,12 @@ const LARGE_CHANGE_THRESHOLD_PCT = 1.0;
 const FLASH_DURATION_MS = 3000;
 
 export const useLivePrice = (symbol = 'BTCEUR', intervalMs = 10000) => {
-  const { connected, price: wsPrice, priceLastUpdate } = useWebSocket();
+  const { connected, prices, priceLastUpdates } = useWebSocket();
 
-  // Fallback: REST-Polling wenn WebSocket nicht verbunden
+  const wsPrice = prices[symbol] ?? null;
+  const wsPriceLastUpdate = priceLastUpdates[symbol] ?? null;
+
+  // Fallback: REST-Polling wenn WebSocket nicht verbunden oder kein Preis fuer Symbol
   const [pollingPrice, setPollingPrice] = useState(null);
   const [pollingLoading, setPollingLoading] = useState(true);
   const [pollingError, setPollingError] = useState(null);
@@ -317,7 +325,7 @@ export const useLivePrice = (symbol = 'BTCEUR', intervalMs = 10000) => {
       price: wsPrice,
       loading: false,
       error: null,
-      lastUpdate: priceLastUpdate,
+      lastUpdate: wsPriceLastUpdate,
       source: 'websocket',
       ...extra,
     };

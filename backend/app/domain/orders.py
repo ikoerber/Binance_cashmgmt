@@ -16,6 +16,7 @@ def compute_pairing_order_params(
     fee_buffer_pct: Decimal = Decimal("0.002"),
     max_order_value_eur: Decimal = Decimal("1000"),
     custom_sell_price: Decimal | None = None,
+    symbol: str = "BTCEUR",
 ) -> Dict[str, Any]:
     """
     Berechnet aggregierte Binance-Order-Parameter fuer ein Pairing.
@@ -28,11 +29,12 @@ def compute_pairing_order_params(
     Args:
         pairing_id: Pairing ID
         user_id: User ID
-        items: Liste von PairingItems mit lot_id und qty_btc
+        items: Liste von PairingItems mit lot_id und qty_base
         market_price: Aktueller Marktpreis
         fee_buffer_pct: Fee-Puffer (Default: 0.2%)
         max_order_value_eur: Max. Orderwert (aus UserSettings)
         custom_sell_price: Optionaler benutzerdefinierter Verkaufspreis (ueberschreibt Berechnung)
+        symbol: Trading Pair (Default: BTCEUR)
 
     Returns:
         Dict mit aggregierten Binance-Order-Parametern
@@ -47,7 +49,7 @@ def compute_pairing_order_params(
         target_price = market_price * (Decimal("1") + fee_buffer_pct)
         target_price_rounded = target_price.quantize(Decimal("0.01"))
 
-    total_qty = sum(item.qty_btc for item in items)
+    total_qty = sum(item.qty_base for item in items)
     total_qty_rounded = total_qty.quantize(Decimal("0.00001"))
 
     version = "v1"
@@ -62,7 +64,7 @@ def compute_pairing_order_params(
     return {
         "lot_ids": lot_ids,
         "lot_count": len(items),
-        "symbol": "BTCEUR",
+        "symbol": symbol,
         "side": "SELL",
         "type": "TAKE_PROFIT_LIMIT",
         "timeInForce": "GTC",

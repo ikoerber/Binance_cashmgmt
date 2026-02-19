@@ -6,12 +6,11 @@ import logging
 from fastapi import APIRouter, HTTPException, Query
 
 from app.services.combined_score_service import get_combined_score_service
+from app.symbol_registry import KNOWN_PAIRS
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/combined", tags=["combined"])
-
-ALLOWED_SYMBOLS = {"BTCEUR"}
 
 
 @router.get("/{user_id}/score")
@@ -33,10 +32,10 @@ async def get_combined_score(
     Kombiniert kurzfristiges Richtungssignal (1-15min) mit mittelfristigem
     Sentiment-Sizing zu einer einheitlichen Handlungsempfehlung.
     """
-    if symbol not in ALLOWED_SYMBOLS:
+    if symbol not in KNOWN_PAIRS:
         raise HTTPException(
             status_code=400,
-            detail=f"Symbol nicht unterstuetzt. Erlaubt: {', '.join(sorted(ALLOWED_SYMBOLS))}",
+            detail=f"Symbol nicht unterstuetzt. Erlaubt: {', '.join(sorted(KNOWN_PAIRS))}",
         )
 
     try:

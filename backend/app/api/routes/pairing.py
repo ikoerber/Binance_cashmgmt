@@ -8,6 +8,7 @@ from typing import Optional, List
 from pydantic import BaseModel
 
 from app.db.database import get_db
+from app.symbol_registry import is_known_symbol, KNOWN_PAIRS
 
 logger = logging.getLogger(__name__)
 from app.services.pairing_service import (
@@ -46,12 +47,13 @@ def _get_order_service(binance: BinanceService = Depends(get_binance_service)) -
 
 class PairingItemCreate(BaseModel):
     lot_id: str
-    qty_btc: str  # Decimal als String (Praezision)
+    qty_base: str  # Decimal als String (Praezision)
 
 
 class PairingCreateRequest(BaseModel):
     items: List[PairingItemCreate]
     threshold_pct: str  # Decimal als String (Praezision)
+    symbol: str = "BTCEUR"
 
 
 @router.get("/{user_id}/suggestions")
@@ -59,6 +61,7 @@ def get_suggestions(
     user_id: str,
     market_price: float,
     threshold_pct: float = Query(0.05, description="Threshold in % (z.B. 0.05 für 5%)"),
+    symbol: str = Query("BTCEUR", description="Trading Pair"),
     db: Session = Depends(get_db)
 ):
     """
@@ -66,13 +69,17 @@ def get_suggestions(
 
     Args:
         user_id: User ID
-        market_price: Aktueller BTC/EUR Marktpreis
+        market_price: Aktueller Marktpreis
         threshold_pct: Zielmarge (Default: 5%)
+        symbol: Trading Pair (Default: BTCEUR)
         db: Database Session (injected)
 
     Returns:
         Liste von Pairing-Vorschlägen
     """
+    if not is_known_symbol(symbol):
+        raise HTTPException(status_code=400, detail=f"Unbekanntes Symbol: {symbol}. Bekannt: {list(KNOWN_PAIRS.keys())}")
+
     _validate_market_price(market_price)
     try:
         market_price_decimal = Decimal(str(market_price))
@@ -82,7 +89,8 @@ def get_suggestions(
             db,
             user_id,
             market_price_decimal,
-            threshold_decimal
+            threshold_decimal,
+            symbol=symbol,
         )
 
         return {
@@ -90,6 +98,7 @@ def get_suggestions(
             "count": len(suggestions),
             "market_price": str(market_price_decimal),
             "threshold_pct": str(threshold_decimal),
+            "symbol": symbol,
         }
     except Exception as e:
         logger.exception("Pairing endpoint failed for user=%s", user_id)
@@ -169,11 +178,14 @@ def create_pairing_endpoint(
     Returns:
         Created pairing
     """
+    if not is_known_symbol(request.symbol):
+        raise HTTPException(status_code=400, detail=f"Unbekanntes Symbol: {request.symbol}. Bekannt: {list(KNOWN_PAIRS.keys())}")
+
     try:
-        items = [{"lot_id": item.lot_id, "qty_btc": Decimal(str(item.qty_btc))} for item in request.items]
+        items = [{"lot_id": item.lot_id, "qty_base": Decimal(str(item.qty_base))} for item in request.items]
         threshold = Decimal(str(request.threshold_pct))
 
-        pairing = create_pairing(db, user_id, items, threshold)
+        pairing = create_pairing(db, user_id, items, threshold, symbol=request.symbol)
 
         return {
             "status": "created",

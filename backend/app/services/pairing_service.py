@@ -16,7 +16,8 @@ def get_pairing_suggestions(
     db: Session,
     user_id: str,
     market_price: Decimal,
-    threshold_pct: Decimal = Decimal("0.05")
+    threshold_pct: Decimal = Decimal("0.05"),
+    symbol: str = "BTCEUR",
 ) -> List[dict]:
     """
     Holt Pairing-Vorschläge für User
@@ -26,16 +27,18 @@ def get_pairing_suggestions(
         user_id: User ID
         market_price: Aktueller Marktpreis
         threshold_pct: Zielmarge (z.B. 0.05 für 5%)
+        symbol: Trading Pair (z.B. "BTCEUR")
 
     Returns:
         Liste von Pairing-Vorschlägen
     """
-    # Hole offene Lots
+    # Hole offene Lots fuer das Symbol
     lots_db = (
         db.query(TradeLotDB)
         .filter(
             TradeLotDB.user_id == user_id,
-            TradeLotDB.qty_btc_open > 0
+            TradeLotDB.symbol == symbol,
+            TradeLotDB.qty_base_open > 0
         )
         .order_by(TradeLotDB.created_at.asc())
         .all()
@@ -80,12 +83,12 @@ def simulate_pairing_execution(
     if not pairing:
         raise ValueError("No pairing found")
 
-    # Hole offene Lots für Simulation (Portfolio-Kontext)
+    # Hole offene Lots für Simulation (Portfolio-Kontext, gleiches Symbol)
     lots_db = (
         db.query(TradeLotDB)
         .filter(
             TradeLotDB.user_id == user_id,
-            TradeLotDB.qty_btc_open > 0
+            TradeLotDB.qty_base_open > 0
         )
         .all()
     )
@@ -121,12 +124,12 @@ def simulate_pairing_execution(
     return {
         "pairing_id": pairing.id,
         "market_price": str(market_price),
-        "total_btc_to_sell": str(simulation.total_btc_to_sell),
+        "total_base_to_sell": str(simulation.total_base_to_sell),
         "expected_proceeds_eur": str(simulation.expected_proceeds_eur),
         "expected_costs_eur": str(simulation.expected_costs_eur),
         "expected_realized_pnl_eur": str(simulation.expected_realized_pnl_eur),
         "affected_lots": simulation.affected_lots,
-        "remaining_portfolio_btc": str(simulation.remaining_portfolio_btc),
+        "remaining_portfolio_base": str(simulation.remaining_portfolio_base),
         "remaining_portfolio_cost_eur": str(simulation.remaining_portfolio_cost_eur),
         "estimated_fee_eur": str(simulation.estimated_fee_eur),
         "fee_pct": str(simulation.fee_pct),
@@ -141,19 +144,20 @@ def _pairing_to_dict(pairing: DomainPairing, market_price: Decimal) -> dict:
     """Konvertiert Pairing zu Dict"""
     return {
         "id": pairing.id,
+        "symbol": pairing.symbol,
         "threshold_pct": str(pairing.threshold_pct),
         "status": pairing.status.value,
         "created_at": pairing.created_at.isoformat() if pairing.created_at else None,
         "items": [
             {
                 "lot_id": item.lot_id,
-                "qty_btc": str(item.qty_btc),
+                "qty_base": str(item.qty_base),
                 "cost_eur": str(item.cost_eur),
             }
             for item in pairing.items
         ],
         "net_cost": str(pairing.net_cost()),
-        "net_qty_btc": str(pairing.net_qty_btc()),
+        "net_qty_base": str(pairing.net_qty_base()),
         "net_value": str(pairing.net_value(market_price)),
         "net_pnl_eur": str(pairing.net_pnl(market_price)),
         "net_pnl_pct": str(pairing.net_pnl_pct(market_price)),
@@ -171,7 +175,7 @@ def _pairing_db_to_domain(pairing_db: PairingDB) -> DomainPairing:
     items = [
         PairingItem(
             lot_id=item.lot_id,
-            qty_btc=item.qty_btc,
+            qty_base=item.qty_base,
             cost_eur=item.cost_eur
         )
         for item in pairing_db.items
@@ -183,6 +187,7 @@ def _pairing_db_to_domain(pairing_db: PairingDB) -> DomainPairing:
         items=items,
         status=PairingStatus(pairing_db.status.value),
         created_at=pairing_db.created_at,
+        symbol=pairing_db.symbol,
     )
 
 
@@ -190,7 +195,8 @@ def create_pairing(
     db: Session,
     user_id: str,
     items: List[dict],
-    threshold_pct: Decimal
+    threshold_pct: Decimal,
+    symbol: str = "BTCEUR",
 ) -> dict:
     """
     Erstellt und persistiert ein Pairing
@@ -198,8 +204,9 @@ def create_pairing(
     Args:
         db: Database Session
         user_id: User ID
-        items: Liste von {lot_id, qty_btc}
+        items: Liste von {lot_id, qty_base}
         threshold_pct: Zielmarge (z.B. 0.05 für 5%)
+        symbol: Trading Pair (z.B. "BTCEUR")
 
     Returns:
         Pairing dict
@@ -225,14 +232,19 @@ def create_pairing(
         lot_db = lots_map.get(item["lot_id"])
         if not lot_db:
             raise ValueError(f"Lot {item['lot_id']} not found")
-        if lot_db.qty_btc_open < item["qty_btc"]:
-            raise ValueError(f"Lot {item['lot_id']} has insufficient qty_btc_open")
+        if lot_db.qty_base_open < item["qty_base"]:
+            raise ValueError(f"Lot {item['lot_id']} has insufficient qty_base_open")
+
+    # Symbol aus erstem Lot ableiten (falls nicht explizit uebergeben)
+    if locked_lots:
+        symbol = locked_lots[0].symbol
 
     # Erstelle Pairing
     pairing_id = str(uuid.uuid4())
     pairing_db = PairingDB(
         id=pairing_id,
         user_id=user_id,
+        symbol=symbol,
         threshold_pct=threshold_pct,
         status=PairingStatusEnum.DRAFT,
         created_at=utcnow()
@@ -242,11 +254,11 @@ def create_pairing(
     # Erstelle Pairing Items (Lots bereits gelocked und validiert)
     for item in items:
         lot_db = lots_map[item["lot_id"]]
-        qty_btc = Decimal(str(item["qty_btc"]))
+        qty_base = Decimal(str(item["qty_base"]))
 
         # Anteilige Kosten berechnen
-        if lot_db.qty_btc_initial > 0:
-            cost_eur = (lot_db.cost_eur / lot_db.qty_btc_initial) * qty_btc
+        if lot_db.qty_base_initial > 0:
+            cost_eur = (lot_db.cost_eur / lot_db.qty_base_initial) * qty_base
         else:
             cost_eur = Decimal("0")
 
@@ -254,7 +266,7 @@ def create_pairing(
             id=str(uuid.uuid4()),
             pairing_id=pairing_id,
             lot_id=item["lot_id"],
-            qty_btc=qty_btc,
+            qty_base=qty_base,
             cost_eur=cost_eur
         )
         db.add(pairing_item)
@@ -368,8 +380,8 @@ def lock_pairing(
 
     for item in pairing_db.items:
         lot_db = lots_map.get(item.lot_id)
-        if not lot_db or lot_db.qty_btc_open < item.qty_btc:
-            raise ValueError(f"Lot {item.lot_id} no longer has sufficient qty_btc_open")
+        if not lot_db or lot_db.qty_base_open < item.qty_base:
+            raise ValueError(f"Lot {item.lot_id} no longer has sufficient qty_base_open")
 
     # Lock
     pairing_db.status = PairingStatusEnum.LOCKED

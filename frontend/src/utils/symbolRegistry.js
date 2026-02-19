@@ -1,0 +1,21 @@
+/**
+ * Symbol Registry - Zentrales Mapping von Symbol → Base/Quote/Precision.
+ *
+ * Frontend-Gegenstueck zu backend/app/symbol_registry.py.
+ * Alle Komponenten referenzieren diese Registry fuer dynamische Labels und Formatierung.
+ */
+
+export const KNOWN_PAIRS = {
+  BTCEUR: { symbol: 'BTCEUR', base: 'BTC', quote: 'EUR', baseDecimals: 8, label: 'BTC/EUR' },
+  ETHEUR: { symbol: 'ETHEUR', base: 'ETH', quote: 'EUR', baseDecimals: 5, label: 'ETH/EUR' },
+};
+
+export const parseSymbol = (symbol) => KNOWN_PAIRS[symbol];
+
+export const getBaseDecimals = (symbol) => KNOWN_PAIRS[symbol]?.baseDecimals ?? 8;
+
+export const getBaseLabel = (symbol) => KNOWN_PAIRS[symbol]?.base ?? symbol;
+
+export const getPairLabel = (symbol) => KNOWN_PAIRS[symbol]?.label ?? symbol;
+
+export const getAllSymbols = () => Object.keys(KNOWN_PAIRS);

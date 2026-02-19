@@ -82,7 +82,7 @@ class LedgerEvent:
 @dataclass
 class TradeLot:
     """
-    TradeLot - repräsentiert eine BTC-Position
+    TradeLot - repräsentiert eine Base-Asset-Position
 
     1 Fill = 1 Lot (deterministisch)
     Jeder Buy-Fill erzeugt genau ein TradeLot.
@@ -91,24 +91,25 @@ class TradeLot:
     created_from_fill_id: str  # Referenz zum LedgerEvent
     created_at: datetime
 
-    qty_btc_initial: Decimal  # Ursprüngliche Netto-Menge (BRUTTO minus BTC-Fee)
-    qty_btc_open: Decimal  # Aktuell offene Menge
+    qty_base_initial: Decimal  # Ursprüngliche Netto-Menge (BRUTTO minus Base-Fee)
+    qty_base_open: Decimal  # Aktuell offene Menge
 
     cost_eur: Decimal  # Gesamtkosten in EUR (inkl. Fees)
 
     status: LotStatus = LotStatus.OPEN
     target_margin_pct: Optional[Decimal] = None  # Lot-spezifische Zielmarge
+    symbol: str = "BTCEUR"  # Trading Pair
 
     @property
     def break_even(self) -> Decimal:
-        """Break-even Preis pro BTC"""
-        if self.qty_btc_initial == 0:
+        """Break-even Preis pro Base-Asset"""
+        if self.qty_base_initial == 0:
             return Decimal("0")
-        return self.cost_eur / self.qty_btc_initial
+        return self.cost_eur / self.qty_base_initial
 
     def unrealized_pnl(self, market_price: Decimal) -> Decimal:
         """Unrealisierte P&L in EUR"""
-        return (market_price * self.qty_btc_open) - (self.break_even * self.qty_btc_open)
+        return (market_price * self.qty_base_open) - (self.break_even * self.qty_base_open)
 
     def unrealized_pnl_pct(self, market_price: Decimal) -> Decimal:
         """Unrealisierte P&L in %"""
@@ -140,7 +141,7 @@ class PairingItem:
     Kann ein ganzes Lot oder eine Teilmenge sein.
     """
     lot_id: str
-    qty_btc: Decimal  # Wie viel BTC von diesem Lot im Pairing
+    qty_base: Decimal  # Wie viel Base-Asset von diesem Lot im Pairing
     cost_eur: Decimal  # Anteilige Kosten
 
 
@@ -163,18 +164,19 @@ class Pairing:
     threshold_pct: Decimal  # z.B. 0.05 für 5%
     status: PairingStatus = PairingStatus.DRAFT
     created_at: Optional[datetime] = None
+    symbol: str = "BTCEUR"  # Trading Pair
 
     def net_cost(self) -> Decimal:
         """Netto-Kosten aller Items"""
         return sum((item.cost_eur for item in self.items), Decimal("0"))
 
-    def net_qty_btc(self) -> Decimal:
-        """Netto-BTC-Menge aller Items"""
-        return sum((item.qty_btc for item in self.items), Decimal("0"))
+    def net_qty_base(self) -> Decimal:
+        """Netto-Base-Menge aller Items"""
+        return sum((item.qty_base for item in self.items), Decimal("0"))
 
     def net_value(self, market_price: Decimal) -> Decimal:
         """Netto-Marktwert"""
-        return self.net_qty_btc() * market_price
+        return self.net_qty_base() * market_price
 
     def net_pnl(self, market_price: Decimal) -> Decimal:
         """Netto-P&L in EUR"""
@@ -202,14 +204,14 @@ class PairingSimulation:
     market_price: Decimal
 
     # Erwartete Ergebnisse
-    total_btc_to_sell: Decimal
+    total_base_to_sell: Decimal
     expected_proceeds_eur: Decimal  # Nach Fees
     expected_costs_eur: Decimal
     expected_realized_pnl_eur: Decimal
 
     # Auswirkungen
     affected_lots: List[dict]  # Welche Lots werden geschlossen/teilweise geschlossen
-    remaining_portfolio_btc: Decimal
+    remaining_portfolio_base: Decimal
     remaining_portfolio_cost_eur: Decimal
 
     # Fees
@@ -227,12 +229,12 @@ class DailyPerformance:
 
     # Today's buys
     buys_count_today: int
-    buys_volume_btc_today: Decimal
+    buys_volume_base_today: Decimal
     buys_volume_eur_today: Decimal
 
     # Today's sells
     sells_count_today: int
-    sells_volume_btc_today: Decimal
+    sells_volume_base_today: Decimal
     sells_volume_eur_today: Decimal
 
     # Unrealized P&L change
@@ -253,9 +255,9 @@ class PortfolioState:
     """
     timestamp: datetime
 
-    # BTC Position
-    btc_qty: Decimal  # Gesamte BTC-Menge
-    btc_cost_basis_eur: Decimal  # Gesamtkosten in EUR
+    # Base-Asset Position
+    base_qty: Decimal  # Gesamte Base-Asset-Menge
+    base_cost_basis_eur: Decimal  # Gesamtkosten in EUR
 
     # EUR Cash
     eur_available: Decimal  # Verfügbare EUR
@@ -269,17 +271,17 @@ class PortfolioState:
     @property
     def break_even(self) -> Optional[Decimal]:
         """Portfolio Break-even Preis"""
-        if self.btc_qty == 0:
+        if self.base_qty == 0:
             return None
-        return self.btc_cost_basis_eur / self.btc_qty
+        return self.base_cost_basis_eur / self.base_qty
 
     def market_value_eur(self, market_price: Decimal) -> Decimal:
-        """Marktwert des BTC-Bestands in EUR"""
-        return self.btc_qty * market_price
+        """Marktwert des Base-Asset-Bestands in EUR"""
+        return self.base_qty * market_price
 
     def unrealized_pnl_eur(self, market_price: Decimal) -> Decimal:
         """Unrealisierte P&L in EUR"""
-        return self.market_value_eur(market_price) - self.btc_cost_basis_eur
+        return self.market_value_eur(market_price) - self.base_cost_basis_eur
 
     def target_price(self, target_margin_pct: Decimal, fee_buffer_pct: Decimal = Decimal("0")) -> Optional[Decimal]:
         """Zielverkaufspreis basierend auf Break-even und Zielmarge"""

@@ -14,24 +14,24 @@ const apiClient = axios.create({
 });
 
 // Portfolio API
-export const getPortfolio = async (userId, marketPrice) => {
+export const getPortfolio = async (userId, marketPrice, symbol = 'BTCEUR') => {
   const response = await apiClient.get(`/api/portfolio/${userId}`, {
-    params: { market_price: marketPrice },
+    params: { market_price: marketPrice, symbol },
   });
   return response.data;
 };
 
-export const getDailyPerformance = async (userId, marketPrice) => {
+export const getDailyPerformance = async (userId, marketPrice, symbol = 'BTCEUR') => {
   const response = await apiClient.get(`/api/portfolio/${userId}/daily`, {
-    params: { market_price: marketPrice },
+    params: { market_price: marketPrice, symbol },
   });
   return response.data;
 };
 
 // Lots API
-export const getLots = async (userId, status = null, limit = 100, offset = 0, fromDate = null, toDate = null) => {
+export const getLots = async (userId, status = null, limit = 100, offset = 0, fromDate = null, toDate = null, symbol = null) => {
   const response = await apiClient.get(`/api/lots/${userId}`, {
-    params: { status, limit, offset, from_date: fromDate, to_date: toDate },
+    params: { status, limit, offset, from_date: fromDate, to_date: toDate, symbol },
   });
   return response.data;
 };
@@ -88,9 +88,9 @@ export const syncLots = async (userId, symbol = 'BTCEUR', startTime = null) => {
 };
 
 // Pairing API
-export const getPairingSuggestions = async (userId, marketPrice, thresholdPct = 0.05) => {
+export const getPairingSuggestions = async (userId, marketPrice, thresholdPct = 0.05, symbol = 'BTCEUR') => {
   const response = await apiClient.get(`/api/pairing/${userId}/suggestions`, {
-    params: { market_price: marketPrice, threshold_pct: thresholdPct },
+    params: { market_price: marketPrice, threshold_pct: thresholdPct, symbol },
   });
   return response.data;
 };
@@ -102,10 +102,11 @@ export const simulatePairing = async (userId, pairingId, marketPrice, feePct = 0
   return response.data;
 };
 
-export const createPairing = async (userId, items, thresholdPct) => {
+export const createPairing = async (userId, items, thresholdPct, symbol = 'BTCEUR') => {
   const response = await apiClient.post(`/api/pairing/${userId}/create`, {
     items,
     threshold_pct: thresholdPct,
+    symbol,
   });
   return response.data;
 };
@@ -154,8 +155,10 @@ export const reconcileOrders = async (userId, symbol = 'BTCEUR') => {
   return response.data;
 };
 
-export const reconcileBalances = async (userId) => {
-  const response = await apiClient.post(`/api/reconciliation/${userId}/balances`);
+export const reconcileBalances = async (userId, symbol = 'BTCEUR') => {
+  const response = await apiClient.post(`/api/reconciliation/${userId}/balances`, null, {
+    params: { symbol },
+  });
   return response.data;
 };
 

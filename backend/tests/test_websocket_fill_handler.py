@@ -6,6 +6,7 @@ Tests:
 2. Fee-Berechnung: EUR/BTC/BNB Pfade, Fehler-Fallback
 3. Integration: Idempotenz, BUY erstellt Lot, SELL erstellt Allocation, Rollback
 """
+
 from datetime import datetime, timezone
 from decimal import Decimal
 from unittest.mock import patch, MagicMock
@@ -16,7 +17,6 @@ from app.services.websocket_fill_handler import (
     _extract_fill_from_execution_report,
     _compute_realtime_fee_eur_value,
 )
-
 
 # ─── Test-Daten: Binance executionReport ───
 
@@ -87,11 +87,18 @@ class TestExtractFillFromExecutionReport:
 
         assert result is None
 
-    def test_returns_none_for_non_btceur(self):
-        data = _make_execution_report(symbol="ETHEUR")
+    def test_returns_none_for_unknown_symbol(self):
+        data = _make_execution_report(symbol="XYZUSD")
         result = _extract_fill_from_execution_report(data)
 
         assert result is None
+
+    def test_accepts_known_non_btceur_symbol(self):
+        data = _make_execution_report(symbol="ETHEUR")
+        result = _extract_fill_from_execution_report(data)
+
+        assert result is not None
+        assert result["symbol"] == "ETHEUR"
 
     def test_returns_none_for_unknown_side(self):
         data = _make_execution_report(side="UNKNOWN")
@@ -124,9 +131,9 @@ class TestExtractFillFromExecutionReport:
         data = _make_execution_report(tx_time_ms=tx_time_ms)
         result = _extract_fill_from_execution_report(data)
 
-        expected = datetime.fromtimestamp(
-            tx_time_ms / 1000, tz=timezone.utc
-        ).replace(tzinfo=None)
+        expected = datetime.fromtimestamp(tx_time_ms / 1000, tz=timezone.utc).replace(
+            tzinfo=None
+        )
         assert result["timestamp"] == expected
         # Naive UTC (kein tzinfo), konsistent mit binance.py:173
         assert result["timestamp"].tzinfo is None
@@ -183,15 +190,11 @@ class TestComputeRealtimeFeeEurValue:
         assert result is None
 
     def test_zero_fee_returns_none(self):
-        result = _compute_realtime_fee_eur_value(
-            Decimal("0"), "BTC", Decimal("85000")
-        )
+        result = _compute_realtime_fee_eur_value(Decimal("0"), "BTC", Decimal("85000"))
         assert result is None
 
     def test_none_fee_returns_none(self):
-        result = _compute_realtime_fee_eur_value(
-            None, "BTC", Decimal("85000")
-        )
+        result = _compute_realtime_fee_eur_value(None, "BTC", Decimal("85000"))
         assert result is None
 
     def test_none_fee_asset_returns_none(self):

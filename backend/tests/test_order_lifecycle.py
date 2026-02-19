@@ -8,6 +8,7 @@ Testet:
 - Order Tracking Service
 - Cancel Order mit DB-Update
 """
+
 import pytest
 from datetime import datetime
 from decimal import Decimal
@@ -18,8 +19,15 @@ import uuid
 
 from app.db.database import Base
 from app.db.models import (
-    User, TradeLotDB, OrderDB, OrderStatusEnum, LotStatusEnum,
-    LedgerEventDB, EventTypeEnum, EventSourceEnum, TradeSideEnum
+    User,
+    TradeLotDB,
+    OrderDB,
+    OrderStatusEnum,
+    LotStatusEnum,
+    LedgerEventDB,
+    EventTypeEnum,
+    EventSourceEnum,
+    TradeSideEnum,
 )
 from app.services.order_tracking_service import OrderTrackingService
 from app.services.order_service import OrderService
@@ -41,10 +49,7 @@ def db_session():
 @pytest.fixture
 def test_user(db_session):
     """Creates test user"""
-    user = User(
-        id="test-user-1",
-        email="test@example.com"
-    )
+    user = User(id="test-user-1", email="test@example.com")
     db_session.add(user)
     db_session.commit()
     return user
@@ -65,7 +70,7 @@ def test_lot(db_session, test_user):
         price=Decimal("50000.00"),
         side=TradeSideEnum.BUY,
         source=EventSourceEnum.BINANCE,
-        source_id="binance-fill-1"
+        source_id="binance-fill-1",
     )
     db_session.add(fill_event)
 
@@ -73,11 +78,11 @@ def test_lot(db_session, test_user):
         id="lot-1",
         user_id=test_user.id,
         created_from_fill_id=fill_event.id,
-        qty_btc_initial=Decimal("0.01"),
-        qty_btc_open=Decimal("0.01"),
+        qty_base_initial=Decimal("0.01"),
+        qty_base_open=Decimal("0.01"),
         cost_eur=Decimal("500.50"),
         status=LotStatusEnum.OPEN,
-        target_margin_pct=Decimal("0.05")
+        target_margin_pct=Decimal("0.05"),
     )
     db_session.add(lot)
     db_session.commit()
@@ -98,7 +103,7 @@ def test_create_order_record(db_session, test_user, test_lot):
         order_type="LIMIT",
         quantity=Decimal("0.01"),
         price=Decimal("55000.00"),
-        linked_lot_id=test_lot.id
+        linked_lot_id=test_lot.id,
     )
 
     # Verify
@@ -127,7 +132,7 @@ def test_idempotency_check(db_session, test_user, test_lot):
         order_type="LIMIT",
         quantity=Decimal("0.01"),
         price=Decimal("55000.00"),
-        linked_lot_id=test_lot.id
+        linked_lot_id=test_lot.id,
     )
 
     # Try to create duplicate - should raise ValueError
@@ -141,7 +146,7 @@ def test_idempotency_check(db_session, test_user, test_lot):
             order_type="LIMIT",
             quantity=Decimal("0.01"),
             price=Decimal("55000.00"),
-            linked_lot_id=test_lot.id
+            linked_lot_id=test_lot.id,
         )
 
 
@@ -160,15 +165,12 @@ def test_update_order_status(db_session, test_user, test_lot):
         order_type="LIMIT",
         quantity=Decimal("0.01"),
         price=Decimal("55000.00"),
-        linked_lot_id=test_lot.id
+        linked_lot_id=test_lot.id,
     )
 
     # Update to SUBMITTED
     service.update_order_status(
-        db_session,
-        order_id=order_id,
-        status="SUBMITTED",
-        binance_order_id="12345678"
+        db_session, order_id=order_id, status="SUBMITTED", binance_order_id="12345678"
     )
 
     order_db = db_session.query(OrderDB).filter(OrderDB.id == order_id).first()
@@ -176,11 +178,7 @@ def test_update_order_status(db_session, test_user, test_lot):
     assert order_db.binance_order_id == "12345678"
 
     # Update to OPEN
-    service.update_order_status(
-        db_session,
-        order_id=order_id,
-        status="OPEN"
-    )
+    service.update_order_status(db_session, order_id=order_id, status="OPEN")
 
     order_db = db_session.query(OrderDB).filter(OrderDB.id == order_id).first()
     assert order_db.status == OrderStatusEnum.OPEN
@@ -202,27 +200,20 @@ def test_order_lifecycle_full(db_session, test_user, test_lot):
         order_type="LIMIT",
         quantity=Decimal("0.01"),
         price=Decimal("55000.00"),
-        linked_lot_id=test_lot.id
+        linked_lot_id=test_lot.id,
     )
     order_db = db_session.query(OrderDB).filter(OrderDB.id == order_id).first()
     assert order_db.status == OrderStatusEnum.PENDING
 
     # 2. Submit to Binance (SUBMITTED)
     service.update_order_status(
-        db_session,
-        order_id=order_id,
-        status="SUBMITTED",
-        binance_order_id="12345678"
+        db_session, order_id=order_id, status="SUBMITTED", binance_order_id="12345678"
     )
     order_db = db_session.query(OrderDB).filter(OrderDB.id == order_id).first()
     assert order_db.status == OrderStatusEnum.SUBMITTED
 
     # 3. Accepted by Binance (OPEN)
-    service.update_order_status(
-        db_session,
-        order_id=order_id,
-        status="OPEN"
-    )
+    service.update_order_status(db_session, order_id=order_id, status="OPEN")
     order_db = db_session.query(OrderDB).filter(OrderDB.id == order_id).first()
     assert order_db.status == OrderStatusEnum.OPEN
 
@@ -231,7 +222,7 @@ def test_order_lifecycle_full(db_session, test_user, test_lot):
         db_session,
         order_id=order_id,
         status="FILLED",
-        raw_response={"status": "FILLED", "executedQty": "0.01"}
+        raw_response={"status": "FILLED", "executedQty": "0.01"},
     )
     order_db = db_session.query(OrderDB).filter(OrderDB.id == order_id).first()
     assert order_db.status == OrderStatusEnum.FILLED
@@ -254,21 +245,27 @@ def test_get_orders_for_user(db_session, test_user, test_lot):
             order_type="LIMIT",
             quantity=Decimal("0.01"),
             price=Decimal(f"5{i}000.00"),
-            linked_lot_id=test_lot.id
+            linked_lot_id=test_lot.id,
         )
 
         # Update status
         if i == 0:
-            service.update_order_status(db_session, order_id, "OPEN", binance_order_id=f"binance-{i}")
+            service.update_order_status(
+                db_session, order_id, "OPEN", binance_order_id=f"binance-{i}"
+            )
         elif i == 1:
-            service.update_order_status(db_session, order_id, "FILLED", binance_order_id=f"binance-{i}")
+            service.update_order_status(
+                db_session, order_id, "FILLED", binance_order_id=f"binance-{i}"
+            )
 
     # Get all orders
     orders = service.get_orders_for_user(db_session, test_user.id)
     assert len(orders) == 3
 
     # Filter by PENDING
-    pending_orders = service.get_orders_for_user(db_session, test_user.id, status="PENDING")
+    pending_orders = service.get_orders_for_user(
+        db_session, test_user.id, status="PENDING"
+    )
     assert len(pending_orders) == 1
 
     # Filter by OPEN
@@ -276,11 +273,15 @@ def test_get_orders_for_user(db_session, test_user, test_lot):
     assert len(open_orders) == 1
 
     # Filter by FILLED
-    filled_orders = service.get_orders_for_user(db_session, test_user.id, status="FILLED")
+    filled_orders = service.get_orders_for_user(
+        db_session, test_user.id, status="FILLED"
+    )
     assert len(filled_orders) == 1
 
     # Filter by lot
-    lot_orders = service.get_orders_for_user(db_session, test_user.id, lot_id=test_lot.id)
+    lot_orders = service.get_orders_for_user(
+        db_session, test_user.id, lot_id=test_lot.id
+    )
     assert len(lot_orders) == 3
 
 
@@ -298,7 +299,7 @@ def test_order_rejection(db_session, test_user, test_lot):
         order_type="LIMIT",
         quantity=Decimal("0.01"),
         price=Decimal("55000.00"),
-        linked_lot_id=test_lot.id
+        linked_lot_id=test_lot.id,
     )
 
     # Reject
@@ -306,7 +307,7 @@ def test_order_rejection(db_session, test_user, test_lot):
         db_session,
         order_id=order_id,
         status="REJECTED",
-        error_message="Insufficient balance"
+        error_message="Insufficient balance",
     )
 
     order_db = db_session.query(OrderDB).filter(OrderDB.id == order_id).first()
@@ -328,7 +329,7 @@ def test_get_order_by_client_id(db_session, test_user, test_lot):
         order_type="LIMIT",
         quantity=Decimal("0.01"),
         price=Decimal("55000.00"),
-        linked_lot_id=test_lot.id
+        linked_lot_id=test_lot.id,
     )
 
     # Find by client_order_id
@@ -354,15 +355,12 @@ def test_cancel_order_updates_db(db_session, test_user, test_lot):
         quantity=Decimal("0.01"),
         price=Decimal("55000.00"),
         stop_price=Decimal("55000.00"),
-        linked_lot_id=test_lot.id
+        linked_lot_id=test_lot.id,
     )
 
     binance_order_id = "99887766"
     tracking_service.update_order_status(
-        db_session,
-        order_id=order_id,
-        status="OPEN",
-        binance_order_id=binance_order_id
+        db_session, order_id=order_id, status="OPEN", binance_order_id=binance_order_id
     )
 
     # Verify OPEN
@@ -374,7 +372,7 @@ def test_cancel_order_updates_db(db_session, test_user, test_lot):
     mock_binance.client.cancel_order.return_value = {
         "orderId": int(binance_order_id),
         "symbol": "BTCEUR",
-        "status": "CANCELED"
+        "status": "CANCELED",
     }
 
     order_service = OrderService(mock_binance)
@@ -382,8 +380,7 @@ def test_cancel_order_updates_db(db_session, test_user, test_lot):
 
     # 3. Verify: Binance API aufgerufen
     mock_binance.client.cancel_order.assert_called_once_with(
-        symbol="BTCEUR",
-        orderId=int(binance_order_id)
+        symbol="BTCEUR", orderId=int(binance_order_id)
     )
 
     # 4. Verify: Lokale DB auf CANCELLED aktualisiert
@@ -414,9 +411,9 @@ def test_verify_order_on_binance_after_timeout(db_session, test_user, test_lot):
     assert "warning" in result
 
     # 3. Verify: DB zeigt OPEN (nicht REJECTED)
-    order_db = db_session.query(OrderDB).filter(
-        OrderDB.linked_lot_id == test_lot.id
-    ).first()
+    order_db = (
+        db_session.query(OrderDB).filter(OrderDB.linked_lot_id == test_lot.id).first()
+    )
     assert order_db is not None
     assert order_db.status == OrderStatusEnum.OPEN
     assert order_db.binance_order_id == "12345678"
@@ -433,14 +430,12 @@ def test_verify_order_not_on_binance_marks_rejected(db_session, test_user, test_
 
     # 2. Aufruf sollte ValueError raisen
     with pytest.raises(ValueError, match="Order-Erstellung auf Binance fehlgeschlagen"):
-        order_service.create_limit_sell_for_lot(
-            db_session, test_user.id, test_lot.id
-        )
+        order_service.create_limit_sell_for_lot(db_session, test_user.id, test_lot.id)
 
     # 3. Verify: DB zeigt REJECTED
-    order_db = db_session.query(OrderDB).filter(
-        OrderDB.linked_lot_id == test_lot.id
-    ).first()
+    order_db = (
+        db_session.query(OrderDB).filter(OrderDB.linked_lot_id == test_lot.id).first()
+    )
     assert order_db is not None
     assert order_db.status == OrderStatusEnum.REJECTED
     assert "Binance API error" in order_db.error_message

@@ -89,7 +89,9 @@ def _sync_handle_fill_event(user_id: str, raw_data: dict) -> Optional[dict]:
             return None
 
         # 3. Fee EUR-Wert berechnen
-        fee_eur_value = _compute_realtime_fee_eur_value(fee_amount, fee_asset, price)
+        from app.symbol_registry import get_base_asset
+        base_asset = get_base_asset(symbol)
+        fee_eur_value = _compute_realtime_fee_eur_value(fee_amount, fee_asset, price, base_asset)
 
         # 4. raw_payload normalisieren fuer process_sell_fill Kompatibilitaet
         # process_sell_fill (lot_service.py:673) sucht raw_payload["orderId"]
@@ -98,13 +100,14 @@ def _sync_handle_fill_event(user_id: str, raw_data: dict) -> Optional[dict]:
         normalized_payload["orderId"] = raw_data.get("i")
 
         # 5. LedgerEventDB erstellen
+
         event_id = f"binance_{symbol}_{source_id}"
         event_db = LedgerEventDB(
             id=event_id,
             user_id=user_id,
             type=EventTypeEnum.TRADE_FILL,
             timestamp=timestamp,
-            asset="BTC",
+            asset=base_asset,
             amount=qty,
             symbol=symbol,
             price=price,
@@ -121,7 +124,7 @@ def _sync_handle_fill_event(user_id: str, raw_data: dict) -> Optional[dict]:
 
         # 6. Fee-Konvertierungsraten fuer lot_service rekonstruieren
         fee_conversion_rates = None
-        if fee_asset and fee_asset not in ("EUR", "BTC") and fee_eur_value and fee_amount and fee_amount > 0:
+        if fee_asset and fee_asset not in ("EUR", base_asset) and fee_eur_value and fee_amount and fee_amount > 0:
             fee_conversion_rates = {fee_asset: fee_eur_value / fee_amount}
 
         # 7. Lot erstellen oder Sell allokieren
@@ -185,9 +188,10 @@ def _extract_fill_from_execution_report(raw_data: dict) -> Optional[Dict[str, An
     if not trade_id or trade_id <= 0:
         return None
 
+    from app.symbol_registry import is_known_symbol
     symbol = raw_data.get("s", "")
-    if symbol != "BTCEUR":
-        logger.debug("Ueberspringe Nicht-BTCEUR Fill: %s", symbol)
+    if not is_known_symbol(symbol):
+        logger.debug("Ueberspringe unbekanntes Symbol Fill: %s", symbol)
         return None
 
     side = raw_data.get("S", "")
@@ -229,13 +233,14 @@ def _compute_realtime_fee_eur_value(
     fee_amount: Optional[Decimal],
     fee_asset: Optional[str],
     fill_price: Decimal,
+    base_asset: str = "BTC",
 ) -> Optional[Decimal]:
     """
     Vereinfachte Fee-EUR-Wert-Berechnung fuer Echtzeit-Fills.
 
     Strategie:
     - EUR Fee: as-is
-    - BTC Fee: × fill_price (BTC/EUR Preis zum Trade-Zeitpunkt)
+    - Base-Asset Fee: × fill_price (Base/EUR Preis zum Trade-Zeitpunkt)
     - BNB/andere: Aktueller Preis via Binance Public API
       (akzeptable Approximation; Reconciliation faengt Diskrepanzen)
 
@@ -251,7 +256,7 @@ def _compute_realtime_fee_eur_value(
     if fee_asset == "EUR":
         return fee_amount
 
-    if fee_asset == "BTC":
+    if fee_asset == base_asset:
         return fee_amount * fill_price
 
     # BNB/andere: Aktuellen Preis von Binance Public API holen

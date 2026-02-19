@@ -4,26 +4,27 @@
 import { useQuery } from '@tanstack/react-query';
 import { getPortfolio, getDailyPerformance } from '../api/client';
 import { useAppState } from '../contexts/AppStateContext';
-import { formatNumber, formatEUR, formatBTC } from '../utils/formatters';
+import { formatNumber, formatEUR, formatBase } from '../utils/formatters';
+import { getBaseLabel } from '../utils/symbolRegistry';
 import './Dashboard.css';
 
 // Preis auf 50 EUR runden, damit der queryKey nicht bei jedem Tick wechselt
 const roundPrice = (p) => Math.round(p / 50) * 50;
 
 const Dashboard = () => {
-  const { userId, marketPrice } = useAppState();
+  const { userId, marketPrice, activeSymbol } = useAppState();
   const stablePrice = roundPrice(marketPrice);
 
   // Portfolio wird per WebSocket balance_update Event invalidiert (kein Polling noetig)
   // stablePrice im queryKey: Refetch nur bei >= 50 EUR Aenderung
   const { data: portfolio, isLoading, error } = useQuery({
-    queryKey: ['portfolio', userId, stablePrice],
-    queryFn: () => getPortfolio(userId, marketPrice),
+    queryKey: ['portfolio', userId, activeSymbol, stablePrice],
+    queryFn: () => getPortfolio(userId, marketPrice, activeSymbol),
   });
 
   const { data: daily } = useQuery({
-    queryKey: ['daily-performance', userId, stablePrice],
-    queryFn: () => getDailyPerformance(userId, marketPrice),
+    queryKey: ['daily-performance', userId, activeSymbol, stablePrice],
+    queryFn: () => getDailyPerformance(userId, marketPrice, activeSymbol),
   });
 
   if (isLoading) return <div className="loading">Lade Portfolio...</div>;
@@ -39,7 +40,7 @@ const Dashboard = () => {
 
   return (
     <div className="dashboard">
-      <h1>BTC/EUR Portfolio Dashboard</h1>
+      <h1>{getBaseLabel(activeSymbol)}/EUR Portfolio Dashboard</h1>
 
       {/* Depot-Übersicht: Eingezahlt → Bestand → Performance */}
       <div className="depot-flow">
@@ -54,8 +55,8 @@ const Dashboard = () => {
         </div>
         <div className="flow-arrow">+</div>
         <div className="flow-card">
-          <h3>BTC Bestand</h3>
-          <div className="flow-value">{formatBTC(portfolio.btc_qty)}</div>
+          <h3>{getBaseLabel(activeSymbol)} Bestand</h3>
+          <div className="flow-value">{formatBase(portfolio.base_qty, activeSymbol)}</div>
           <div className="flow-sub">Wert: {formatCurrency(portfolio.market_value_eur)}</div>
         </div>
         <div className="flow-arrow">=</div>
@@ -78,7 +79,7 @@ const Dashboard = () => {
                 {formatCurrency(daily.realized_pnl_today_eur)}
               </div>
               <div className="sub-value">
-                {daily.sells_count_today} Verkäufe ({formatBTC(daily.sells_volume_btc_today)})
+                {daily.sells_count_today} Verkäufe ({formatBase(daily.sells_volume_base_today, activeSymbol)})
               </div>
             </div>
 
@@ -86,7 +87,7 @@ const Dashboard = () => {
               <h3>Neue Buys heute</h3>
               <div className="value">{daily.buys_count_today} Trades</div>
               <div className="sub-value">
-                {formatBTC(daily.buys_volume_btc_today)} / {formatCurrency(daily.buys_volume_eur_today)}
+                {formatBase(daily.buys_volume_base_today, activeSymbol)} / {formatCurrency(daily.buys_volume_eur_today)}
               </div>
             </div>
 

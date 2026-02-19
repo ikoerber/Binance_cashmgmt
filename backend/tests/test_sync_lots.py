@@ -4,6 +4,7 @@ Unit Tests für sync_and_refresh_lots
 Testet die Kombination Binance-Sync + Lot-Rückgabe
 ohne echte DB/Binance-Abhängigkeit.
 """
+
 import pytest
 from datetime import datetime
 from decimal import Decimal
@@ -12,7 +13,9 @@ from unittest.mock import MagicMock, patch
 from app.domain.models import LedgerEvent, EventType, EventSource, TradeSide
 
 
-def _make_buy_fill(fill_id: str, qty: str, price: str, timestamp: datetime) -> LedgerEvent:
+def _make_buy_fill(
+    fill_id: str, qty: str, price: str, timestamp: datetime
+) -> LedgerEvent:
     """Hilfsfunktion: erstellt Buy-Fill LedgerEvent"""
     return LedgerEvent(
         id=f"binance_BTCEUR_{fill_id}",
@@ -28,7 +31,9 @@ def _make_buy_fill(fill_id: str, qty: str, price: str, timestamp: datetime) -> L
     )
 
 
-def _make_sell_fill(fill_id: str, qty: str, price: str, timestamp: datetime) -> LedgerEvent:
+def _make_sell_fill(
+    fill_id: str, qty: str, price: str, timestamp: datetime
+) -> LedgerEvent:
     """Hilfsfunktion: erstellt Sell-Fill LedgerEvent"""
     return LedgerEvent(
         id=f"binance_BTCEUR_{fill_id}",
@@ -64,11 +69,12 @@ class TestSyncAndRefreshLotsUnit:
 
         # Mock get_lots_for_user
         mock_lots = [
-            {"id": "lot_1", "qty_btc_open": "0.01", "status": "OPEN"},
+            {"id": "lot_1", "qty_base_open": "0.01", "status": "OPEN"},
         ]
 
-        with patch("app.services.sync_service.SyncService") as MockSyncClass, \
-             patch("app.services.lot_service.get_lots_for_user", return_value=mock_lots):
+        with patch("app.services.sync_service.SyncService") as MockSyncClass, patch(
+            "app.services.lot_service.get_lots_for_user", return_value=mock_lots
+        ):
             mock_sync_instance = MockSyncClass.return_value
             mock_sync_instance.sync_fills.return_value = mock_sync_report
 
@@ -108,8 +114,9 @@ class TestSyncAndRefreshLotsUnit:
             {"id": "lot_2", "status": "CLOSED"},
         ]
 
-        with patch("app.services.sync_service.SyncService") as MockSyncClass, \
-             patch("app.services.lot_service.get_lots_for_user", return_value=mock_lots):
+        with patch("app.services.sync_service.SyncService") as MockSyncClass, patch(
+            "app.services.lot_service.get_lots_for_user", return_value=mock_lots
+        ):
             mock_sync_instance = MockSyncClass.return_value
             mock_sync_instance.sync_fills.return_value = mock_sync_report
 
@@ -126,17 +133,19 @@ class TestSyncAndRefreshLotsUnit:
         mock_binance = MagicMock()
         start_dt = datetime(2024, 6, 1)
 
-        with patch("app.services.sync_service.SyncService") as MockSyncClass, \
-             patch("app.services.lot_service.get_lots_for_user", return_value=[]):
+        with patch("app.services.sync_service.SyncService") as MockSyncClass, patch(
+            "app.services.lot_service.get_lots_for_user", return_value=[]
+        ):
             mock_sync_instance = MockSyncClass.return_value
             mock_sync_instance.sync_fills.return_value = {
-                "status": "success", "new_fills": 0,
-                "new_lots": 0, "allocations": 0, "message": "",
+                "status": "success",
+                "new_fills": 0,
+                "new_lots": 0,
+                "allocations": 0,
+                "message": "",
             }
 
-            sync_and_refresh_lots(
-                mock_db, "user_1", mock_binance, "BTCEUR", start_dt
-            )
+            sync_and_refresh_lots(mock_db, "user_1", mock_binance, "BTCEUR", start_dt)
 
             mock_sync_instance.sync_fills.assert_called_once_with(
                 mock_db, "user_1", "BTCEUR", start_dt

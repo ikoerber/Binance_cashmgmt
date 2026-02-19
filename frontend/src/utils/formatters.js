@@ -5,6 +5,8 @@
  * German locale (de-DE) fuer Zahlen, Waehrungen, Daten.
  */
 
+import { getBaseDecimals, getBaseLabel } from './symbolRegistry';
+
 export const formatNumber = (num, decimals = 2) => {
   if (num === null || num === undefined) return 'N/A';
   return parseFloat(num).toLocaleString('de-DE', {
@@ -15,7 +17,13 @@ export const formatNumber = (num, decimals = 2) => {
 
 export const formatEUR = (num) => `${formatNumber(num, 2)} \u20ac`;
 
-export const formatBTC = (num) => `${formatNumber(num, 8)} BTC`;
+export const formatBTC = (num) => formatBase(num, 'BTCEUR');
+
+export const formatBase = (num, symbol = 'BTCEUR') => {
+  const decimals = getBaseDecimals(symbol);
+  const label = getBaseLabel(symbol);
+  return `${formatNumber(num, decimals)} ${label}`;
+};
 
 export const formatPct = (num) => `${num >= 0 ? '+' : ''}${formatNumber(num, 2)}%`;
 

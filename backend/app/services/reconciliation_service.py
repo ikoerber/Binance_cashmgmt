@@ -14,6 +14,7 @@ from app.db.models import OrderDB, OrderStatusEnum, EventTypeEnum, LedgerEventDB
 from app.services.binance import BinanceService
 from app.services.order_tracking_service import OrderTrackingService
 from app.services.sync_service import SyncService
+from app.symbol_registry import get_base_asset
 
 logger = logging.getLogger(__name__)
 
@@ -133,7 +134,8 @@ class ReconciliationService:
         self,
         db: Session,
         user_id: str,
-        tolerance_btc: Decimal = Decimal("0.0001"),
+        symbol: str = "BTCEUR",
+        tolerance_base: Decimal = Decimal("0.0001"),
         tolerance_eur: Decimal = Decimal("1.00")
     ) -> Dict[str, Any]:
         """
@@ -142,14 +144,17 @@ class ReconciliationService:
         Args:
             db: Database Session
             user_id: User ID
-            tolerance_btc: Acceptable BTC difference
+            symbol: Trading Pair (Default: BTCEUR)
+            tolerance_base: Acceptable base asset difference
             tolerance_eur: Acceptable EUR difference
 
         Returns:
             Balance reconciliation report
         """
+        base_asset = get_base_asset(symbol)
         report = {
-            "btc": {},
+            "base_asset": base_asset,
+            "base": {},
             "eur": {},
             "within_tolerance": True,
             "errors": []
@@ -161,7 +166,7 @@ class ReconciliationService:
             binance_balances = {balance["asset"]: Decimal(balance["free"]) + Decimal(balance["locked"])
                                for balance in account["balances"]}
 
-            btc_binance = binance_balances.get("BTC", Decimal("0"))
+            base_binance = binance_balances.get(base_asset, Decimal("0"))
             eur_binance = binance_balances.get("EUR", Decimal("0"))
 
         except Exception:
@@ -170,33 +175,33 @@ class ReconciliationService:
             return report
 
         # 2. Calculate balances from ledger
-        # BTC: Sum all BTC events (TRADE_FILL, DEPOSIT, WITHDRAWAL, ADJUSTMENT)
+        # Base asset: Sum all base asset events (TRADE_FILL, DEPOSIT, WITHDRAWAL, ADJUSTMENT)
         ledger_events = db.query(LedgerEventDB).filter(
             LedgerEventDB.user_id == user_id,
-            LedgerEventDB.asset == "BTC"
+            LedgerEventDB.asset == base_asset
         ).all()
 
-        btc_calculated = Decimal("0")
+        base_calculated = Decimal("0")
         for event in ledger_events:
             if event.side:
                 # TRADE_FILL
                 if event.side.value == "BUY":
-                    btc_calculated += event.amount
+                    base_calculated += event.amount
                 elif event.side.value == "SELL":
-                    btc_calculated -= event.amount
+                    base_calculated -= event.amount
             elif event.type.value == "DEPOSIT":
-                btc_calculated += event.amount
+                base_calculated += event.amount
             elif event.type.value == "WITHDRAWAL":
-                btc_calculated -= event.amount
+                base_calculated -= event.amount
             elif event.type.value == "ADJUSTMENT":
                 # ADJUSTMENT: amount kann positiv oder negativ sein
-                btc_calculated += event.amount
+                base_calculated += event.amount
 
-            # Subtract BTC fees
-            if event.fee_asset == "BTC":
-                btc_calculated -= event.fee_amount if event.fee_amount else Decimal("0")
+            # Subtract base asset fees
+            if event.fee_asset == base_asset:
+                base_calculated -= event.fee_amount if event.fee_amount else Decimal("0")
 
-        # EUR: Sum all EUR events + EUR from BTC trades
+        # EUR: Sum all EUR events + EUR from base asset trades
         # 1. Direct EUR events (DEPOSIT, WITHDRAWAL, EXTERNAL_CASHFLOW, ADJUSTMENT)
         ledger_events_eur = db.query(LedgerEventDB).filter(
             LedgerEventDB.user_id == user_id,
@@ -215,14 +220,14 @@ class ReconciliationService:
             elif event.type.value == "ADJUSTMENT":
                 eur_calculated += event.amount
 
-        # 2. EUR from BTC trades (BUY = spend EUR, SELL = receive EUR)
-        btc_trades = db.query(LedgerEventDB).filter(
+        # 2. EUR from base asset trades (BUY = spend EUR, SELL = receive EUR)
+        base_trades = db.query(LedgerEventDB).filter(
             LedgerEventDB.user_id == user_id,
-            LedgerEventDB.asset == "BTC",
+            LedgerEventDB.asset == base_asset,
             LedgerEventDB.type == EventTypeEnum.TRADE_FILL
         ).all()
 
-        for trade in btc_trades:
+        for trade in base_trades:
             if trade.price and trade.amount:
                 eur_value = trade.price * trade.amount
                 if trade.side.value == "BUY":
@@ -232,19 +237,20 @@ class ReconciliationService:
 
         # 3. Subtract EUR fees (nur von TRADE_FILLs — bei Deposits/Withdrawals
         #    ist fee_amount ggf. bereits im amount enthalten)
-        for trade in btc_trades:
+        for trade in base_trades:
             if trade.fee_asset == "EUR" and trade.fee_amount:
                 eur_calculated -= trade.fee_amount
 
         # 4. Compare
-        btc_diff = abs(btc_binance - btc_calculated)
+        base_diff = abs(base_binance - base_calculated)
         eur_diff = abs(eur_binance - eur_calculated)
 
-        report["btc"] = {
-            "binance": str(btc_binance),
-            "calculated": str(btc_calculated),
-            "diff": str(btc_diff),
-            "within_tolerance": btc_diff <= tolerance_btc
+        report["base"] = {
+            "asset": base_asset,
+            "binance": str(base_binance),
+            "calculated": str(base_calculated),
+            "diff": str(base_diff),
+            "within_tolerance": base_diff <= tolerance_base
         }
 
         report["eur"] = {
@@ -255,7 +261,7 @@ class ReconciliationService:
         }
 
         report["within_tolerance"] = (
-            report["btc"]["within_tolerance"] and
+            report["base"]["within_tolerance"] and
             report["eur"]["within_tolerance"]
         )
 
@@ -327,6 +333,6 @@ class ReconciliationService:
         """
         return {
             "orders": self.reconcile_orders(db, user_id, symbol),
-            "balances": self.reconcile_balances(db, user_id),
+            "balances": self.reconcile_balances(db, user_id, symbol),
             "fills": self.reconcile_fills(db, user_id, symbol)
         }

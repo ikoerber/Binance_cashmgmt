@@ -20,6 +20,7 @@ from app.services.lot_service import create_lot_from_buy_fill, process_sell_fill
 from app.domain.models import LedgerEvent, TradeSide, EventType
 from app.domain.lots import compute_fee_eur_value
 from app.db.models import LedgerEventDB, EventTypeEnum, EventSourceEnum, TradeSideEnum
+from app.symbol_registry import get_base_asset, is_known_symbol
 
 
 def persist_ledger_event(
@@ -117,7 +118,7 @@ class SyncService:
             }
 
         # 3. Historische Fee-Konvertierungsraten pro Fill abrufen
-        per_fill_rates = self._get_per_fill_fee_conversion_rates(new_fills)
+        per_fill_rates = self._get_per_fill_fee_conversion_rates(new_fills, symbol)
 
         # 4. Ledger Events persistieren (mit fee_eur_value)
         created_events = []
@@ -281,7 +282,7 @@ class SyncService:
         return new_fills
 
     def _get_per_fill_fee_conversion_rates(
-        self, fills: List[LedgerEvent]
+        self, fills: List[LedgerEvent], symbol: str = "BTCEUR"
     ) -> Dict[str, Dict[str, Decimal]]:
         """
         Holt historische Konvertierungsraten fuer Fee-Assets pro Fill.
@@ -296,9 +297,10 @@ class SyncService:
         Returns:
             Dict[fill_id, Dict[asset, Decimal]] - Per-fill conversion rates
         """
+        base_asset = get_base_asset(symbol)
         fills_needing_conversion = [
             f for f in fills
-            if f.fee_asset and f.fee_asset not in ["EUR", "BTC"]
+            if f.fee_asset and f.fee_asset not in ["EUR", base_asset]
         ]
 
         if not fills_needing_conversion:

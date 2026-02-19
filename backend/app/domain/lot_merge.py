@@ -27,8 +27,8 @@ class MergeResult:
     """Ergebnis einer Merge-Berechnung"""
 
     keeper_lot_id: str
-    new_qty_btc_initial: Decimal
-    new_qty_btc_open: Decimal
+    new_qty_base_initial: Decimal
+    new_qty_base_open: Decimal
     new_cost_eur: Decimal
     new_break_even: Decimal
     merged_lot_ids: List[str] = field(default_factory=list)
@@ -117,17 +117,17 @@ def compute_merge(
     Berechnet das Ergebnis des Merges.
     Pure Berechnung, keine Seiteneffekte.
     """
-    new_qty_initial = keeper.qty_btc_initial + sum(
-        lot.qty_btc_initial for lot in to_merge
+    new_qty_initial = keeper.qty_base_initial + sum(
+        lot.qty_base_initial for lot in to_merge
     )
-    new_qty_open = keeper.qty_btc_open + sum(lot.qty_btc_open for lot in to_merge)
+    new_qty_open = keeper.qty_base_open + sum(lot.qty_base_open for lot in to_merge)
     new_cost = keeper.cost_eur + sum(lot.cost_eur for lot in to_merge)
     new_break_even = new_cost / new_qty_initial if new_qty_initial > 0 else Decimal("0")
 
     return MergeResult(
         keeper_lot_id=keeper.id,
-        new_qty_btc_initial=new_qty_initial,
-        new_qty_btc_open=new_qty_open,
+        new_qty_base_initial=new_qty_initial,
+        new_qty_base_open=new_qty_open,
         new_cost_eur=new_cost,
         new_break_even=new_break_even,
         merged_lot_ids=[lot.id for lot in to_merge],

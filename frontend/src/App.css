@@ -107,11 +107,41 @@ code {
   }
 }
 
+/* Symbol Selector */
+.symbol-selector {
+  display: flex;
+  gap: 6px;
+}
+
+.symbol-pill {
+  padding: 6px 14px;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 20px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.symbol-pill:hover {
+  background: rgba(255, 255, 255, 0.25);
+  color: white;
+}
+
+.symbol-pill.active {
+  background: white;
+  color: #667eea;
+  border-color: white;
+}
+
 /* Live Price */
 .navbar-content {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 16px;
   margin-bottom: 15px;
 }
 

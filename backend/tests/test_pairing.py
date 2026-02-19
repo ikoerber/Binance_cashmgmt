@@ -3,6 +3,7 @@ Unit Tests für Pairing Logic
 
 Testet virtuelle Lot-Bündelung für Netto-Zielmarge.
 """
+
 import pytest
 from datetime import datetime
 from decimal import Decimal
@@ -79,7 +80,9 @@ def test_pairing_one_winner_one_loser_not_combinable():
     # Einzelnes Lot1 allein → kein Pairing (Minimum 2 Lots)
     market_price = Decimal("55000")
 
-    pairings = suggest_pairings([lot1, lot2], market_price, threshold_pct=Decimal("0.05"))
+    pairings = suggest_pairings(
+        [lot1, lot2], market_price, threshold_pct=Decimal("0.05")
+    )
 
     # Erwartet: Kein Pairing — Lot2 senkt den P&L% unter Threshold,
     # und ein einzelnes Lot ergibt kein Pairing
@@ -100,7 +103,9 @@ def test_pairing_two_winners_no_losers():
     # Lot1: 10% Gewinn, Lot2: 5.77% Gewinn → beide profitabel, aber keine Verlierer
     market_price = Decimal("55000")
 
-    pairings = suggest_pairings([lot1, lot2], market_price, threshold_pct=Decimal("0.05"))
+    pairings = suggest_pairings(
+        [lot1, lot2], market_price, threshold_pct=Decimal("0.05")
+    )
 
     # Erwartet: Kein Pairing — einzelne profitable Lots direkt per Sell-Order verkaufbar
     # Minimum 2 Lots pro Pairing, aber keine Verlierer zum Kombinieren
@@ -127,7 +132,9 @@ def test_pairing_multiple_losers():
     # Lot3: -13.79% Verlust
     market_price = Decimal("50000")
 
-    pairings = suggest_pairings([lot1, lot2, lot3], market_price, threshold_pct=Decimal("0.05"))
+    pairings = suggest_pairings(
+        [lot1, lot2, lot3], market_price, threshold_pct=Decimal("0.05")
+    )
 
     # Erwartet: Ein Pairing mit allen 3 Lots
     # cost = 400 + 275 + 290 = 965
@@ -144,7 +151,9 @@ def test_pairing_multiple_losers():
 
     assert len(pairings) >= 1
     # Finde Pairing mit lot1
-    pairing_with_lot1 = next((p for p in pairings if any(i.lot_id == lot1.id for i in p.items)), None)
+    pairing_with_lot1 = next(
+        (p for p in pairings if any(i.lot_id == lot1.id for i in p.items)), None
+    )
     assert pairing_with_lot1 is not None
     assert pairing_with_lot1.net_pnl_pct(market_price) >= Decimal("0.05")
 
@@ -164,7 +173,9 @@ def test_pairing_simulation():
     # Kombiniert: (500+500)-(400+520) = 80, pnl% = 80/920 ≈ 8.7% → ueber 5%
     market_price = Decimal("50000")
 
-    pairings = suggest_pairings([lot1, lot2], market_price, threshold_pct=Decimal("0.05"))
+    pairings = suggest_pairings(
+        [lot1, lot2], market_price, threshold_pct=Decimal("0.05")
+    )
     assert len(pairings) >= 1
 
     pairing = pairings[0]
@@ -172,14 +183,11 @@ def test_pairing_simulation():
 
     # Simulation
     simulation = simulate_pairing(
-        pairing,
-        market_price,
-        all_lots=[lot1, lot2],
-        fee_pct=Decimal("0.001")
+        pairing, market_price, all_lots=[lot1, lot2], fee_pct=Decimal("0.001")
     )
 
-    total_btc_in_pairing = pairing.net_qty_btc()
-    assert simulation.total_btc_to_sell == total_btc_in_pairing
+    total_base_in_pairing = pairing.net_qty_base()
+    assert simulation.total_base_to_sell == total_base_in_pairing
 
     # Affected lots = Items im Pairing
     assert len(simulation.affected_lots) == len(pairing.items)
@@ -203,26 +211,25 @@ def test_pairing_simulation_with_losers():
     # Kombiniert: (1000+500)-(800+520) = 180, pnl% = 180/1320 ≈ 13.6%
     market_price = Decimal("50000")
 
-    pairings = suggest_pairings([lot1, lot2], market_price, threshold_pct=Decimal("0.05"))
+    pairings = suggest_pairings(
+        [lot1, lot2], market_price, threshold_pct=Decimal("0.05")
+    )
     assert len(pairings) > 0
 
     pairing = pairings[0]
     assert len(pairing.items) >= 2
 
     simulation = simulate_pairing(
-        pairing,
-        market_price,
-        all_lots=[lot1, lot2],
-        fee_pct=Decimal("0.001")
+        pairing, market_price, all_lots=[lot1, lot2], fee_pct=Decimal("0.001")
     )
 
     # Total BTC zu verkaufen = alle Items im Pairing
-    expected_btc = sum(item.qty_btc for item in pairing.items)
-    assert simulation.total_btc_to_sell == expected_btc
+    expected_base = sum(item.qty_base for item in pairing.items)
+    assert simulation.total_base_to_sell == expected_base
 
     # Falls alle Lots komplett im Pairing:
-    if simulation.total_btc_to_sell == Decimal("0.03"):
-        assert simulation.remaining_portfolio_btc == Decimal("0")
+    if simulation.total_base_to_sell == Decimal("0.03"):
+        assert simulation.remaining_portfolio_base == Decimal("0")
 
 
 def test_pairing_net_calculations():
@@ -238,7 +245,9 @@ def test_pairing_net_calculations():
     market_price = Decimal("56000")
 
     # Kombiniert: (560+560)-(500+560) = 60, pnl% = 60/1060 ≈ 5.66% → ueber 1%
-    pairings = suggest_pairings([lot1, lot2], market_price, threshold_pct=Decimal("0.01"))
+    pairings = suggest_pairings(
+        [lot1, lot2], market_price, threshold_pct=Decimal("0.01")
+    )
     assert len(pairings) >= 1
 
     # Pairing muss mindestens 2 Lots enthalten
@@ -250,7 +259,7 @@ def test_pairing_net_calculations():
     assert actual_cost > 0
 
     # Net qty
-    actual_qty = pairing.net_qty_btc()
+    actual_qty = pairing.net_qty_base()
     assert actual_qty > 0
 
     # Net value @ 56k
@@ -297,7 +306,9 @@ def test_pairing_threshold_check_combined():
     # Kombiniert: (462+462)-(400+480) = 44, pnl% = 44/880 = 5% → genau Threshold
     market_price = Decimal("46200")
 
-    pairings = suggest_pairings([lot1, lot2], market_price, threshold_pct=Decimal("0.05"))
+    pairings = suggest_pairings(
+        [lot1, lot2], market_price, threshold_pct=Decimal("0.05")
+    )
 
     assert len(pairings) == 1
     pairing = pairings[0]
@@ -319,7 +330,9 @@ def test_pairing_simulation_with_custom_sell_price():
     market_price = Decimal("50000")
     fee_pct = Decimal("0.001")
 
-    pairings = suggest_pairings([lot1, lot2], market_price, threshold_pct=Decimal("0.05"))
+    pairings = suggest_pairings(
+        [lot1, lot2], market_price, threshold_pct=Decimal("0.05")
+    )
     assert len(pairings) >= 1
     pairing = pairings[0]
 
@@ -328,15 +341,16 @@ def test_pairing_simulation_with_custom_sell_price():
 
     # Simulation mit hoeherem sell_price
     custom_sell_price = Decimal("51000")
-    sim_custom = simulate_pairing(pairing, market_price, [lot1, lot2], fee_pct,
-                                   sell_price=custom_sell_price)
+    sim_custom = simulate_pairing(
+        pairing, market_price, [lot1, lot2], fee_pct, sell_price=custom_sell_price
+    )
 
     # P&L muss bei hoeherem Verkaufspreis hoeher sein
     assert sim_custom.expected_realized_pnl_eur > sim_default.expected_realized_pnl_eur
 
-    # Erloese pruefen: total_btc * sell_price - fees
-    total_btc = pairing.net_qty_btc()
-    expected_gross = total_btc * custom_sell_price
+    # Erloese pruefen: total_base * sell_price - fees
+    total_base = pairing.net_qty_base()
+    expected_gross = total_base * custom_sell_price
     expected_fee = expected_gross * fee_pct
     expected_proceeds = expected_gross - expected_fee
     assert sim_custom.expected_proceeds_eur == expected_proceeds

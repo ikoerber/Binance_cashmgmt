@@ -150,7 +150,7 @@ class LedgerEventDB(Base):
 
 class TradeLotDB(Base):
     """
-    TradeLot - BTC Position
+    TradeLot - Base-Asset Position
 
     1 Fill = 1 Lot
     """
@@ -159,11 +159,13 @@ class TradeLotDB(Base):
     id = Column(String, primary_key=True)
     user_id = Column(String, ForeignKey("users.id"), nullable=False)
 
+    symbol = Column(String, nullable=False, server_default="BTCEUR")
+
     created_from_fill_id = Column(String, ForeignKey("ledger_events.id"), nullable=False)
     created_at = Column(DateTime, nullable=False, default=_utcnow)
 
-    qty_btc_initial = Column(Numeric(precision=20, scale=10), nullable=False)
-    qty_btc_open = Column(Numeric(precision=20, scale=10), nullable=False)
+    qty_base_initial = Column(Numeric(precision=20, scale=10), nullable=False)
+    qty_base_open = Column(Numeric(precision=20, scale=10), nullable=False)
 
     cost_eur = Column(Numeric(precision=20, scale=2), nullable=False)
 
@@ -181,7 +183,7 @@ class TradeLotDB(Base):
 
     # Indexes
     __table_args__ = (
-        Index("idx_lots_user_status", "user_id", "status"),
+        Index("idx_lots_user_symbol_status", "user_id", "symbol", "status"),
     )
 
 
@@ -274,6 +276,8 @@ class PairingDB(Base):
     id = Column(String, primary_key=True)
     user_id = Column(String, ForeignKey("users.id"), nullable=False)
 
+    symbol = Column(String, nullable=False, server_default="BTCEUR")
+
     threshold_pct = Column(Numeric(precision=10, scale=6), nullable=False)  # z.B. 0.05 für 5%
     status = Column(SQLEnum(PairingStatusEnum), nullable=False, default=PairingStatusEnum.DRAFT)
 
@@ -303,7 +307,7 @@ class PairingItemDB(Base):
     pairing_id = Column(String, ForeignKey("pairings.id"), nullable=False)
     lot_id = Column(String, ForeignKey("trade_lots.id"), nullable=False)
 
-    qty_btc = Column(Numeric(precision=20, scale=10), nullable=False)
+    qty_base = Column(Numeric(precision=20, scale=10), nullable=False)
     cost_eur = Column(Numeric(precision=20, scale=2), nullable=False)
 
     # Relationships

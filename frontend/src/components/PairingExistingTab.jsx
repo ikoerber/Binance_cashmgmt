@@ -14,12 +14,12 @@ import {
   executePairing,
   deletePairing,
 } from '../api/client';
-import { formatNumber, formatEUR } from '../utils/formatters';
+import { formatNumber, formatEUR, formatBase } from '../utils/formatters';
 import { useAppState } from '../contexts/AppStateContext';
 import SimulationModal from './SimulationModal';
 
 const PairingExistingTab = ({ onHighlightLots, showMessage }) => {
-  const { userId, marketPrice } = useAppState();
+  const { userId, marketPrice, activeSymbol } = useAppState();
   const queryClient = useQueryClient();
 
   const [existingStatusFilter, setExistingStatusFilter] = useState(null);
@@ -196,7 +196,7 @@ const PairingExistingTab = ({ onHighlightLots, showMessage }) => {
               <div className="pairing-card-details">
                 <div>
                   <span className="label">Netto BTC</span><br />
-                  {formatNumber(p.net_qty_btc, 8)}
+                  {formatBase(p.net_qty_base, activeSymbol)}
                 </div>
                 <div>
                   <span className="label">Netto Kosten</span><br />

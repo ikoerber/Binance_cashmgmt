@@ -29,6 +29,9 @@ def list_lots(
     status: Optional[str] = Query(
         None, description="Filter by status: OPEN, PARTIAL_CLOSED, CLOSED"
     ),
+    symbol: Optional[str] = Query(
+        None, description="Filter by symbol (z.B. BTCEUR, ETHEUR)"
+    ),
     from_date: Optional[str] = Query(
         None,
         description="Filter von Datum (ISO format: YYYY-MM-DD oder YYYY-MM-DDTHH:MM:SS)",
@@ -47,6 +50,7 @@ def list_lots(
     Args:
         user_id: User ID
         status: Optional - Filter nach Status
+        symbol: Optional - Filter nach Trading Pair (z.B. BTCEUR)
         from_date: Optional - Nur Lots ab diesem Datum (ISO format)
         to_date: Optional - Nur Lots bis zu diesem Datum (ISO format)
         limit: Max Anzahl Lots (1-1000)
@@ -65,7 +69,7 @@ def list_lots(
             parsed_to = datetime.fromisoformat(to_date)
 
         lots = get_lots_for_user(
-            db, user_id, status, parsed_from, parsed_to, limit, offset
+            db, user_id, status, parsed_from, parsed_to, limit, offset, symbol=symbol
         )
         return {
             "lots": lots,

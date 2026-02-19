@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, NavLink, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
 import Dashboard from './components/Dashboard';
@@ -8,9 +8,10 @@ import Settings from './components/Settings';
 import Orderblock from './components/Orderblock';
 import CombinedScore from './components/CombinedScore';
 import { WebSocketProvider, useLivePrice } from './contexts/WebSocketContext';
-import { AppStateProvider } from './contexts/AppStateContext';
+import { AppStateProvider, useAppState } from './contexts/AppStateContext';
 import FillNotification from './components/FillNotification';
 import { getServerIp } from './api/client';
+import { getAllSymbols, getPairLabel } from './utils/symbolRegistry';
 import './App.css';
 
 // Memoize Komponenten, die nicht vom Preis abhaengen
@@ -29,12 +30,17 @@ const queryClient = new QueryClient({
 });
 
 function AppContent() {
-  const userId = 'user_123';
+  const { activeSymbol, setActiveSymbol, setMarketPrice } = useAppState();
 
-  // Live BTC/EUR Preis
-  const { price: marketPrice, loading: priceLoading, lastUpdate, source, direction, changePct, isFlashing } = useLivePrice('BTCEUR', 10000);
+  // Live Preis fuer aktives Paar
+  const { price: marketPrice, loading: priceLoading, lastUpdate, source, direction, changePct, isFlashing } = useLivePrice(activeSymbol, 10000);
 
-  // Server Public IP (für Binance Whitelisting)
+  // marketPrice in den Context synchronisieren
+  useEffect(() => {
+    if (marketPrice) setMarketPrice(marketPrice);
+  }, [marketPrice, setMarketPrice]);
+
+  // Server Public IP (fuer Binance Whitelisting)
   const { data: serverIpData } = useQuery({
     queryKey: ['server-ip'],
     queryFn: getServerIp,
@@ -46,20 +52,31 @@ function AppContent() {
     <div className="App">
       <nav className="navbar">
         <div className="navbar-content">
-          <h1>BTC/EUR Cashflow Management</h1>
+          <h1>{getPairLabel(activeSymbol)} Cashflow Management</h1>
+          <div className="symbol-selector">
+            {getAllSymbols().map(sym => (
+              <button
+                key={sym}
+                className={`symbol-pill ${sym === activeSymbol ? 'active' : ''}`}
+                onClick={() => setActiveSymbol(sym)}
+              >
+                {getPairLabel(sym)}
+              </button>
+            ))}
+          </div>
           <div className={`live-price ${isFlashing ? 'price-flash' : ''}`}>
             {priceLoading ? (
               <span className="price-loading">Lade Preis...</span>
             ) : (
               <>
-                <span className="price-label">Live BTC/EUR:</span>
+                <span className="price-label">Live {getPairLabel(activeSymbol)}:</span>
                 <span className={`price-value ${direction === 'up' ? 'price-up' : direction === 'down' ? 'price-down' : ''}`}>
                   {direction === 'up' && '\u25B2 '}
                   {direction === 'down' && '\u25BC '}
                   {marketPrice ? marketPrice.toLocaleString('de-DE', {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2
-                  }) : '\u2014'} €
+                  }) : '\u2014'} \u20ac
                 </span>
                 {isFlashing && (
                   <span className={`price-alert ${direction === 'up' ? 'price-alert-up' : 'price-alert-down'}`}>
@@ -90,24 +107,22 @@ function AppContent() {
         </div>
       </nav>
 
-      <AppStateProvider userId={userId} marketPrice={marketPrice || 50000}>
-        <div className="content">
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/lots" element={<LotsTable />} />
-            <Route path="/combined" element={<MemoCombinedScore />} />
-            <Route path="/orderblock" element={<MemoOrderblock />} />
-            <Route path="/reconciliation" element={<MemoReconciliation />} />
-            <Route path="/settings" element={<MemoSettings />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </div>
-      </AppStateProvider>
+      <div className="content">
+        <Routes>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/lots" element={<LotsTable />} />
+          <Route path="/combined" element={<MemoCombinedScore />} />
+          <Route path="/orderblock" element={<MemoOrderblock />} />
+          <Route path="/reconciliation" element={<MemoReconciliation />} />
+          <Route path="/settings" element={<MemoSettings />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </div>
 
       <FillNotification />
 
       <footer className="app-footer">
-        <span>BTC/EUR Cashflow Management v0.1.0</span>
+        <span>{getPairLabel(activeSymbol)} Cashflow Management v0.1.0</span>
         {serverIpData?.ip && (
           <span className="footer-ip">Server IP: {serverIpData.ip}</span>
         )}
@@ -116,12 +131,20 @@ function AppContent() {
   );
 }
 
+function AppInner() {
+  return (
+    <AppStateProvider userId="user_123">
+      <AppContent />
+    </AppStateProvider>
+  );
+}
+
 function App() {
   return (
     <BrowserRouter>
       <QueryClientProvider client={queryClient}>
         <WebSocketProvider userId="user_123">
-          <AppContent />
+          <AppInner />
         </WebSocketProvider>
       </QueryClientProvider>
     </BrowserRouter>

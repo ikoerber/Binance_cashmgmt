@@ -3,6 +3,7 @@ Unit Tests für TradeLot-Logik und FIFO Sell Allocation
 
 Testet die Kern-Business-Logik für Lot-Management.
 """
+
 import pytest
 from datetime import datetime, timedelta
 from decimal import Decimal
@@ -39,8 +40,8 @@ def test_create_lot_from_buy_simple():
 
     assert lot.id == "lot_fill_1"
     assert lot.created_from_fill_id == "fill_1"
-    assert lot.qty_btc_initial == Decimal("0.01")
-    assert lot.qty_btc_open == Decimal("0.01")
+    assert lot.qty_base_initial == Decimal("0.01")
+    assert lot.qty_base_open == Decimal("0.01")
     assert lot.cost_eur == Decimal("500.00")  # 0.01 * 50000
     assert lot.break_even == Decimal("50000.00")
     assert lot.status == LotStatus.OPEN
@@ -90,8 +91,8 @@ def test_create_lot_with_btc_fee():
     # qty_net = 0.01 - 0.00001 = 0.00999 (BRUTTO minus Fee)
     # cost = 0.01 * 50000 = 500.00 EUR (tatsächlich bezahlt, KEINE Fee-Addition)
     # break_even = 500.00 / 0.00999 = 50050.05
-    assert lot.qty_btc_initial == Decimal("0.00999")
-    assert lot.qty_btc_open == Decimal("0.00999")
+    assert lot.qty_base_initial == Decimal("0.00999")
+    assert lot.qty_base_open == Decimal("0.00999")
     assert lot.cost_eur == Decimal("500.00")
     expected_be = Decimal("500.00") / Decimal("0.00999")
     assert abs(lot.break_even - expected_be) < Decimal("0.01")
@@ -156,7 +157,7 @@ def test_fifo_allocation_single_lot_full():
     assert allocation.realized_pnl_eur == Decimal("50.00")
 
     updated_lot = updated_lots[0]
-    assert updated_lot.qty_btc_open == Decimal("0")
+    assert updated_lot.qty_base_open == Decimal("0")
     assert updated_lot.status == LotStatus.CLOSED
 
 
@@ -196,7 +197,7 @@ def test_fifo_allocation_single_lot_partial():
     assert allocation.realized_pnl_eur == Decimal("25.00")
 
     updated_lot = updated_lots[0]
-    assert updated_lot.qty_btc_open == Decimal("0.005")
+    assert updated_lot.qty_base_open == Decimal("0.005")
     assert updated_lot.status == LotStatus.PARTIAL_CLOSED
 
 
@@ -260,11 +261,11 @@ def test_fifo_allocation_multiple_lots():
 
     # Lot-Status prüfen
     updated_lot1 = next(l for l in updated_lots if l.id == lot1.id)
-    assert updated_lot1.qty_btc_open == Decimal("0")
+    assert updated_lot1.qty_base_open == Decimal("0")
     assert updated_lot1.status == LotStatus.CLOSED
 
     updated_lot2 = next(l for l in updated_lots if l.id == lot2.id)
-    assert updated_lot2.qty_btc_open == Decimal("0.005")
+    assert updated_lot2.qty_base_open == Decimal("0.005")
     assert updated_lot2.status == LotStatus.PARTIAL_CLOSED
 
 
@@ -360,9 +361,7 @@ def test_calculate_lot_target_price():
 
     # Mit Fee-Buffer (0.2%)
     target_with_buffer = calculate_lot_target_price(
-        lot,
-        Decimal("0.05"),
-        fee_buffer_pct=Decimal("0.002")
+        lot, Decimal("0.05"), fee_buffer_pct=Decimal("0.002")
     )
     expected = Decimal("50000") * Decimal("1.05") * Decimal("1.002")
     assert abs(target_with_buffer - expected) < Decimal("0.01")

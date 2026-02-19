@@ -91,6 +91,7 @@ def reconcile_orders_only(
 @router.post("/{user_id}/balances")
 def reconcile_balances_only(
     user_id: str,
+    symbol: str = Query("BTCEUR", description="Trading Pair"),
     db: Session = Depends(get_db),
     reconciliation_service: ReconciliationService = Depends(get_reconciliation_service)
 ):
@@ -99,6 +100,7 @@ def reconcile_balances_only(
 
     Args:
         user_id: User ID
+        symbol: Trading Pair (Default: BTCEUR)
         db: Database Session (injected)
         reconciliation_service: Reconciliation Service (injected)
 
@@ -106,11 +108,12 @@ def reconcile_balances_only(
         Balance reconciliation report
     """
     try:
-        report = reconciliation_service.reconcile_balances(db, user_id)
+        report = reconciliation_service.reconcile_balances(db, user_id, symbol)
         return {
             "status": "completed",
             "type": "balances",
             "user_id": user_id,
+            "symbol": symbol,
             "report": report
         }
     except Exception as e:

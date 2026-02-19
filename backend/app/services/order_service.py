@@ -17,6 +17,7 @@ from app.services.order_tracking_service import OrderTrackingService
 from app.services.pairing_service import get_pairing_by_id, lock_pairing, execute_pairing
 from app.db.models import TradeLotDB, UserSettingsDB, OrderDB
 from app.domain.lots import calculate_lot_target_price
+from app.symbol_registry import get_base_precision, get_price_precision
 
 
 # Re-Export aus Domain fuer Backward-Kompatibilitaet
@@ -71,14 +72,17 @@ class OrderService:
         if not lot_db:
             raise ValueError(f"Lot {lot_id} not found")
 
-        if lot_db.qty_btc_open <= 0:
+        if lot_db.qty_base_open <= 0:
             raise ValueError(f"Lot {lot_id} has no open quantity")
 
-        if not lot_db.qty_btc_initial or lot_db.qty_btc_initial <= 0:
+        if not lot_db.qty_base_initial or lot_db.qty_base_initial <= 0:
             raise ValueError(f"Lot {lot_id} has invalid initial quantity")
 
+        # Symbol aus Lot lesen
+        symbol = lot_db.symbol
+
         # Zielpreis berechnen
-        break_even = lot_db.cost_eur / lot_db.qty_btc_initial
+        break_even = lot_db.cost_eur / lot_db.qty_base_initial
 
         # Lot-spezifische Margin oder global
         margin = lot_db.target_margin_pct if lot_db.target_margin_pct else target_margin_pct
@@ -86,12 +90,15 @@ class OrderService:
         target_price = break_even * (Decimal("1") + margin) * (Decimal("1") + fee_buffer_pct)
 
         # Binance Order Parameter validieren
-        qty_btc = lot_db.qty_btc_open
+        qty_base = lot_db.qty_base_open
 
-        # Runde auf Binance-konforme Werte
-        # TODO: Von Binance Symbol Info abholen
-        target_price_rounded = target_price.quantize(Decimal("0.01"))
-        qty_btc_rounded = qty_btc.quantize(Decimal("0.00001"))
+        # Runde auf Binance-konforme Werte (aus Symbol Registry)
+        price_prec = get_price_precision(symbol)
+        base_prec = get_base_precision(symbol)
+        price_quant = Decimal(10) ** -price_prec
+        base_quant = Decimal(10) ** -base_prec
+        target_price_rounded = target_price.quantize(price_quant)
+        qty_base_rounded = qty_base.quantize(base_quant)
 
         # Client Order ID (idempotent!)
         # Format: {userId}_{lotId}_{targetPrice}_{qty}_{version}
@@ -99,10 +106,10 @@ class OrderService:
         version = "v1"
         safe_user_id = re.sub(r'[^a-zA-Z0-9_-]', '', user_id)
         safe_lot_id = re.sub(r'[^a-zA-Z0-9_-]', '', lot_id)
-        client_order_id = f"{safe_user_id}_{safe_lot_id}_{int(target_price)}_{int(qty_btc_rounded * Decimal('100000'))}_{version}"[:36]  # Max 36 chars
+        client_order_id = f"{safe_user_id}_{safe_lot_id}_{int(target_price)}_{int(qty_base_rounded * Decimal('100000'))}_{version}"[:36]  # Max 36 chars
 
         # 1. Max Order Value pruefen
-        order_value = qty_btc_rounded * target_price_rounded
+        order_value = qty_base_rounded * target_price_rounded
         settings = db.query(UserSettingsDB).filter(UserSettingsDB.user_id == user_id).first()
         max_value = Decimal(str(settings.max_order_value_eur)) if settings else Decimal("1000")
         if order_value > max_value:
@@ -124,10 +131,10 @@ class OrderService:
             db,
             user_id=user_id,
             client_order_id=client_order_id,
-            symbol="BTCEUR",
+            symbol=symbol,
             side="SELL",
             order_type="TAKE_PROFIT_LIMIT",
-            quantity=qty_btc_rounded,
+            quantity=qty_base_rounded,
             price=target_price_rounded,
             stop_price=target_price_rounded,
             linked_lot_id=lot_id
@@ -136,11 +143,11 @@ class OrderService:
         # 3. Call Binance API
         try:
             binance_response = self.binance_service.client.create_order(
-                symbol="BTCEUR",
+                symbol=symbol,
                 side="SELL",
                 type="TAKE_PROFIT_LIMIT",
                 timeInForce="GTC",  # Good Till Cancel
-                quantity=str(qty_btc_rounded),
+                quantity=str(qty_base_rounded),
                 price=str(target_price_rounded),
                 stopPrice=str(target_price_rounded),
                 newClientOrderId=client_order_id
@@ -166,7 +173,7 @@ class OrderService:
         except Exception as e:
             # 5. Verifikation: Existiert die Order trotzdem auf Binance?
             try:
-                verified = self._verify_order_on_binance(db, order_id, client_order_id)
+                verified = self._verify_order_on_binance(db, order_id, client_order_id, symbol=symbol)
             except Exception:
                 verified = None
 
@@ -252,21 +259,27 @@ class OrderService:
                 f"Pairing {pairing_id} must be DRAFT or LOCKED (current: {pairing_db.status.value})"
             )
 
-        # 3. Validiere alle Lots
+        # 3. Validiere alle Lots und bestimme Symbol
+        symbol = pairing_db.symbol
         for item in pairing_domain.items:
             lot_db = db.query(TradeLotDB).filter(TradeLotDB.id == item.lot_id).first()
             if not lot_db:
                 raise ValueError(f"Lot {item.lot_id} not found")
 
         # 4. Berechne aggregierte Order-Parameter
+        price_prec = get_price_precision(symbol)
+        base_prec = get_base_precision(symbol)
+        price_quant = Decimal(10) ** -price_prec
+        base_quant = Decimal(10) ** -base_prec
+
         if custom_sell_price is not None:
-            target_price_rounded = custom_sell_price.quantize(Decimal("0.01"))
+            target_price_rounded = custom_sell_price.quantize(price_quant)
         else:
             target_price = market_price * (Decimal("1") + fee_buffer_pct)
-            target_price_rounded = target_price.quantize(Decimal("0.01"))
+            target_price_rounded = target_price.quantize(price_quant)
 
-        total_qty = sum(item.qty_btc for item in pairing_domain.items)
-        total_qty_rounded = total_qty.quantize(Decimal("0.00001"))
+        total_qty = sum(item.qty_base for item in pairing_domain.items)
+        total_qty_rounded = total_qty.quantize(base_quant)
 
         # Max Order Value pruefen
         order_value = total_qty_rounded * target_price_rounded
@@ -298,7 +311,7 @@ class OrderService:
             db,
             user_id=user_id,
             client_order_id=client_order_id,
-            symbol="BTCEUR",
+            symbol=symbol,
             side="SELL",
             order_type="TAKE_PROFIT_LIMIT",
             quantity=total_qty_rounded,
@@ -310,7 +323,7 @@ class OrderService:
         # 7. Call Binance API
         try:
             binance_response = self.binance_service.client.create_order(
-                symbol="BTCEUR",
+                symbol=symbol,
                 side="SELL",
                 type="TAKE_PROFIT_LIMIT",
                 timeInForce="GTC",
@@ -331,7 +344,7 @@ class OrderService:
 
         except Exception as e:
             # Verifikation: Existiert die Order trotzdem auf Binance?
-            verified = self._verify_order_on_binance(db, order_id, client_order_id)
+            verified = self._verify_order_on_binance(db, order_id, client_order_id, symbol=symbol)
             if verified:
                 order = verified
             else:
@@ -356,7 +369,7 @@ class OrderService:
             "pairing_id": pairing_id,
             "order": order,
             "count": 1,
-            "total_qty_btc": str(total_qty_rounded),
+            "total_qty_base": str(total_qty_rounded),
             "lot_count": len(pairing_domain.items),
         }
 

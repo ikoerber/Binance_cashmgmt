@@ -4,9 +4,13 @@
  * Zeigt Simulation-Details und erlaubt das Anpassen des Verkaufspreises.
  */
 import { useState } from 'react';
-import { formatNumber, formatEUR, formatBTC } from '../utils/formatters';
+import { formatNumber, formatEUR, formatBase } from '../utils/formatters';
+import { useAppState } from '../contexts/AppStateContext';
 
 const SimulationModal = ({ simulationData, onClose, onResimulate }) => {
+  const { activeSymbol } = useAppState();
+  const fmtBase = (num) => formatBase(num, activeSymbol);
+
   if (!simulationData) return null;
 
   // Aktuellen Sell-Preis aus planned_orders extrahieren
@@ -57,7 +61,7 @@ const SimulationModal = ({ simulationData, onClose, onResimulate }) => {
           </div>
           <div className="sim-card">
             <span className="sim-label">BTC zu verkaufen</span>
-            <span className="sim-value">{formatBTC(simulationData.total_btc_to_sell)}</span>
+            <span className="sim-value">{fmtBase(simulationData.total_base_to_sell)}</span>
           </div>
           <div className="sim-card">
             <span className="sim-label">Erwarteter Erloes</span>
@@ -93,8 +97,8 @@ const SimulationModal = ({ simulationData, onClose, onResimulate }) => {
             {(simulationData.affected_lots || []).map((lot) => (
               <tr key={lot.lot_id}>
                 <td className="order-id">{lot.lot_id.slice(0, 12)}...</td>
-                <td>{formatBTC(lot.qty_btc_to_sell)}</td>
-                <td>{formatBTC(lot.qty_btc_remaining)}</td>
+                <td>{fmtBase(lot.qty_base_to_sell)}</td>
+                <td>{fmtBase(lot.qty_base_remaining)}</td>
                 <td>
                   <span className={`status-badge ${lot.new_status.toLowerCase()}`}>
                     {lot.new_status}
@@ -106,7 +110,7 @@ const SimulationModal = ({ simulationData, onClose, onResimulate }) => {
         </table>
 
         <div className="simulation-remaining">
-          <span>Verbleibendes Portfolio: {formatBTC(simulationData.remaining_portfolio_btc)}</span>
+          <span>Verbleibendes Portfolio: {fmtBase(simulationData.remaining_portfolio_base)}</span>
           <span>Verbleibende Kosten: {formatEUR(simulationData.remaining_portfolio_cost_eur)}</span>
         </div>
 
@@ -169,7 +173,7 @@ const SimulationModal = ({ simulationData, onClose, onResimulate }) => {
                   </div>
                   <div className="sim-card">
                     <span className="sim-label">Menge (BTC)</span>
-                    <span className="sim-value">{formatBTC(order.quantity)}</span>
+                    <span className="sim-value">{fmtBase(order.quantity)}</span>
                   </div>
                   <div className="sim-card">
                     <span className="sim-label">Preis (EUR)</span>

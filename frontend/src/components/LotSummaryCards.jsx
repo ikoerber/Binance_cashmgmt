@@ -10,12 +10,12 @@
 import { useAppState } from '../contexts/AppStateContext';
 import { useQuery } from '@tanstack/react-query';
 import { getSettings } from '../api/client';
-import { formatEUR, formatBTC, formatNumber } from '../utils/formatters';
+import { formatEUR, formatBase, formatNumber } from '../utils/formatters';
 
 const DEFAULT_FEE_RATE = 0.001; // 0.1% Binance Spot Fee Fallback
 
 const LotSummaryCards = ({ openCostSum, filteredOpenQtySum, totalOpenQty, depotPnl }) => {
-  const { userId, marketPrice } = useAppState();
+  const { userId, marketPrice, activeSymbol } = useAppState();
 
   const { data: settings } = useQuery({
     queryKey: ['settings', userId],
@@ -41,7 +41,7 @@ const LotSummaryCards = ({ openCostSum, filteredOpenQtySum, totalOpenQty, depotP
       </div>
       <div className="summary-card">
         <span className="summary-label">Menge Offen (gefiltert)</span>
-        <span className="summary-value">{formatBTC(filteredOpenQtySum)}</span>
+        <span className="summary-value">{formatBase(filteredOpenQtySum, activeSymbol)}</span>
       </div>
       {recoveryPrice !== null && (
         <div className="summary-card recovery-card">

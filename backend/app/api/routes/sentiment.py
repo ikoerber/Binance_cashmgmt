@@ -5,12 +5,11 @@ import logging
 from fastapi import APIRouter, HTTPException, Query
 
 from app.services.sentiment_data_service import get_sentiment_data_service
+from app.symbol_registry import KNOWN_PAIRS
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/sentiment", tags=["sentiment"])
-
-ALLOWED_SYMBOLS = {"BTCEUR"}
 
 
 @router.get("/{user_id}/current")
@@ -39,10 +38,10 @@ async def get_sentiment_current(
     - Pillar-Dispersion als Konfidenz-Faktor
     - Volatility-Scaling (20d vs 120d Vol)
     """
-    if symbol not in ALLOWED_SYMBOLS:
+    if symbol not in KNOWN_PAIRS:
         raise HTTPException(
             status_code=400,
-            detail=f"Symbol nicht unterstuetzt. Erlaubt: {', '.join(sorted(ALLOWED_SYMBOLS))}",
+            detail=f"Symbol nicht unterstuetzt. Erlaubt: {', '.join(sorted(KNOWN_PAIRS))}",
         )
     try:
         service = get_sentiment_data_service()

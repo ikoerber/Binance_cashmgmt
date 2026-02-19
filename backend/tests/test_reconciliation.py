@@ -9,6 +9,7 @@ Testet:
 
 Note: Diese Tests verwenden Mocks für Binance API Calls
 """
+
 import pytest
 from datetime import datetime
 from decimal import Decimal
@@ -19,8 +20,13 @@ import uuid
 
 from app.db.database import Base
 from app.db.models import (
-    User, OrderDB, OrderStatusEnum, LedgerEventDB, EventTypeEnum, EventSourceEnum,
-    TradeSideEnum
+    User,
+    OrderDB,
+    OrderStatusEnum,
+    LedgerEventDB,
+    EventTypeEnum,
+    EventSourceEnum,
+    TradeSideEnum,
 )
 from app.services.reconciliation_service import ReconciliationService
 from app.services.binance import BinanceService
@@ -42,10 +48,7 @@ def db_session():
 @pytest.fixture
 def test_user(db_session):
     """Creates test user"""
-    user = User(
-        id="test-user-1",
-        email="test@example.com"
-    )
+    user = User(id="test-user-1", email="test@example.com")
     db_session.add(user)
     db_session.commit()
     return user
@@ -65,7 +68,9 @@ def reconciliation_service(mock_binance_service):
     return ReconciliationService(mock_binance_service)
 
 
-def test_reconcile_orders_no_changes(db_session, test_user, reconciliation_service, mock_binance_service):
+def test_reconcile_orders_no_changes(
+    db_session, test_user, reconciliation_service, mock_binance_service
+):
     """Test: Reconciliation wenn keine Änderungen"""
     # Create open order in DB
     order = OrderDB(
@@ -78,7 +83,7 @@ def test_reconcile_orders_no_changes(db_session, test_user, reconciliation_servi
         type="LIMIT",
         quantity=Decimal("0.01"),
         price=Decimal("55000.00"),
-        status=OrderStatusEnum.OPEN
+        status=OrderStatusEnum.OPEN,
     )
     db_session.add(order)
     db_session.commit()
@@ -96,7 +101,9 @@ def test_reconcile_orders_no_changes(db_session, test_user, reconciliation_servi
     assert len(report["discrepancies"]) == 0
 
 
-def test_reconcile_orders_status_update(db_session, test_user, reconciliation_service, mock_binance_service):
+def test_reconcile_orders_status_update(
+    db_session, test_user, reconciliation_service, mock_binance_service
+):
     """Test: Order Status wird von Binance updated"""
     # Create open order in DB
     order = OrderDB(
@@ -109,7 +116,7 @@ def test_reconcile_orders_status_update(db_session, test_user, reconciliation_se
         type="LIMIT",
         quantity=Decimal("0.01"),
         price=Decimal("55000.00"),
-        status=OrderStatusEnum.OPEN
+        status=OrderStatusEnum.OPEN,
     )
     db_session.add(order)
     db_session.commit()
@@ -119,7 +126,7 @@ def test_reconcile_orders_status_update(db_session, test_user, reconciliation_se
     mock_binance_service.client.get_order.return_value = {
         "orderId": 12345678,
         "status": "FILLED",
-        "executedQty": "0.01"
+        "executedQty": "0.01",
     }
 
     # Reconcile
@@ -133,7 +140,9 @@ def test_reconcile_orders_status_update(db_session, test_user, reconciliation_se
     assert order_db.status == OrderStatusEnum.FILLED
 
 
-def test_reconcile_orders_discrepancy(db_session, test_user, reconciliation_service, mock_binance_service):
+def test_reconcile_orders_discrepancy(
+    db_session, test_user, reconciliation_service, mock_binance_service
+):
     """Test: Discrepancy wenn Order nicht auf Binance gefunden"""
     # Create open order in DB
     order = OrderDB(
@@ -146,7 +155,7 @@ def test_reconcile_orders_discrepancy(db_session, test_user, reconciliation_serv
         type="LIMIT",
         quantity=Decimal("0.01"),
         price=Decimal("55000.00"),
-        status=OrderStatusEnum.OPEN
+        status=OrderStatusEnum.OPEN,
     )
     db_session.add(order)
     db_session.commit()
@@ -160,10 +169,15 @@ def test_reconcile_orders_discrepancy(db_session, test_user, reconciliation_serv
 
     assert report["synced"] == 1
     assert len(report["discrepancies"]) == 1
-    assert "Order-Details konnten nicht von Binance abgerufen werden" in report["discrepancies"][0]["issue"]
+    assert (
+        "Order-Details konnten nicht von Binance abgerufen werden"
+        in report["discrepancies"][0]["issue"]
+    )
 
 
-def test_reconcile_balances_within_tolerance(db_session, test_user, reconciliation_service, mock_binance_service):
+def test_reconcile_balances_within_tolerance(
+    db_session, test_user, reconciliation_service, mock_binance_service
+):
     """Test: Balance Reconciliation innerhalb Toleranz"""
     # Create initial EUR deposit
     deposit = LedgerEventDB(
@@ -173,7 +187,7 @@ def test_reconcile_balances_within_tolerance(db_session, test_user, reconciliati
         timestamp=datetime(2024, 1, 1, 9, 0, 0),
         asset="EUR",
         amount=Decimal("1500.00"),
-        source=EventSourceEnum.BINANCE
+        source=EventSourceEnum.BINANCE,
     )
     db_session.add(deposit)
 
@@ -188,7 +202,7 @@ def test_reconcile_balances_within_tolerance(db_session, test_user, reconciliati
         symbol="BTCEUR",
         price=Decimal("50000.00"),
         side=TradeSideEnum.BUY,
-        source=EventSourceEnum.BINANCE
+        source=EventSourceEnum.BINANCE,
     )
     db_session.add(event1)
     db_session.commit()
@@ -197,7 +211,7 @@ def test_reconcile_balances_within_tolerance(db_session, test_user, reconciliati
     mock_binance_service.client.get_account.return_value = {
         "balances": [
             {"asset": "BTC", "free": "0.01", "locked": "0"},
-            {"asset": "EUR", "free": "1000.00", "locked": "0"}
+            {"asset": "EUR", "free": "1000.00", "locked": "0"},
         ]
     }
 
@@ -205,10 +219,12 @@ def test_reconcile_balances_within_tolerance(db_session, test_user, reconciliati
     report = reconciliation_service.reconcile_balances(db_session, test_user.id)
 
     assert report["within_tolerance"] is True
-    assert report["btc"]["within_tolerance"] is True
+    assert report["base"]["within_tolerance"] is True
 
 
-def test_reconcile_balances_outside_tolerance(db_session, test_user, reconciliation_service, mock_binance_service):
+def test_reconcile_balances_outside_tolerance(
+    db_session, test_user, reconciliation_service, mock_binance_service
+):
     """Test: Balance Reconciliation außerhalb Toleranz"""
     # Create ledger events
     event1 = LedgerEventDB(
@@ -221,7 +237,7 @@ def test_reconcile_balances_outside_tolerance(db_session, test_user, reconciliat
         symbol="BTCEUR",
         price=Decimal("50000.00"),
         side=TradeSideEnum.BUY,
-        source=EventSourceEnum.BINANCE
+        source=EventSourceEnum.BINANCE,
     )
     db_session.add(event1)
     db_session.commit()
@@ -230,22 +246,22 @@ def test_reconcile_balances_outside_tolerance(db_session, test_user, reconciliat
     mock_binance_service.client.get_account.return_value = {
         "balances": [
             {"asset": "BTC", "free": "0.02", "locked": "0"},  # 0.01 difference
-            {"asset": "EUR", "free": "0", "locked": "0"}
+            {"asset": "EUR", "free": "0", "locked": "0"},
         ]
     }
 
     # Reconcile with tight tolerance
     report = reconciliation_service.reconcile_balances(
-        db_session,
-        test_user.id,
-        tolerance_btc=Decimal("0.0001")
+        db_session, test_user.id, tolerance_base=Decimal("0.0001")
     )
 
-    assert report["btc"]["within_tolerance"] is False
-    assert Decimal(report["btc"]["diff"]) == Decimal("0.01")
+    assert report["base"]["within_tolerance"] is False
+    assert Decimal(report["base"]["diff"]) == Decimal("0.01")
 
 
-def test_reconcile_balances_with_fees(db_session, test_user, reconciliation_service, mock_binance_service):
+def test_reconcile_balances_with_fees(
+    db_session, test_user, reconciliation_service, mock_binance_service
+):
     """Test: Balance Reconciliation berücksichtigt BTC Fees"""
     # Create initial EUR deposit
     deposit = LedgerEventDB(
@@ -255,7 +271,7 @@ def test_reconcile_balances_with_fees(db_session, test_user, reconciliation_serv
         timestamp=datetime(2024, 1, 1, 9, 0, 0),
         asset="EUR",
         amount=Decimal("1500.00"),
-        source=EventSourceEnum.BINANCE
+        source=EventSourceEnum.BINANCE,
     )
     db_session.add(deposit)
 
@@ -272,7 +288,7 @@ def test_reconcile_balances_with_fees(db_session, test_user, reconciliation_serv
         side=TradeSideEnum.BUY,
         fee_asset="BTC",
         fee_amount=Decimal("0.0001"),
-        source=EventSourceEnum.BINANCE
+        source=EventSourceEnum.BINANCE,
     )
     db_session.add(event1)
     db_session.commit()
@@ -281,7 +297,7 @@ def test_reconcile_balances_with_fees(db_session, test_user, reconciliation_serv
     mock_binance_service.client.get_account.return_value = {
         "balances": [
             {"asset": "BTC", "free": "0.0099", "locked": "0"},
-            {"asset": "EUR", "free": "1000.00", "locked": "0"}
+            {"asset": "EUR", "free": "1000.00", "locked": "0"},
         ]
     }
 
@@ -289,17 +305,19 @@ def test_reconcile_balances_with_fees(db_session, test_user, reconciliation_serv
     report = reconciliation_service.reconcile_balances(db_session, test_user.id)
 
     assert report["within_tolerance"] is True
-    assert Decimal(report["btc"]["calculated"]) == Decimal("0.0099")
+    assert Decimal(report["base"]["calculated"]) == Decimal("0.0099")
 
 
-def test_full_reconciliation(db_session, test_user, reconciliation_service, mock_binance_service):
+def test_full_reconciliation(
+    db_session, test_user, reconciliation_service, mock_binance_service
+):
     """Test: Full Reconciliation ruft alle Sub-Reconciliations auf"""
     # Mock all Binance responses
     mock_binance_service.client.get_open_orders.return_value = []
     mock_binance_service.client.get_account.return_value = {
         "balances": [
             {"asset": "BTC", "free": "0", "locked": "0"},
-            {"asset": "EUR", "free": "0", "locked": "0"}
+            {"asset": "EUR", "free": "0", "locked": "0"},
         ]
     }
 
@@ -307,14 +325,18 @@ def test_full_reconciliation(db_session, test_user, reconciliation_service, mock
     mock_binance_service.fetch_trades.return_value = []
 
     # Run full reconciliation
-    report = reconciliation_service.full_reconciliation(db_session, test_user.id, "BTCEUR")
+    report = reconciliation_service.full_reconciliation(
+        db_session, test_user.id, "BTCEUR"
+    )
 
     assert "orders" in report
     assert "balances" in report
     assert "fills" in report
 
 
-def test_reconcile_orders_error_handling(db_session, test_user, reconciliation_service, mock_binance_service):
+def test_reconcile_orders_error_handling(
+    db_session, test_user, reconciliation_service, mock_binance_service
+):
     """Test: Error Handling bei Binance API Fehler"""
     # Mock Binance error
     mock_binance_service.client.get_open_orders.side_effect = Exception("API Error")
@@ -326,7 +348,9 @@ def test_reconcile_orders_error_handling(db_session, test_user, reconciliation_s
     assert "Binance-Orders konnten nicht abgerufen werden" in report["errors"][0]
 
 
-def test_reconcile_multiple_orders(db_session, test_user, reconciliation_service, mock_binance_service):
+def test_reconcile_multiple_orders(
+    db_session, test_user, reconciliation_service, mock_binance_service
+):
     """Test: Reconcile mehrere Orders gleichzeitig"""
     # Create multiple orders
     for i in range(3):
@@ -340,7 +364,7 @@ def test_reconcile_multiple_orders(db_session, test_user, reconciliation_service
             type="LIMIT",
             quantity=Decimal("0.01"),
             price=Decimal("55000.00"),
-            status=OrderStatusEnum.OPEN
+            status=OrderStatusEnum.OPEN,
         )
         db_session.add(order)
     db_session.commit()
@@ -351,7 +375,7 @@ def test_reconcile_multiple_orders(db_session, test_user, reconciliation_service
     ]
     mock_binance_service.client.get_order.side_effect = [
         {"orderId": 12345679, "status": "FILLED", "executedQty": "0.01"},
-        {"orderId": 12345680, "status": "FILLED", "executedQty": "0.01"}
+        {"orderId": 12345680, "status": "FILLED", "executedQty": "0.01"},
     ]
 
     # Reconcile

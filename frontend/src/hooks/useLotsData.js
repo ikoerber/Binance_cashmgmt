@@ -11,7 +11,7 @@ import { useAppState } from '../contexts/AppStateContext';
 const roundPrice = (p) => Math.round(p / 50) * 50;
 
 export default function useLotsData() {
-  const { userId, marketPrice } = useAppState();
+  const { userId, marketPrice, activeSymbol } = useAppState();
 
   // Filter state
   const [statusFilter, setStatusFilter] = useState(null);
@@ -36,29 +36,29 @@ export default function useLotsData() {
   // ─── Queries ───
 
   const { data: lotsData, isLoading, error } = useQuery({
-    queryKey: ['lots', userId, statusFilter, fromDate, toDate],
-    queryFn: () => getLots(userId, statusFilter, 1000, 0, fromDate || null, toDate ? `${toDate}T23:59:59` : null),
+    queryKey: ['lots', userId, activeSymbol, statusFilter, fromDate, toDate],
+    queryFn: () => getLots(userId, statusFilter, 1000, 0, fromDate || null, toDate ? `${toDate}T23:59:59` : null, activeSymbol),
   });
 
   const { data: ordersData } = useQuery({
-    queryKey: ['orders', userId, 'open'],
+    queryKey: ['orders', userId, activeSymbol, 'open'],
     queryFn: () => getOrdersForUser(userId, 'OPEN'),
   });
 
   const { data: pairingsData } = useQuery({
-    queryKey: ['pairings', userId, null],
+    queryKey: ['pairings', userId, activeSymbol, null],
     queryFn: () => listPairings(userId),
   });
 
   const stablePrice = roundPrice(marketPrice);
   const { data: portfolio } = useQuery({
-    queryKey: ['portfolio', userId, stablePrice],
-    queryFn: () => getPortfolio(userId, marketPrice),
+    queryKey: ['portfolio', userId, activeSymbol, stablePrice],
+    queryFn: () => getPortfolio(userId, marketPrice, activeSymbol),
     enabled: !!marketPrice,
   });
 
   const { data: mergeGroupsData } = useQuery({
-    queryKey: ['merge-groups', userId],
+    queryKey: ['merge-groups', userId, activeSymbol],
     queryFn: () => getMergeGroups(userId),
   });
 
@@ -95,11 +95,11 @@ export default function useLotsData() {
     const allLots = lotsData?.lots || [];
     return allLots
       .filter((lot) => lot.status === 'OPEN' || lot.status === 'PARTIAL_CLOSED')
-      .reduce((sum, lot) => sum + parseFloat(lot.qty_btc_open), 0);
+      .reduce((sum, lot) => sum + parseFloat(lot.qty_base_open), 0);
   }, [lotsData]);
 
   const filteredOpenQtySum = useMemo(() => {
-    return lots.reduce((sum, lot) => sum + parseFloat(lot.qty_btc_open), 0);
+    return lots.reduce((sum, lot) => sum + parseFloat(lot.qty_base_open), 0);
   }, [lots]);
 
   const orderByLotId = useMemo(() => {

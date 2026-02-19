@@ -6,7 +6,8 @@ import {
   reconcileBalances,
   reconcileFills,
 } from '../api/client';
-import { formatNumber, formatEUR, formatBTC } from '../utils/formatters';
+import { formatNumber, formatEUR, formatBase } from '../utils/formatters';
+import { getBaseLabel } from '../utils/symbolRegistry';
 import { useAppState } from '../contexts/AppStateContext';
 import useNotification from '../hooks/useNotification';
 import './Reconciliation.css';
@@ -42,8 +43,9 @@ const BalanceCard = ({ asset, data, formatFn }) => (
   </div>
 );
 
-const BalancesSection = ({ report }) => {
+const BalancesSection = ({ report, activeSymbol }) => {
   if (!report) return null;
+  const baseLabel = getBaseLabel(activeSymbol);
   return (
     <div className="recon-section">
       <div className="recon-section-header">
@@ -54,7 +56,7 @@ const BalancesSection = ({ report }) => {
       </div>
       {report.errors?.length > 0 && <ErrorBanner errors={report.errors} />}
       <div className="balance-comparison-grid">
-        <BalanceCard asset="BTC" data={report.btc} formatFn={formatBTC} />
+        <BalanceCard asset={baseLabel} data={report.base} formatFn={(v) => formatBase(v, activeSymbol)} />
         <BalanceCard asset="EUR" data={report.eur} formatFn={formatEUR} />
       </div>
     </div>
@@ -142,7 +144,7 @@ const FillsSection = ({ report }) => {
 };
 
 const Reconciliation = () => {
-  const { userId } = useAppState();
+  const { userId, activeSymbol } = useAppState();
   const queryClient = useQueryClient();
   const { message, showMessage, dismissMessage } = useNotification();
   const [lastRunTime, setLastRunTime] = useState(null);
@@ -155,7 +157,7 @@ const Reconciliation = () => {
   };
 
   const fullMutation = useMutation({
-    mutationFn: () => runFullReconciliation(userId),
+    mutationFn: () => runFullReconciliation(userId, activeSymbol),
     onSuccess: () => {
       showMessage('success', 'Vollständige Reconciliation abgeschlossen.');
       onReconSuccess();
@@ -166,7 +168,7 @@ const Reconciliation = () => {
   });
 
   const ordersMutation = useMutation({
-    mutationFn: () => reconcileOrders(userId),
+    mutationFn: () => reconcileOrders(userId, activeSymbol),
     onSuccess: () => {
       showMessage('success', 'Order-Reconciliation abgeschlossen.');
       onReconSuccess();
@@ -177,7 +179,7 @@ const Reconciliation = () => {
   });
 
   const balancesMutation = useMutation({
-    mutationFn: () => reconcileBalances(userId),
+    mutationFn: () => reconcileBalances(userId, activeSymbol),
     onSuccess: () => {
       showMessage('success', 'Balance-Reconciliation abgeschlossen.');
       onReconSuccess();
@@ -188,7 +190,7 @@ const Reconciliation = () => {
   });
 
   const fillsMutation = useMutation({
-    mutationFn: () => reconcileFills(userId),
+    mutationFn: () => reconcileFills(userId, activeSymbol),
     onSuccess: () => {
       showMessage('success', 'Fills-Reconciliation abgeschlossen.');
       onReconSuccess();
@@ -265,7 +267,7 @@ const Reconciliation = () => {
 
       {hasAnyResult ? (
         <>
-          <BalancesSection report={currentReport.balances} />
+          <BalancesSection report={currentReport.balances} activeSymbol={activeSymbol} />
           <OrdersSection report={currentReport.orders} />
           <FillsSection report={currentReport.fills} />
         </>

@@ -47,6 +47,7 @@ def get_lots_for_user(
     to_date: Optional[datetime] = None,
     limit: int = 100,
     offset: int = 0,
+    symbol: Optional[str] = None,
 ) -> List[dict]:
     """
     Holt TradeLots für einen User
@@ -76,6 +77,9 @@ def get_lots_for_user(
 
     if to_date:
         query = query.filter(TradeLotDB.created_at <= to_date)
+
+    if symbol:
+        query = query.filter(TradeLotDB.symbol == symbol)
 
     lots_db = (
         query.order_by(desc(TradeLotDB.created_at)).limit(limit).offset(offset).all()
@@ -192,10 +196,11 @@ def create_lot_from_buy_fill(
     lot_db = TradeLotDB(
         id=lot_domain.id,
         user_id=user_id,
+        symbol=lot_domain.symbol,
         created_from_fill_id=lot_domain.created_from_fill_id,
         created_at=lot_domain.created_at,
-        qty_btc_initial=lot_domain.qty_btc_initial,
-        qty_btc_open=lot_domain.qty_btc_open,
+        qty_base_initial=lot_domain.qty_base_initial,
+        qty_base_open=lot_domain.qty_base_open,
         cost_eur=lot_domain.cost_eur,
         status=LotStatusEnum[lot_domain.status.value],
         target_margin_pct=lot_domain.target_margin_pct,
@@ -246,7 +251,7 @@ def process_sell_fill_fifo(
     # Row-Level Lock: verhindert Race Conditions bei konkurrierenden Sell-Fills
     lots_db = (
         db.query(TradeLotDB)
-        .filter(TradeLotDB.user_id == user_id, TradeLotDB.qty_btc_open > 0)
+        .filter(TradeLotDB.user_id == user_id, TradeLotDB.qty_base_open > 0)
         .order_by(TradeLotDB.created_at.asc())
         .with_for_update()
         .all()
@@ -266,7 +271,7 @@ def process_sell_fill_fifo(
         # Lot in DB aktualisieren
         lot_db = db.query(TradeLotDB).filter(TradeLotDB.id == updated_lot.id).first()
         if lot_db:
-            lot_db.qty_btc_open = updated_lot.qty_btc_open
+            lot_db.qty_base_open = updated_lot.qty_base_open
             lot_db.status = LotStatusEnum[updated_lot.status.value]
             updated_lot_dicts.append(_lot_db_to_dict(lot_db))
 
@@ -353,7 +358,7 @@ def process_sell_fill_lot_specific(
         db.query(TradeLotDB)
         .filter(
             TradeLotDB.user_id == user_id,
-            TradeLotDB.qty_btc_open > 0,
+            TradeLotDB.qty_base_open > 0,
             TradeLotDB.id != target_lot_id,
         )
         .order_by(TradeLotDB.created_at.asc())
@@ -375,7 +380,7 @@ def process_sell_fill_lot_specific(
     for updated_lot in updated_lots_domain:
         lot_db = db.query(TradeLotDB).filter(TradeLotDB.id == updated_lot.id).first()
         if lot_db:
-            lot_db.qty_btc_open = updated_lot.qty_btc_open
+            lot_db.qty_base_open = updated_lot.qty_base_open
             lot_db.status = LotStatusEnum[updated_lot.status.value]
             updated_lot_dicts.append(_lot_db_to_dict(lot_db))
 
@@ -463,7 +468,7 @@ def process_sell_fill_for_pairing(
         .filter(
             TradeLotDB.id.in_(pairing_lot_ids),
             TradeLotDB.user_id == user_id,
-            TradeLotDB.qty_btc_open > 0,
+            TradeLotDB.qty_base_open > 0,
         )
         .with_for_update()
         .all()
@@ -481,7 +486,7 @@ def process_sell_fill_for_pairing(
         db.query(TradeLotDB)
         .filter(
             TradeLotDB.user_id == user_id,
-            TradeLotDB.qty_btc_open > 0,
+            TradeLotDB.qty_base_open > 0,
             ~TradeLotDB.id.in_(pairing_lot_ids),
         )
         .with_for_update()
@@ -516,7 +521,7 @@ def process_sell_fill_for_pairing(
     for updated_lot in updated_lots_domain:
         lot_db = db.query(TradeLotDB).filter(TradeLotDB.id == updated_lot.id).first()
         if lot_db:
-            lot_db.qty_btc_open = updated_lot.qty_btc_open
+            lot_db.qty_base_open = updated_lot.qty_base_open
             lot_db.status = LotStatusEnum[updated_lot.status.value]
             updated_lot_dicts.append(_lot_db_to_dict(lot_db))
 
@@ -609,7 +614,7 @@ def process_sell_fill_with_strategy(
     # Row-Level Lock: verhindert Race Conditions bei konkurrierenden Sell-Fills
     lots_db = (
         db.query(TradeLotDB)
-        .filter(TradeLotDB.user_id == user_id, TradeLotDB.qty_btc_open > 0)
+        .filter(TradeLotDB.user_id == user_id, TradeLotDB.qty_base_open > 0)
         .with_for_update()
         .all()
     )
@@ -625,7 +630,7 @@ def process_sell_fill_with_strategy(
     for updated_lot in updated_lots_domain:
         lot_db = db.query(TradeLotDB).filter(TradeLotDB.id == updated_lot.id).first()
         if lot_db:
-            lot_db.qty_btc_open = updated_lot.qty_btc_open
+            lot_db.qty_base_open = updated_lot.qty_base_open
             lot_db.status = LotStatusEnum[updated_lot.status.value]
             updated_lot_dicts.append(_lot_db_to_dict(lot_db))
 
@@ -719,7 +724,7 @@ def process_sell_fill(
             .first()
         )
 
-        if target_lot_db and target_lot_db.qty_btc_open > 0:
+        if target_lot_db and target_lot_db.qty_base_open > 0:
             logger.info(
                 "Sell %s linked to lot %s via order — using lot-specific allocation",
                 sell_event_id,
@@ -862,14 +867,15 @@ def _lot_db_to_dict(lot_db: TradeLotDB, db: Session = None, fill_event=None) -> 
 
     return {
         "id": lot_db.id,
+        "symbol": lot_db.symbol,
         "created_from_fill_id": lot_db.created_from_fill_id,
         "created_at": lot_db.created_at.isoformat(),
-        "qty_btc_initial": str(lot_db.qty_btc_initial),
-        "qty_btc_open": str(lot_db.qty_btc_open),
+        "qty_base_initial": str(lot_db.qty_base_initial),
+        "qty_base_open": str(lot_db.qty_base_open),
         "cost_eur": str(lot_db.cost_eur),
         "break_even": (
-            str(lot_db.cost_eur / lot_db.qty_btc_initial)
-            if lot_db.qty_btc_initial
+            str(lot_db.cost_eur / lot_db.qty_base_initial)
+            if lot_db.qty_base_initial
             else "0"
         ),
         "status": lot_db.status.value,
@@ -888,11 +894,12 @@ def _lot_db_to_domain(lot_db: TradeLotDB) -> DomainLot:
         id=lot_db.id,
         created_from_fill_id=lot_db.created_from_fill_id,
         created_at=lot_db.created_at,
-        qty_btc_initial=lot_db.qty_btc_initial,
-        qty_btc_open=lot_db.qty_btc_open,
+        qty_base_initial=lot_db.qty_base_initial,
+        qty_base_open=lot_db.qty_base_open,
         cost_eur=lot_db.cost_eur,
         status=LotStatus[lot_db.status.value],
         target_margin_pct=lot_db.target_margin_pct,
+        symbol=lot_db.symbol,
     )
 
 
@@ -997,7 +1004,7 @@ def get_mergeable_groups(db: Session, user_id: str) -> List[dict]:
                         )
                         for lot in eligible
                     ],
-                    "total_qty_btc": str(sum(lot.qty_btc_initial for lot in eligible)),
+                    "total_qty_base": str(sum(lot.qty_base_initial for lot in eligible)),
                     "total_cost_eur": str(sum(lot.cost_eur for lot in eligible)),
                 }
             )
@@ -1097,8 +1104,8 @@ def merge_lots(db: Session, user_id: str, lot_ids: List[str]) -> dict:
 
     # Persistieren: Keeper aktualisieren
     keeper_db = next(lot for lot in lots_db if lot.id == validation.keeper_lot_id)
-    keeper_db.qty_btc_initial = merge_result.new_qty_btc_initial
-    keeper_db.qty_btc_open = merge_result.new_qty_btc_open
+    keeper_db.qty_base_initial = merge_result.new_qty_base_initial
+    keeper_db.qty_base_open = merge_result.new_qty_base_open
     keeper_db.cost_eur = merge_result.new_cost_eur
 
     # Persistieren: Gemergte Lots markieren
@@ -1108,7 +1115,7 @@ def merge_lots(db: Session, user_id: str, lot_ids: List[str]) -> dict:
             lot_db.status = LotStatusEnum.MERGED
             lot_db.merged_into_lot_id = validation.keeper_lot_id
             lot_db.merged_at = now
-            lot_db.qty_btc_open = Decimal("0")
+            lot_db.qty_base_open = Decimal("0")
 
     # Audit-Trail: ADJUSTMENT LedgerEvent
     binance_oid = next((v for v in binance_order_ids.values() if v), None)
@@ -1128,23 +1135,23 @@ def merge_lots(db: Session, user_id: str, lot_ids: List[str]) -> dict:
             "binance_order_id": binance_oid,
             "before": {
                 "keeper": {
-                    "qty_initial": str(keeper_domain.qty_btc_initial),
-                    "qty_open": str(keeper_domain.qty_btc_open),
+                    "qty_initial": str(keeper_domain.qty_base_initial),
+                    "qty_open": str(keeper_domain.qty_base_open),
                     "cost_eur": str(keeper_domain.cost_eur),
                 },
                 "merged": [
                     {
                         "lot_id": lot.id,
-                        "qty_initial": str(lot.qty_btc_initial),
-                        "qty_open": str(lot.qty_btc_open),
+                        "qty_initial": str(lot.qty_base_initial),
+                        "qty_open": str(lot.qty_base_open),
                         "cost_eur": str(lot.cost_eur),
                     }
                     for lot in to_merge_domain
                 ],
             },
             "after": {
-                "qty_initial": str(merge_result.new_qty_btc_initial),
-                "qty_open": str(merge_result.new_qty_btc_open),
+                "qty_initial": str(merge_result.new_qty_base_initial),
+                "qty_open": str(merge_result.new_qty_base_open),
                 "cost_eur": str(merge_result.new_cost_eur),
                 "break_even": str(merge_result.new_break_even),
             },

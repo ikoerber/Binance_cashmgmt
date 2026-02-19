@@ -8,6 +8,7 @@ Testet:
 - Order Creation für Lots in Pairing
 - Rollback bei fehlgeschlagener Execution
 """
+
 import pytest
 from datetime import datetime
 from decimal import Decimal
@@ -17,13 +18,27 @@ import uuid
 
 from app.db.database import Base
 from app.db.models import (
-    User, TradeLotDB, PairingDB, PairingItemDB, OrderDB,
-    LotStatusEnum, PairingStatusEnum, OrderStatusEnum, LedgerEventDB,
-    EventTypeEnum, EventSourceEnum, TradeSideEnum
+    User,
+    TradeLotDB,
+    PairingDB,
+    PairingItemDB,
+    OrderDB,
+    LotStatusEnum,
+    PairingStatusEnum,
+    OrderStatusEnum,
+    LedgerEventDB,
+    EventTypeEnum,
+    EventSourceEnum,
+    TradeSideEnum,
 )
 from app.services.pairing_service import (
-    create_pairing, get_pairing_by_id, list_pairings, lock_pairing, execute_pairing,
-    delete_pairing, simulate_pairing_execution
+    create_pairing,
+    get_pairing_by_id,
+    list_pairings,
+    lock_pairing,
+    execute_pairing,
+    delete_pairing,
+    simulate_pairing_execution,
 )
 from app.domain.orders import compute_pairing_order_params
 from app.db.models import UserSettingsDB
@@ -45,10 +60,7 @@ def db_session():
 @pytest.fixture
 def test_user(db_session):
     """Creates test user"""
-    user = User(
-        id="test-user-1",
-        email="test@example.com"
-    )
+    user = User(id="test-user-1", email="test@example.com")
     db_session.add(user)
     db_session.commit()
     return user
@@ -60,10 +72,12 @@ def test_lots(db_session, test_user):
     lots = []
 
     # Create fill events
-    for i, (qty, cost, price) in enumerate([
-        (Decimal("0.01"), Decimal("500.00"), Decimal("50000.00")),  # Winner
-        (Decimal("0.02"), Decimal("1100.00"), Decimal("55000.00"))   # Loser
-    ]):
+    for i, (qty, cost, price) in enumerate(
+        [
+            (Decimal("0.01"), Decimal("500.00"), Decimal("50000.00")),  # Winner
+            (Decimal("0.02"), Decimal("1100.00"), Decimal("55000.00")),  # Loser
+        ]
+    ):
         fill_event = LedgerEventDB(
             id=str(uuid.uuid4()),
             user_id=test_user.id,
@@ -75,7 +89,7 @@ def test_lots(db_session, test_user):
             price=price,
             side=TradeSideEnum.BUY,
             source=EventSourceEnum.BINANCE,
-            source_id=f"binance-fill-{i}"
+            source_id=f"binance-fill-{i}",
         )
         db_session.add(fill_event)
 
@@ -83,11 +97,11 @@ def test_lots(db_session, test_user):
             id=f"lot-{i+1}",
             user_id=test_user.id,
             created_from_fill_id=fill_event.id,
-            qty_btc_initial=qty,
-            qty_btc_open=qty,
+            qty_base_initial=qty,
+            qty_base_open=qty,
             cost_eur=cost,
             status=LotStatusEnum.OPEN,
-            target_margin_pct=Decimal("0.05")
+            target_margin_pct=Decimal("0.05"),
         )
         db_session.add(lot)
         lots.append(lot)
@@ -98,7 +112,7 @@ def test_lots(db_session, test_user):
 
 def _make_items(lots):
     """Helper: Konvertiert TradeLotDB zu dict-Items für create_pairing"""
-    return [{"lot_id": lot.id, "qty_btc": lot.qty_btc_open} for lot in lots]
+    return [{"lot_id": lot.id, "qty_base": lot.qty_base_open} for lot in lots]
 
 
 def test_create_pairing(db_session, test_user, test_lots):
@@ -149,7 +163,9 @@ def test_execute_pairing_creates_orders(db_session, test_user, test_lots):
     pairing = create_pairing(db_session, test_user.id, items, Decimal("0.05"))
     lock_pairing(db_session, test_user.id, pairing["id"])
 
-    pairing_db = db_session.query(PairingDB).filter(PairingDB.id == pairing["id"]).first()
+    pairing_db = (
+        db_session.query(PairingDB).filter(PairingDB.id == pairing["id"]).first()
+    )
     assert pairing_db.status == PairingStatusEnum.LOCKED
 
     # Execute
@@ -168,7 +184,9 @@ def test_delete_draft_pairing(db_session, test_user, test_lots):
     delete_pairing(db_session, test_user.id, pairing_id)
 
     # Verify deleted
-    deleted_pairing = db_session.query(PairingDB).filter(PairingDB.id == pairing_id).first()
+    deleted_pairing = (
+        db_session.query(PairingDB).filter(PairingDB.id == pairing_id).first()
+    )
     assert deleted_pairing is None
 
 
@@ -191,12 +209,14 @@ def test_pairing_items_relationship(db_session, test_user, test_lots):
     pairing = create_pairing(db_session, test_user.id, items, Decimal("0.05"))
 
     # Verify items in DB
-    pairing_db = db_session.query(PairingDB).filter(PairingDB.id == pairing["id"]).first()
+    pairing_db = (
+        db_session.query(PairingDB).filter(PairingDB.id == pairing["id"]).first()
+    )
     assert len(pairing_db.items) == 2
 
     item_db = pairing_db.items[0]
     assert item_db.lot_id in [test_lots[0].id, test_lots[1].id]
-    assert item_db.qty_btc > 0
+    assert item_db.qty_base > 0
     assert item_db.cost_eur > 0
 
 
@@ -208,18 +228,22 @@ def test_pairing_cascade_delete(db_session, test_user, test_lots):
     pairing_id = pairing["id"]
 
     # Verify items exist
-    items_count = db_session.query(PairingItemDB).filter(
-        PairingItemDB.pairing_id == pairing_id
-    ).count()
+    items_count = (
+        db_session.query(PairingItemDB)
+        .filter(PairingItemDB.pairing_id == pairing_id)
+        .count()
+    )
     assert items_count == 1
 
     # Delete pairing
     delete_pairing(db_session, test_user.id, pairing_id)
 
     # Verify items also deleted (cascade)
-    items_count = db_session.query(PairingItemDB).filter(
-        PairingItemDB.pairing_id == pairing_id
-    ).count()
+    items_count = (
+        db_session.query(PairingItemDB)
+        .filter(PairingItemDB.pairing_id == pairing_id)
+        .count()
+    )
     assert items_count == 0
 
 
@@ -227,18 +251,21 @@ def test_multiple_pairings_for_user(db_session, test_user, test_lots):
     """Test: User kann mehrere Pairings haben"""
     # Create 2 pairings
     for i in range(2):
-        items = [{"lot_id": test_lots[0].id, "qty_btc": Decimal("0.005")}]
+        items = [{"lot_id": test_lots[0].id, "qty_base": Decimal("0.005")}]
         create_pairing(db_session, test_user.id, items, Decimal("0.05"))
 
     # Verify
-    pairings = db_session.query(PairingDB).filter(PairingDB.user_id == test_user.id).all()
+    pairings = (
+        db_session.query(PairingDB).filter(PairingDB.user_id == test_user.id).all()
+    )
     assert len(pairings) == 2
 
 
 def test_compute_pairing_order_params_basic():
     """Test: Aggregierte Order-Parameter-Berechnung mit korrektem Rounding und Format"""
     from types import SimpleNamespace
-    items = [SimpleNamespace(lot_id="lot-1", qty_btc=Decimal("0.01234567"))]
+
+    items = [SimpleNamespace(lot_id="lot-1", qty_base=Decimal("0.01234567"))]
 
     result = compute_pairing_order_params(
         pairing_id="pairing-1",
@@ -312,7 +339,7 @@ def test_simulate_includes_planned_orders(db_session, test_user, test_lots):
     assert len(order["lot_ids"]) == 2
 
     # Bestehende Felder weiterhin vorhanden
-    assert "total_btc_to_sell" in result
+    assert "total_base_to_sell" in result
     assert "expected_proceeds_eur" in result
     assert "affected_lots" in result
 

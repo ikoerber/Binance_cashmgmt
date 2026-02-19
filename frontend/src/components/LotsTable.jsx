@@ -13,11 +13,11 @@ import LotSummaryCards from './LotSummaryCards';
 import useLotsData from '../hooks/useLotsData';
 import useNotification from '../hooks/useNotification';
 import { useAppState } from '../contexts/AppStateContext';
-import { formatNumber, formatEUR, formatBTC, formatDate, formatTime } from '../utils/formatters';
+import { formatNumber, formatEUR, formatBase, formatDate, formatTime } from '../utils/formatters';
 import './LotsTable.css';
 
 const LotsTable = () => {
-  const { userId, marketPrice } = useAppState();
+  const { userId, marketPrice, activeSymbol } = useAppState();
   const queryClient = useQueryClient();
   const { message: syncMessage, showMessage, dismissMessage } = useNotification(8000);
 
@@ -56,7 +56,7 @@ const LotsTable = () => {
 
   // Sync Mutation
   const syncMutation = useMutation({
-    mutationFn: () => syncLots(userId),
+    mutationFn: () => syncLots(userId, activeSymbol),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['lots'] });
       queryClient.invalidateQueries({ queryKey: ['portfolio'] });
@@ -139,7 +139,7 @@ const LotsTable = () => {
   if (error) return <div className="error">Fehler: {error.message}</div>;
 
   const calculateUnrealizedPnl = (lot) => {
-    const qtyOpen = parseFloat(lot.qty_btc_open);
+    const qtyOpen = parseFloat(lot.qty_base_open);
     const breakEven = parseFloat(lot.break_even);
     return (marketPrice * qtyOpen) - (breakEven * qtyOpen);
   };
@@ -299,7 +299,7 @@ const LotsTable = () => {
                             if (
                               window.confirm(
                                 `${lotIds.length} Lots der Order ${group.binance_order_id} zusammenfassen?\n` +
-                                  `Gesamt: ${formatBTC(group.total_qty_btc)} BTC, ${formatEUR(group.total_cost_eur)}`
+                                  `Gesamt: ${formatBase(group.total_qty_base, activeSymbol)}, ${formatEUR(group.total_cost_eur)}`
                               )
                             ) {
                               mergeMutation.mutate({ lotIds });
@@ -314,8 +314,8 @@ const LotsTable = () => {
                     </td>
                     <td className="date">{formatDate(lot.created_at)}</td>
                     <td className="time">{formatTime(lot.created_at)}</td>
-                    <td>{formatBTC(lot.qty_btc_initial)}</td>
-                    <td>{formatBTC(lot.qty_btc_open)}</td>
+                    <td>{formatBase(lot.qty_base_initial, activeSymbol)}</td>
+                    <td>{formatBase(lot.qty_base_open, activeSymbol)}</td>
                     <td>{formatEUR(lot.cost_eur)}</td>
                     <td>{formatEUR(lot.break_even)}</td>
                     <td className="sell-order-cell">

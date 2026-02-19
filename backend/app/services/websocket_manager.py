@@ -128,24 +128,30 @@ class BinanceStreamManager:
                     backoff = min(backoff * 2, max_backoff)
 
     async def _run_price_stream(self):
-        """Einzelne WebSocket-Session zum Binance Ticker Stream."""
+        """Einzelne WebSocket-Session zum Binance Combined Ticker Stream (Multi-Pair)."""
         import aiohttp
+        from app.symbol_registry import KNOWN_PAIRS
+
+        # Combined Stream fuer alle bekannten Paare
+        streams = "/".join(f"{sym.lower()}@ticker" for sym in KNOWN_PAIRS)
 
         testnet = os.getenv("BINANCE_TESTNET", "").lower() == "true"
         if testnet:
-            ws_url = "wss://testnet.binance.vision/ws/btceur@ticker"
+            ws_url = f"wss://testnet.binance.vision/stream?streams={streams}"
         else:
-            ws_url = "wss://stream.binance.com:9443/ws/btceur@ticker"
+            ws_url = f"wss://stream.binance.com:9443/stream?streams={streams}"
 
         async with aiohttp.ClientSession() as session:
             async with session.ws_connect(ws_url) as ws:
-                logger.info(f"Verbunden mit Binance Ticker Stream: {ws_url}")
+                logger.info(f"Verbunden mit Binance Combined Ticker Stream: {ws_url}")
 
                 async for msg in ws:
                     if not self._running:
                         break
                     if msg.type == aiohttp.WSMsgType.TEXT:
-                        data = json.loads(msg.data)
+                        payload = json.loads(msg.data)
+                        # Combined Stream Format: {"stream": "btceur@ticker", "data": {...}}
+                        data = payload.get("data", payload)
                         if data.get("e") == "24hrTicker":
                             symbol = data["s"]
                             price = data["c"]  # Close/Current price
@@ -178,20 +184,21 @@ class BinanceStreamManager:
         self.price_subscribers -= disconnected
 
     async def subscribe_price(self, websocket: WebSocket):
-        """Client zum Price-Broadcast hinzufuegen. Sendet Initial-Snapshot."""
+        """Client zum Price-Broadcast hinzufuegen. Sendet Initial-Snapshot fuer alle bekannten Paare."""
         self.price_subscribers.add(websocket)
 
-        # Sofort aktuellen Preis senden (falls vorhanden)
-        if "BTCEUR" in self.current_prices:
+        # Sofort aktuelle Preise senden (fuer alle bekannten Paare)
+        for symbol, price in self.current_prices.items():
             try:
                 await websocket.send_json({
                     "type": "price_update",
-                    "symbol": "BTCEUR",
-                    "price": self.current_prices["BTCEUR"],
+                    "symbol": symbol,
+                    "price": price,
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                 })
             except Exception:
                 self.price_subscribers.discard(websocket)
+                break
 
     async def unsubscribe_price(self, websocket: WebSocket):
         """Client vom Price-Broadcast entfernen."""

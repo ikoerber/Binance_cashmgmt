@@ -33,8 +33,8 @@ def _make_lot(
         id=lot_id,
         created_from_fill_id=fill_id,
         created_at=created_at or datetime(2024, 1, 1, 12, 0),
-        qty_btc_initial=qty,
-        qty_btc_open=qty,
+        qty_base_initial=qty,
+        qty_base_open=qty,
         cost_eur=cost,
         status=status,
     )
@@ -236,8 +236,8 @@ class TestComputeMerge:
         result = compute_merge(keeper, to_merge)
 
         assert result.keeper_lot_id == "lot_a"
-        assert result.new_qty_btc_initial == Decimal("0.8")
-        assert result.new_qty_btc_open == Decimal("0.8")
+        assert result.new_qty_base_initial == Decimal("0.8")
+        assert result.new_qty_base_open == Decimal("0.8")
         assert result.new_cost_eur == Decimal("40000.00")
         assert result.new_break_even == Decimal("50000.00")
         assert result.merged_lot_ids == ["lot_b"]
@@ -252,7 +252,7 @@ class TestComputeMerge:
 
         result = compute_merge(keeper, to_merge)
 
-        assert result.new_qty_btc_initial == Decimal("0.06")
+        assert result.new_qty_base_initial == Decimal("0.06")
         assert result.new_cost_eur == Decimal("3000")
         assert result.new_break_even == Decimal("50000")
 
@@ -273,7 +273,7 @@ class TestComputeMerge:
 
         result = compute_merge(keeper, to_merge)
 
-        assert result.new_qty_btc_initial == Decimal("0.00358023")
+        assert result.new_qty_base_initial == Decimal("0.00358023")
         assert result.new_cost_eur == Decimal("179.0115")
 
     def test_break_even_weighted(self):
@@ -293,6 +293,6 @@ class TestComputeMerge:
 
         result = compute_merge(keeper, to_merge)
 
-        assert result.new_qty_btc_initial == Decimal("2.0")
+        assert result.new_qty_base_initial == Decimal("2.0")
         assert result.new_cost_eur == Decimal("110000")
         assert result.new_break_even == Decimal("55000")  # Gewichteter Durchschnitt

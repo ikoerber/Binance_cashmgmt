@@ -10,7 +10,7 @@ import {
   getPairingSuggestions,
   createPairing,
 } from '../api/client';
-import { formatNumber, formatEUR, formatBTC } from '../utils/formatters';
+import { formatNumber, formatEUR, formatBase } from '../utils/formatters';
 import { useAppState } from '../contexts/AppStateContext';
 import useNotification from '../hooks/useNotification';
 import PairingExistingTab from './PairingExistingTab';
@@ -24,7 +24,7 @@ const PairingPanel = ({
   onTabChange,
   onHighlightLots,
 }) => {
-  const { userId, marketPrice } = useAppState();
+  const { userId, marketPrice, activeSymbol } = useAppState();
   const queryClient = useQueryClient();
   const { message: actionMessage, showMessage, dismissMessage } = useNotification();
 
@@ -42,7 +42,7 @@ const PairingPanel = ({
     refetch: refetchSuggestions,
   } = useQuery({
     queryKey: ['pairingSuggestions', userId, marketPrice, thresholdPct],
-    queryFn: () => getPairingSuggestions(userId, marketPrice, thresholdPct / 100),
+    queryFn: () => getPairingSuggestions(userId, marketPrice, thresholdPct / 100, activeSymbol),
     enabled: activeTab === 'suggestions' && !!marketPrice,
     refetchInterval: 60000,
   });
@@ -50,7 +50,7 @@ const PairingPanel = ({
   // ─── Mutations ───
 
   const createMutation = useMutation({
-    mutationFn: ({ items, threshold }) => createPairing(userId, items, threshold),
+    mutationFn: ({ items, threshold }) => createPairing(userId, items, threshold, activeSymbol),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pairings'] });
       showMessage('success', 'Pairing erstellt (DRAFT)');
@@ -68,7 +68,7 @@ const PairingPanel = ({
     if (selectedLots.length === 0) return;
     const items = selectedLots.map((lot) => ({
       lot_id: lot.id,
-      qty_btc: String(lot.qty_btc_open),
+      qty_base: String(lot.qty_base_open),
     }));
     createMutation.mutate({ items, threshold: String(manualThreshold / 100) });
   };
@@ -76,7 +76,7 @@ const PairingPanel = ({
   const handleCreateFromSuggestion = (suggestion) => {
     const items = suggestion.items.map((item) => ({
       lot_id: item.lot_id,
-      qty_btc: String(item.qty_btc),
+      qty_base: String(item.qty_base),
     }));
     createMutation.mutate({ items, threshold: String(thresholdPct / 100) });
   };
@@ -85,8 +85,8 @@ const PairingPanel = ({
 
   const manualPreview = useMemo(() => {
     if (selectedLots.length === 0) return null;
-    const totalCost = selectedLots.reduce((sum, lot) => sum + parseFloat(lot.break_even) * parseFloat(lot.qty_btc_open), 0);
-    const totalQty = selectedLots.reduce((sum, lot) => sum + parseFloat(lot.qty_btc_open), 0);
+    const totalCost = selectedLots.reduce((sum, lot) => sum + parseFloat(lot.break_even) * parseFloat(lot.qty_base_open), 0);
+    const totalQty = selectedLots.reduce((sum, lot) => sum + parseFloat(lot.qty_base_open), 0);
     const totalValue = totalQty * marketPrice;
     const netPnl = totalValue - totalCost;
     const netPnlPct = totalCost > 0 ? (netPnl / totalCost) * 100 : 0;
@@ -97,7 +97,7 @@ const PairingPanel = ({
 
   const fmt = formatNumber;
   const fmtEUR = formatEUR;
-  const fmtBTC = formatBTC;
+  const fmtBase = (num) => formatBase(num, activeSymbol);
 
   // ─── Render ───
 
@@ -181,7 +181,7 @@ const PairingPanel = ({
                     <div className="pairing-card-details">
                       <div>
                         <span className="label">Netto BTC</span><br />
-                        {fmt(s.net_qty_btc, 8)}
+                        {fmt(s.net_qty_base, 8)}
                       </div>
                       <div>
                         <span className="label">Netto Kosten</span><br />
@@ -236,7 +236,7 @@ const PairingPanel = ({
                 </div>
                 <div className="summary-card">
                   <span className="summary-label">Gesamt BTC</span>
-                  <span className="summary-value">{fmtBTC(manualPreview.totalQty)}</span>
+                  <span className="summary-value">{fmtBase(manualPreview.totalQty)}</span>
                 </div>
                 <div className="summary-card">
                   <span className="summary-label">Gesamt Kosten</span>
@@ -268,7 +268,7 @@ const PairingPanel = ({
                         <td className="order-id">
                           {lot.binance_order_id || lot.id.slice(0, 12) + '...'}
                         </td>
-                        <td>{fmtBTC(lot.qty_btc_open)}</td>
+                        <td>{fmtBase(lot.qty_base_open)}</td>
                         <td>{fmtEUR(lot.break_even)}</td>
                         <td className={pnlPct >= 0 ? 'profit' : 'loss'}>
                           {pnlPct >= 0 ? '+' : ''}{fmt(pnlPct)}%
