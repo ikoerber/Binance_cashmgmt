@@ -4,6 +4,7 @@ Symbol Registry - Zentrales Mapping von Symbol → Base/Quote/Precision.
 Alle Schichten (Domain, Services, API, Frontend) referenzieren diese Registry.
 """
 from dataclasses import dataclass
+from decimal import Decimal
 
 
 @dataclass(frozen=True)
@@ -43,6 +44,16 @@ def get_base_precision(symbol: str) -> int:
 def get_price_precision(symbol: str) -> int:
     """Gibt Price-Precision für ein Symbol zurück (z.B. 2)."""
     return parse_symbol(symbol).price_precision
+
+
+def get_quote_asset(symbol: str) -> str:
+    """Gibt Quote-Asset für ein Symbol zurück (z.B. 'EUR' für 'BTCEUR')."""
+    return parse_symbol(symbol).quote_asset
+
+
+def get_min_base_precision(symbol: str) -> Decimal:
+    """Gibt kleinste handelbare Einheit zurück (z.B. 0.00000001 für BTC, 0.00001 für ETH)."""
+    return Decimal(10) ** (-parse_symbol(symbol).base_precision)
 
 
 def is_known_symbol(symbol: str) -> bool:

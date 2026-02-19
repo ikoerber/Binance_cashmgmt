@@ -20,7 +20,7 @@ from app.services.lot_service import create_lot_from_buy_fill, process_sell_fill
 from app.domain.models import LedgerEvent, TradeSide, EventType
 from app.domain.lots import compute_fee_eur_value
 from app.db.models import LedgerEventDB, EventTypeEnum, EventSourceEnum, TradeSideEnum
-from app.symbol_registry import get_base_asset, is_known_symbol
+from app.symbol_registry import get_base_asset, get_quote_asset
 
 
 def persist_ledger_event(
@@ -298,9 +298,10 @@ class SyncService:
             Dict[fill_id, Dict[asset, Decimal]] - Per-fill conversion rates
         """
         base_asset = get_base_asset(symbol)
+        quote_asset = get_quote_asset(symbol)
         fills_needing_conversion = [
             f for f in fills
-            if f.fee_asset and f.fee_asset not in ["EUR", base_asset]
+            if f.fee_asset and f.fee_asset not in [quote_asset, base_asset]
         ]
 
         if not fills_needing_conversion:
@@ -312,33 +313,33 @@ class SyncService:
 
         for fill in fills_needing_conversion:
             asset = fill.fee_asset
-            symbol = f"{asset}EUR"
+            fee_pair = f"{asset}{quote_asset}"
             minute_key = fill.timestamp.strftime("%Y-%m-%d %H:%M")
             cache_key = (asset, minute_key)
 
             if cache_key not in minute_cache:
                 try:
-                    price = self.binance_service.get_historical_price(symbol, fill.timestamp)
+                    price = self.binance_service.get_historical_price(fee_pair, fill.timestamp)
                     minute_cache[cache_key] = price
                     logger.info(
-                        "Historical %s/EUR price at %s: %s",
-                        asset, minute_key, price
+                        "Historical %s/%s price at %s: %s",
+                        asset, quote_asset, minute_key, price
                     )
                 except Exception as e:
                     logger.warning(
-                        "Could not fetch historical %s/EUR price at %s: %s. Trying current price.",
-                        asset, minute_key, e
+                        "Could not fetch historical %s/%s price at %s: %s. Trying current price.",
+                        asset, quote_asset, minute_key, e
                     )
                     try:
-                        price = self.binance_service.get_current_price(symbol)
+                        price = self.binance_service.get_current_price(fee_pair)
                         minute_cache[cache_key] = price
-                        logger.info("Fallback: current %s/EUR price: %s", asset, price)
+                        logger.info("Fallback: current %s/%s price: %s", asset, quote_asset, price)
                     except Exception as e2:
                         logger.error(
-                            "Fee-Konvertierung fehlgeschlagen fuer %s/EUR bei %s "
+                            "Fee-Konvertierung fehlgeschlagen fuer %s/%s bei %s "
                             "(historisch + aktuell). fee_eur_value wird None — "
                             "Fee geht in Portfolio-Berechnung verloren. Fill: %s",
-                            asset, minute_key, fill.id,
+                            asset, quote_asset, minute_key, fill.id,
                         )
                         continue
 

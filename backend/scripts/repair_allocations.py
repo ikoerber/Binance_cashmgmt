@@ -50,7 +50,7 @@ def repair_allocations(dry_run: bool = False):
         # 1. Aktuellen Zustand anzeigen
         open_lots = (
             db.query(TradeLotDB)
-            .filter(TradeLotDB.user_id == user_id, TradeLotDB.qty_btc_open > 0)
+            .filter(TradeLotDB.user_id == user_id, TradeLotDB.qty_base_open > 0)
             .count()
         )
         total_allocs = db.query(SellAllocationDB).count()
@@ -60,16 +60,16 @@ def repair_allocations(dry_run: bool = False):
 
         total_open_btc = (
             db.query(TradeLotDB)
-            .filter(TradeLotDB.user_id == user_id, TradeLotDB.qty_btc_open > 0)
-            .with_entities(db.query(TradeLotDB.qty_btc_open).filter(
+            .filter(TradeLotDB.user_id == user_id, TradeLotDB.qty_base_open > 0)
+            .with_entities(db.query(TradeLotDB.qty_base_open).filter(
                 TradeLotDB.user_id == user_id
             ).subquery())
         )
 
         # Einfacher: Alle offenen Lots summieren
         lots_all = db.query(TradeLotDB).filter(TradeLotDB.user_id == user_id).all()
-        total_open = sum(lot.qty_btc_open for lot in lots_all)
-        total_initial = sum(lot.qty_btc_initial for lot in lots_all)
+        total_open = sum(lot.qty_base_open for lot in lots_all)
+        total_initial = sum(lot.qty_base_initial for lot in lots_all)
         print(f"  BTC offen: {total_open}")
         print(f"  BTC initial (alle Lots): {total_initial}")
 
@@ -83,13 +83,13 @@ def repair_allocations(dry_run: bool = False):
             db.query(SellAllocationDB).delete()
             db.flush()
 
-        # 3. Alle Lots zurücksetzen: qty_btc_open = qty_btc_initial, status = OPEN
+        # 3. Alle Lots zurücksetzen: qty_base_open = qty_base_initial, status = OPEN
         all_lots = db.query(TradeLotDB).filter(TradeLotDB.user_id == user_id).all()
         reset_count = 0
         for lot in all_lots:
-            if lot.qty_btc_open != lot.qty_btc_initial or lot.status != LotStatusEnum.OPEN:
+            if lot.qty_base_open != lot.qty_base_initial or lot.status != LotStatusEnum.OPEN:
                 if not dry_run:
-                    lot.qty_btc_open = lot.qty_btc_initial
+                    lot.qty_base_open = lot.qty_base_initial
                     lot.status = LotStatusEnum.OPEN
                 reset_count += 1
         print(f"Schritt 2: {reset_count} Lots zurückgesetzt auf OPEN (qty_open = qty_initial)")
@@ -137,8 +137,8 @@ def repair_allocations(dry_run: bool = False):
         if not dry_run:
             db.flush()
             lots_after = db.query(TradeLotDB).filter(TradeLotDB.user_id == user_id).all()
-            open_after = [l for l in lots_after if l.qty_btc_open > 0]
-            total_open_after = sum(l.qty_btc_open for l in lots_after)
+            open_after = [l for l in lots_after if l.qty_base_open > 0]
+            total_open_after = sum(l.qty_base_open for l in lots_after)
             closed_after = [l for l in lots_after if l.status == LotStatusEnum.CLOSED]
 
             print(f"  Offene Lots: {len(open_after)}")

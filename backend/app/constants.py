@@ -8,9 +8,9 @@ from decimal import Decimal
 
 logger = logging.getLogger(__name__)
 
-# Minimale BTC-Praezision (1 Satoshi = 0.00000001 BTC)
-# Verwendet als Schwellwert fuer Dust-Mengen in Sell-Allocation und Lot-Status-Checks.
-# Mengen <= MIN_BTC_PRECISION werden als Null behandelt.
+# DEPRECATED: Verwende get_min_base_precision(symbol) aus app.symbol_registry stattdessen.
+# Bleibt vorhanden fuer Abwaertskompatibilitaet in Code-Pfaden ohne Symbol-Kontext.
+# 1 Satoshi = 0.00000001 BTC — konservativster Dust-Schwellwert.
 MIN_BTC_PRECISION = Decimal("0.00000001")
 
 # Binance Order Status -> Interner Status

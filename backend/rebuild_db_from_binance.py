@@ -310,7 +310,7 @@ def main():
 
         db_total_lots = db.query(TradeLotDB).count()
         open_lots = db.query(TradeLotDB).filter(
-            TradeLotDB.qty_btc_open > 0
+            TradeLotDB.qty_base_open > 0
         ).count()
 
         total_allocations = db.query(SellAllocationDB).count()
@@ -343,7 +343,7 @@ def main():
         # BTC aus Lots berechnen
         with Session(engine) as db:
             from app.db.models import TradeLotDB
-            lots_btc = db.query(func.sum(TradeLotDB.qty_btc_open)).filter(
+            lots_btc = db.query(func.sum(TradeLotDB.qty_base_open)).filter(
                 TradeLotDB.user_id == USER_ID
             ).scalar() or Decimal("0")
 

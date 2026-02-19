@@ -21,8 +21,8 @@ from .models import (
     LotStatus,
     AllocationStrategy,
 )
-from app.constants import MIN_BTC_PRECISION
-from app.symbol_registry import get_base_asset
+from app.constants import MIN_BTC_PRECISION  # Fallback fuer Code-Pfade ohne Symbol-Kontext
+from app.symbol_registry import get_base_asset, get_min_base_precision
 from app.utils.fee_conversion import compute_fee_eur_value  # noqa: F401 — Re-Export fuer Abwaertskompatibilitaet
 
 
@@ -125,7 +125,7 @@ def _compute_net_proceeds_per_btc(
     total_fee_eur = Decimal("0")
     if sell_event.fee_asset == "EUR" and sell_event.fee_amount:
         total_fee_eur = sell_event.fee_amount
-    elif sell_event.fee_asset == "BTC" and sell_event.fee_amount and sell_event.price:
+    elif sell_event.fee_asset == get_base_asset(sell_event.symbol or "BTCEUR") and sell_event.fee_amount and sell_event.price:
         total_fee_eur = sell_event.fee_amount * sell_event.price
     elif sell_event.fee_amount and sell_event.fee_asset:
         # Prioritaet: 1. Vorberechneter fee_eur_value, 2. Konvertierungsraten
@@ -143,9 +143,10 @@ def _compute_net_proceeds_per_btc(
                 sell_event.id, sell_event.fee_amount, sell_event.fee_asset,
             )
 
-    # Fee anteilig auf BTC verteilen
-    fee_per_btc = total_fee_eur / sell_event.amount if sell_event.amount > MIN_BTC_PRECISION else Decimal("0")
-    return sell_proceeds_per_btc - fee_per_btc
+    # Fee anteilig auf Base-Asset verteilen
+    min_prec = get_min_base_precision(sell_event.symbol or "BTCEUR")
+    fee_per_unit = total_fee_eur / sell_event.amount if sell_event.amount > min_prec else Decimal("0")
+    return sell_proceeds_per_btc - fee_per_unit
 
 
 def _allocate_qty_to_lots(
@@ -166,11 +167,12 @@ def _allocate_qty_to_lots(
     Returns:
         Tuple[updated_lots, allocations, remaining_qty]
     """
+    min_prec = get_min_base_precision(sell_event.symbol or "BTCEUR")
     allocations = []
     updated_lots = []
 
     for lot in lots:
-        if qty_to_allocate <= MIN_BTC_PRECISION:
+        if qty_to_allocate <= min_prec:
             updated_lots.append(lot)
             continue
 
@@ -193,7 +195,7 @@ def _allocate_qty_to_lots(
 
         new_qty_open = lot.qty_base_open - qty_from_this_lot
 
-        if new_qty_open <= MIN_BTC_PRECISION:
+        if new_qty_open <= min_prec:
             new_qty_open = Decimal("0")
             new_status = LotStatus.CLOSED
         elif new_qty_open < lot.qty_base_initial:
@@ -271,10 +273,11 @@ def allocate_sell_with_strategy(
         sell_event, sorted_lots, sell_event.amount, net_proceeds_per_btc
     )
 
-    if remaining > MIN_BTC_PRECISION:
+    min_prec = get_min_base_precision(sell_event.symbol or "BTCEUR")
+    if remaining > min_prec:
         raise ValueError(
             f"Not enough open lots to allocate sell. "
-            f"Remaining: {remaining} BTC"
+            f"Remaining: {remaining}"
         )
 
     return updated_lots, allocations
@@ -331,7 +334,8 @@ def allocate_sell_to_lot(
     if sell_event.price is None or sell_event.amount is None:
         raise ValueError("Sell fill must have price and amount")
 
-    if target_lot.qty_base_open <= MIN_BTC_PRECISION:
+    min_prec = get_min_base_precision(sell_event.symbol or "BTCEUR")
+    if target_lot.qty_base_open <= min_prec:
         raise ValueError(f"Target lot {target_lot.id} has no open quantity")
 
     net_proceeds_per_btc = _compute_net_proceeds_per_btc(sell_event, fee_conversion_rates)
@@ -342,7 +346,7 @@ def allocate_sell_to_lot(
     )
 
     # Phase 2: Overflow nach overflow_strategy auf restliche Lots
-    if remaining > MIN_BTC_PRECISION:
+    if remaining > min_prec:
         overflow_lots = _sort_lots_by_strategy(
             [lot for lot in remaining_open_lots if lot.id != target_lot.id],
             overflow_strategy,
@@ -351,10 +355,10 @@ def allocate_sell_to_lot(
             sell_event, overflow_lots, remaining, net_proceeds_per_btc
         )
 
-        if still_remaining > MIN_BTC_PRECISION:
+        if still_remaining > min_prec:
             raise ValueError(
                 f"Not enough open lots to allocate sell. "
-                f"Remaining: {still_remaining} BTC"
+                f"Remaining: {still_remaining}"
             )
 
         return target_updated + fifo_updated, target_allocs + fifo_allocs

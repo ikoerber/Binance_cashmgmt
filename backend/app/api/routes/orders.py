@@ -12,8 +12,17 @@ from app.services.order_service import OrderService
 from app.services.order_tracking_service import OrderTrackingService
 from app.services.binance import BinanceService
 from app.api.dependencies import get_binance_service
+from app.symbol_registry import is_known_symbol, KNOWN_PAIRS
 
 router = APIRouter(prefix="/api/orders", tags=["orders"])
+
+
+def _validate_symbol(symbol: str) -> None:
+    if not is_known_symbol(symbol):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unbekanntes Symbol: {symbol}. Bekannt: {list(KNOWN_PAIRS.keys())}",
+        )
 
 
 def get_order_service(binance: BinanceService = Depends(get_binance_service)) -> OrderService:
@@ -91,6 +100,7 @@ def get_open_orders(
         Liste offener Orders
     """
     try:
+        _validate_symbol(symbol)
         orders = order_service.get_open_orders(symbol)
         return {
             "orders": orders,
@@ -126,6 +136,7 @@ def cancel_order(
         Cancel-Result
     """
     try:
+        _validate_symbol(symbol)
         # Autorisierung: Order muss dem User gehoeren
         from app.db.models import OrderDB
         order_db = db.query(OrderDB).filter(
@@ -176,6 +187,11 @@ def list_orders(
         Liste von Orders
     """
     try:
+        if symbol and not is_known_symbol(symbol):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unbekanntes Symbol: {symbol}. Bekannt: {list(KNOWN_PAIRS.keys())}",
+            )
         orders = tracking_service.get_orders_for_user(
             db,
             user_id,
@@ -281,6 +297,7 @@ def import_external_orders(
         Import report
     """
     try:
+        _validate_symbol(symbol)
         report = tracking_service.import_external_orders(db, user_id, symbol)
         return {
             "status": "completed",

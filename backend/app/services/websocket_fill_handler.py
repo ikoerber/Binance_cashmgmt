@@ -89,9 +89,10 @@ def _sync_handle_fill_event(user_id: str, raw_data: dict) -> Optional[dict]:
             return None
 
         # 3. Fee EUR-Wert berechnen
-        from app.symbol_registry import get_base_asset
+        from app.symbol_registry import get_base_asset, get_quote_asset
         base_asset = get_base_asset(symbol)
-        fee_eur_value = _compute_realtime_fee_eur_value(fee_amount, fee_asset, price, base_asset)
+        quote_asset = get_quote_asset(symbol)
+        fee_eur_value = _compute_realtime_fee_eur_value(fee_amount, fee_asset, price, base_asset, quote_asset)
 
         # 4. raw_payload normalisieren fuer process_sell_fill Kompatibilitaet
         # process_sell_fill (lot_service.py:673) sucht raw_payload["orderId"]
@@ -233,19 +234,20 @@ def _compute_realtime_fee_eur_value(
     fee_amount: Optional[Decimal],
     fee_asset: Optional[str],
     fill_price: Decimal,
-    base_asset: str = "BTC",
+    base_asset: str,
+    quote_asset: str = "EUR",
 ) -> Optional[Decimal]:
     """
     Vereinfachte Fee-EUR-Wert-Berechnung fuer Echtzeit-Fills.
 
     Strategie:
-    - EUR Fee: as-is
-    - Base-Asset Fee: × fill_price (Base/EUR Preis zum Trade-Zeitpunkt)
+    - Quote-Asset Fee: as-is
+    - Base-Asset Fee: × fill_price (Base/Quote Preis zum Trade-Zeitpunkt)
     - BNB/andere: Aktueller Preis via Binance Public API
       (akzeptable Approximation; Reconciliation faengt Diskrepanzen)
 
     Returns:
-        EUR-Wert der Fee, oder None bei Fehler
+        Quote-Asset-Wert der Fee, oder None bei Fehler
     """
     if not fee_amount or fee_amount <= 0:
         return None
@@ -253,7 +255,7 @@ def _compute_realtime_fee_eur_value(
     if not fee_asset:
         return None
 
-    if fee_asset == "EUR":
+    if fee_asset == quote_asset:
         return fee_amount
 
     if fee_asset == base_asset:
@@ -261,7 +263,7 @@ def _compute_realtime_fee_eur_value(
 
     # BNB/andere: Aktuellen Preis von Binance Public API holen
     try:
-        price = _fetch_current_price(f"{fee_asset}EUR")
+        price = _fetch_current_price(f"{fee_asset}{quote_asset}")
         if price:
             return fee_amount * price
     except Exception as e:

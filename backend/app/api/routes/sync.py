@@ -1,6 +1,6 @@
 """Sync API Endpoints"""
 import logging
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 from typing import Optional
@@ -12,15 +12,24 @@ from app.services.binance import BinanceService
 from app.services.sync_service import SyncService
 from app.services.csv_import_service import import_trading_bots_csv
 from app.api.dependencies import get_binance_service
+from app.symbol_registry import is_known_symbol, KNOWN_PAIRS
 
 router = APIRouter(prefix="/api/sync", tags=["sync"])
+
+
+def _validate_symbol(symbol: str) -> None:
+    if not is_known_symbol(symbol):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unbekanntes Symbol: {symbol}. Bekannt: {list(KNOWN_PAIRS.keys())}",
+        )
 
 
 @router.post("/{user_id}/fills")
 def sync_fills(
     user_id: str,
-    symbol: str = "BTCEUR",
-    start_time: Optional[str] = None,
+    symbol: str = Query("BTCEUR", description="Trading Pair"),
+    start_time: Optional[str] = Query(None, description="Optional start time (ISO format)"),
     db: Session = Depends(get_db),
     binance_service: BinanceService = Depends(get_binance_service)
 ):
@@ -38,6 +47,7 @@ def sync_fills(
         Sync-Report
     """
     try:
+        _validate_symbol(symbol)
         sync_service = SyncService(binance_service)
 
         start_dt = None
@@ -56,7 +66,7 @@ def sync_fills(
 @router.post("/{user_id}/fills/full")
 def sync_all_fills(
     user_id: str,
-    symbol: str = "BTCEUR",
+    symbol: str = Query("BTCEUR", description="Trading Pair"),
     db: Session = Depends(get_db),
     binance_service: BinanceService = Depends(get_binance_service)
 ):
@@ -75,6 +85,7 @@ def sync_all_fills(
         Sync-Report mit allen importierten Fills
     """
     try:
+        _validate_symbol(symbol)
         sync_service = SyncService(binance_service)
 
         start_dt = datetime.now() - timedelta(days=365)

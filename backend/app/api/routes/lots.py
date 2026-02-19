@@ -19,6 +19,7 @@ from app.services.lot_service import (
 )
 from app.services.binance import BinanceService
 from app.api.dependencies import get_binance_service
+from app.symbol_registry import is_known_symbol, KNOWN_PAIRS
 
 router = APIRouter(prefix="/api/lots", tags=["lots"])
 
@@ -61,6 +62,11 @@ def list_lots(
         Liste von TradeLots
     """
     try:
+        if symbol and not is_known_symbol(symbol):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unbekanntes Symbol: {symbol}. Bekannt: {list(KNOWN_PAIRS.keys())}",
+            )
         parsed_from = None
         parsed_to = None
         if from_date:

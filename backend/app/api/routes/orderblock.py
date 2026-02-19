@@ -29,11 +29,13 @@ from app.services.orderblock_persistence_service import (
     save_detection_result,
 )
 
+from app.symbol_registry import KNOWN_PAIRS
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/orderblock", tags=["orderblock"])
 
-ALLOWED_SYMBOLS = {"BTCEUR"}
+ALLOWED_SYMBOLS = set(KNOWN_PAIRS.keys())
 
 # Timeouts fuer async Operationen (Sekunden)
 _ANALYZE_TIMEOUT = 120

@@ -158,13 +158,13 @@ class TestComputeRealtimeFeeEurValue:
 
     def test_eur_fee_passthrough(self):
         result = _compute_realtime_fee_eur_value(
-            Decimal("0.50"), "EUR", Decimal("85000")
+            Decimal("0.50"), "EUR", Decimal("85000"), "BTC"
         )
         assert result == Decimal("0.50")
 
     def test_btc_fee_multiplied_by_price(self):
         result = _compute_realtime_fee_eur_value(
-            Decimal("0.0000005"), "BTC", Decimal("85000")
+            Decimal("0.0000005"), "BTC", Decimal("85000"), "BTC"
         )
         assert result == Decimal("0.0000005") * Decimal("85000")
 
@@ -173,7 +173,7 @@ class TestComputeRealtimeFeeEurValue:
         mock_fetch.return_value = Decimal("700.00")
 
         result = _compute_realtime_fee_eur_value(
-            Decimal("0.001"), "BNB", Decimal("85000")
+            Decimal("0.001"), "BNB", Decimal("85000"), "BTC"
         )
 
         mock_fetch.assert_called_once_with("BNBEUR")
@@ -184,22 +184,22 @@ class TestComputeRealtimeFeeEurValue:
         mock_fetch.return_value = None
 
         result = _compute_realtime_fee_eur_value(
-            Decimal("0.001"), "BNB", Decimal("85000")
+            Decimal("0.001"), "BNB", Decimal("85000"), "BTC"
         )
 
         assert result is None
 
     def test_zero_fee_returns_none(self):
-        result = _compute_realtime_fee_eur_value(Decimal("0"), "BTC", Decimal("85000"))
+        result = _compute_realtime_fee_eur_value(Decimal("0"), "BTC", Decimal("85000"), "BTC")
         assert result is None
 
     def test_none_fee_returns_none(self):
-        result = _compute_realtime_fee_eur_value(None, "BTC", Decimal("85000"))
+        result = _compute_realtime_fee_eur_value(None, "BTC", Decimal("85000"), "BTC")
         assert result is None
 
     def test_none_fee_asset_returns_none(self):
         result = _compute_realtime_fee_eur_value(
-            Decimal("0.001"), None, Decimal("85000")
+            Decimal("0.001"), None, Decimal("85000"), "BTC"
         )
         assert result is None
 
@@ -208,7 +208,7 @@ class TestComputeRealtimeFeeEurValue:
         mock_fetch.side_effect = Exception("Network error")
 
         result = _compute_realtime_fee_eur_value(
-            Decimal("0.001"), "BNB", Decimal("85000")
+            Decimal("0.001"), "BNB", Decimal("85000"), "BTC"
         )
 
         assert result is None

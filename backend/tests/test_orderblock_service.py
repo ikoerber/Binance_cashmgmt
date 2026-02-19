@@ -811,7 +811,7 @@ class TestOrderblockAPIRoutes:
         """POST /{user_id}/analyze mit ungueltigem Symbol -> 400."""
         resp = client.post(
             "/api/orderblock/user1/analyze",
-            json={"symbol": "ETHEUR", "interval": "1h", "months": 1},
+            json={"symbol": "XYZUSD", "interval": "1h", "months": 1},
         )
         assert resp.status_code == 400
         assert "Symbol" in resp.json()["detail"]

@@ -34,6 +34,7 @@ from app.db.models import (
     UserSettingsDB,
 )
 from app.domain.lot_merge import validate_merge, compute_merge
+from app.symbol_registry import get_base_asset
 
 logger = logging.getLogger(__name__)
 from app.services.portfolio_service import _db_event_to_domain
@@ -511,9 +512,11 @@ def process_sell_fill_for_pairing(
         sell_event_domain, all_lots, sell_event_domain.amount, net_proceeds_per_btc
     )
 
-    if remaining > Decimal("0.00000001"):
+    from app.symbol_registry import get_min_base_precision
+    min_prec = get_min_base_precision(sell_event_domain.symbol or "BTCEUR")
+    if remaining > min_prec:
         raise ValueError(
-            f"Not enough open lots to allocate sell. Remaining: {remaining} BTC"
+            f"Not enough open lots to allocate sell. Remaining: {remaining}"
         )
 
     # In DB persistieren
@@ -1124,7 +1127,7 @@ def merge_lots(db: Session, user_id: str, lot_ids: List[str]) -> dict:
         user_id=user_id,
         type=EventTypeEnum.ADJUSTMENT,
         timestamp=now,
-        asset="BTC",
+        asset=get_base_asset(keeper_domain.symbol),
         amount=Decimal("0"),
         source=EventSourceEnum.ADJUSTMENT,
         note=f"Lot merge: {validation.merged_lot_ids} -> {validation.keeper_lot_id}",

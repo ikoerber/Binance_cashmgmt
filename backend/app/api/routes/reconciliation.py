@@ -9,8 +9,17 @@ logger = logging.getLogger(__name__)
 from app.services.reconciliation_service import ReconciliationService
 from app.services.binance import BinanceService
 from app.api.dependencies import get_binance_service
+from app.symbol_registry import is_known_symbol, KNOWN_PAIRS
 
 router = APIRouter(prefix="/api/reconciliation", tags=["reconciliation"])
+
+
+def _validate_symbol(symbol: str) -> None:
+    if not is_known_symbol(symbol):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unbekanntes Symbol: {symbol}. Bekannt: {list(KNOWN_PAIRS.keys())}",
+        )
 
 
 def get_reconciliation_service(binance: BinanceService = Depends(get_binance_service)) -> ReconciliationService:
@@ -43,6 +52,7 @@ def run_full_reconciliation(
         Reconciliation report mit Diskrepanzen
     """
     try:
+        _validate_symbol(symbol)
         report = reconciliation_service.full_reconciliation(db, user_id, symbol)
         return {
             "status": "completed",
@@ -75,6 +85,7 @@ def reconcile_orders_only(
         Order reconciliation report
     """
     try:
+        _validate_symbol(symbol)
         report = reconciliation_service.reconcile_orders(db, user_id, symbol)
         return {
             "status": "completed",
@@ -108,6 +119,7 @@ def reconcile_balances_only(
         Balance reconciliation report
     """
     try:
+        _validate_symbol(symbol)
         report = reconciliation_service.reconcile_balances(db, user_id, symbol)
         return {
             "status": "completed",
@@ -143,6 +155,7 @@ def reconcile_fills_only(
         Fill reconciliation report
     """
     try:
+        _validate_symbol(symbol)
         report = reconciliation_service.reconcile_fills(db, user_id, symbol, start_time)
         return {
             "status": "completed",
