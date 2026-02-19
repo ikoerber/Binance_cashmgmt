@@ -81,11 +81,11 @@ def suggest_pairings(
             PairingItem(
                 lot_id=winner.id,
                 qty_base=winner.qty_base_open,
-                cost_eur=winner.break_even * winner.qty_base_open
+                cost_quote=winner.break_even * winner.qty_base_open
             )
         ]
 
-        current_cost = items[0].cost_eur
+        current_cost = items[0].cost_quote
         current_value = market_price * items[0].qty_base
         current_pnl = current_value - current_cost
 
@@ -109,7 +109,7 @@ def suggest_pairings(
                     PairingItem(
                         lot_id=loser.id,
                         qty_base=loser.qty_base_open,
-                        cost_eur=loser_cost
+                        cost_quote=loser_cost
                     )
                 )
                 current_cost = new_cost
@@ -208,13 +208,13 @@ def simulate_pairing(
         pairing=pairing,
         market_price=market_price,
         total_base_to_sell=total_base,
-        expected_proceeds_eur=net_proceeds,
-        expected_costs_eur=total_cost,
-        expected_realized_pnl_eur=realized_pnl,
+        expected_proceeds_quote=net_proceeds,
+        expected_costs_quote=total_cost,
+        expected_realized_pnl_quote=realized_pnl,
         affected_lots=affected_lots_info,
         remaining_portfolio_base=remaining_base,
-        remaining_portfolio_cost_eur=remaining_cost,
-        estimated_fee_eur=estimated_fee,
+        remaining_portfolio_cost_quote=remaining_cost,
+        estimated_fee_quote=estimated_fee,
         fee_pct=fee_pct,
     )
 

@@ -38,7 +38,7 @@ def _make_buy_lot(lot_id, created_at, qty, price):
         created_at=created_at,
         qty_base_initial=qty,
         qty_base_open=qty,
-        cost_eur=qty * price,
+        cost_quote=qty * price,
         status=LotStatus.OPEN,
     )
 
@@ -140,7 +140,7 @@ def test_strategy_fifo_allocates_oldest_first():
     assert len(allocs) == 1
     assert allocs[0].trade_lot_id == "lot_A"  # aeltestes
     # P&L: (55000 - 40000) * 0.01 = +150 EUR
-    assert allocs[0].realized_pnl_eur == Decimal("150.00")
+    assert allocs[0].realized_pnl_quote == Decimal("150.00")
 
 
 def test_strategy_lifo_allocates_newest_first():
@@ -153,7 +153,7 @@ def test_strategy_lifo_allocates_newest_first():
     assert len(allocs) == 1
     assert allocs[0].trade_lot_id == "lot_C"  # neuestes
     # P&L: (55000 - 50000) * 0.01 = +50 EUR
-    assert allocs[0].realized_pnl_eur == Decimal("50.00")
+    assert allocs[0].realized_pnl_quote == Decimal("50.00")
 
 
 def test_strategy_highest_cost_allocates_most_expensive_first():
@@ -168,7 +168,7 @@ def test_strategy_highest_cost_allocates_most_expensive_first():
     assert len(allocs) == 1
     assert allocs[0].trade_lot_id == "lot_B"  # teuerstes (60000)
     # P&L: (55000 - 60000) * 0.01 = -50 EUR (Verlust realisiert)
-    assert allocs[0].realized_pnl_eur == Decimal("-50.00")
+    assert allocs[0].realized_pnl_quote == Decimal("-50.00")
 
 
 def test_fifo_vs_lifo_different_lots_closed():
@@ -220,7 +220,7 @@ def test_all_strategies_same_total_pnl():
             ),
         ]
         _, allocs = allocate_sell_with_strategy(sell, lots, strategy)
-        total_pnl = sum(a.realized_pnl_eur for a in allocs)
+        total_pnl = sum(a.realized_pnl_quote for a in allocs)
         results[strategy] = total_pnl
 
     # Alle Strategien: gleiche Gesamt-P&L
@@ -257,9 +257,9 @@ def test_strategy_with_fee():
     _, allocs = allocate_sell_with_strategy(sell, lots, AllocationStrategy.HIGHEST_COST)
     assert allocs[0].trade_lot_id == "lot_B"
     # P&L: (55000 - 5.50/0.01 - 60000) * 0.01 = (55000 - 550 - 60000) * 0.01 = -55.50
-    net_proceeds_per_btc = Decimal("55000") - (Decimal("5.50") / Decimal("0.01"))
-    expected_pnl = (net_proceeds_per_btc - Decimal("60000")) * Decimal("0.01")
-    assert allocs[0].realized_pnl_eur == expected_pnl
+    net_proceeds_per_base = Decimal("55000") - (Decimal("5.50") / Decimal("0.01"))
+    expected_pnl = (net_proceeds_per_base - Decimal("60000")) * Decimal("0.01")
+    assert allocs[0].realized_pnl_quote == expected_pnl
 
 
 def test_strategy_single_lot():
@@ -272,7 +272,7 @@ def test_strategy_single_lot():
 
         assert len(allocs) == 1
         assert allocs[0].trade_lot_id == "lot_A"
-        assert allocs[0].realized_pnl_eur == Decimal("50.00")
+        assert allocs[0].realized_pnl_quote == Decimal("50.00")
         # Lot muss CLOSED sein
         closed_lot = [l for l in updated if l.id == "lot_A"][0]
         assert closed_lot.status == LotStatus.CLOSED
@@ -329,8 +329,8 @@ def test_fifo_wrapper_delegates_correctly():
     assert [a.trade_lot_id for a in allocs_wrapper] == [
         a.trade_lot_id for a in allocs_direct
     ]
-    assert [a.realized_pnl_eur for a in allocs_wrapper] == [
-        a.realized_pnl_eur for a in allocs_direct
+    assert [a.realized_pnl_quote for a in allocs_wrapper] == [
+        a.realized_pnl_quote for a in allocs_direct
     ]
 
 

@@ -51,7 +51,7 @@ def test_lot_creation_with_bnb_fee():
 
     assert lot.qty_base_initial == Decimal("0.01")
     assert lot.qty_base_open == Decimal("0.01")
-    assert abs(lot.cost_eur - expected_total_cost) < Decimal("0.01")
+    assert abs(lot.cost_quote - expected_total_cost) < Decimal("0.01")
 
     # Break-even sollte höher sein als der Fill-Preis (wegen Fee)
     assert lot.break_even > Decimal("57650.00")
@@ -87,7 +87,7 @@ def test_lot_creation_without_bnb_conversion_rate():
     expected_cost = Decimal("0.0125") * Decimal("58039.00")
 
     assert lot.qty_base_initial == Decimal("0.0125")
-    assert lot.cost_eur == expected_cost
+    assert lot.cost_quote == expected_cost
     assert lot.break_even == Decimal("58039.00")  # Ohne Fee-Korrektur
 
 
@@ -169,7 +169,7 @@ def test_sell_allocation_with_bnb_fee():
     expected_cost = Decimal("50000.00") * Decimal("0.01")
     expected_pnl = expected_net_proceeds - expected_cost
 
-    assert abs(allocation.realized_pnl_eur - expected_pnl) < Decimal("0.01")
+    assert abs(allocation.realized_pnl_quote - expected_pnl) < Decimal("0.01")
     assert allocation.qty_allocated == Decimal("0.01")
 
     # Lot sollte geschlossen sein
@@ -232,14 +232,14 @@ def test_multiple_fee_assets_in_batch():
     assert len(lots) == 3
 
     # Lot 1 (BNB Fee): 500 + (0.001 * 700) = 500.7 EUR, qty = 0.01 (BNB-Fee betrifft BTC nicht)
-    assert abs(lots[0].cost_eur - Decimal("500.70")) < Decimal("0.01")
+    assert abs(lots[0].cost_quote - Decimal("500.70")) < Decimal("0.01")
     assert lots[0].qty_base_initial == Decimal("0.01")
 
     # Lot 2 (EUR Fee): 510 + 1 = 511 EUR, qty = 0.01 (EUR-Fee betrifft BTC nicht)
-    assert lots[1].cost_eur == Decimal("511.00")
+    assert lots[1].cost_quote == Decimal("511.00")
     assert lots[1].qty_base_initial == Decimal("0.01")
 
     # Lot 3 (BTC Fee): cost = 0.01 * 52000 = 520 EUR (KEINE Fee-Addition!)
     # qty = 0.01 - 0.00001 = 0.00999 (Fee von BTC-Menge abgezogen)
-    assert lots[2].cost_eur == Decimal("520.00")
+    assert lots[2].cost_quote == Decimal("520.00")
     assert lots[2].qty_base_initial == Decimal("0.00999")

@@ -14,12 +14,14 @@ import {
   executePairing,
   deletePairing,
 } from '../api/client';
-import { formatNumber, formatEUR, formatBase } from '../utils/formatters';
-import { useAppState } from '../contexts/AppStateContext';
+import { formatNumber, formatQuote, formatBase } from '../utils/formatters';
+import { useSymbol } from '../contexts/SymbolContext';
+import { useUser } from '../contexts/UserContext';
 import SimulationModal from './SimulationModal';
 
 const PairingExistingTab = ({ onHighlightLots, showMessage }) => {
-  const { userId, marketPrice, activeSymbol } = useAppState();
+  const { userId } = useUser();
+  const { symbol: activeSymbol, marketPrice } = useSymbol();
   const queryClient = useQueryClient();
 
   const [existingStatusFilter, setExistingStatusFilter] = useState(null);
@@ -38,8 +40,8 @@ const PairingExistingTab = ({ onHighlightLots, showMessage }) => {
     isLoading: existingLoading,
     refetch: refetchExisting,
   } = useQuery({
-    queryKey: ['pairings', userId, existingStatusFilter],
-    queryFn: () => listPairings(userId, existingStatusFilter),
+    queryKey: ['pairings', activeSymbol, userId, existingStatusFilter],
+    queryFn: () => listPairings(userId, existingStatusFilter, activeSymbol),
   });
 
   // ─── Mutations ───
@@ -200,7 +202,7 @@ const PairingExistingTab = ({ onHighlightLots, showMessage }) => {
                 </div>
                 <div>
                   <span className="label">Netto Kosten</span><br />
-                  {formatEUR(p.net_cost)}
+                  {formatQuote(p.net_cost, activeSymbol)}
                 </div>
                 {p.created_at && (
                   <div>

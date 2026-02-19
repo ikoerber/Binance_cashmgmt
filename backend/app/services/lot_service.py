@@ -14,7 +14,7 @@ from app.domain.lots import (
     allocate_sell_with_strategy,
     allocate_sell_to_lot,
     calculate_lot_target_price,
-    _compute_net_proceeds_per_btc,
+    _compute_net_proceeds_per_base,
     _allocate_qty_to_lots,
     _sort_lots_by_strategy,
 )
@@ -136,7 +136,7 @@ def get_lot_detail(db: Session, user_id: str, lot_id: str) -> Optional[dict]:
             "id": alloc.id,
             "sell_fill_id": alloc.sell_fill_id,
             "qty_allocated": str(alloc.qty_allocated),
-            "realized_pnl_eur": str(alloc.realized_pnl_eur),
+            "realized_pnl_quote": str(alloc.realized_pnl_quote),
             "created_at": alloc.created_at.isoformat(),
         }
         for alloc in allocations_db
@@ -158,8 +158,8 @@ def create_lot_from_buy_fill(
         db: Database Session
         user_id: User ID
         fill_event_id: Fill Event ID (LedgerEvent)
-        fee_conversion_rates: Optional dict mit Konvertierungsraten zu EUR
-                             z.B. {"BNB": Decimal("700.00")} für BNB/EUR-Preis
+        fee_conversion_rates: Optional dict mit Konvertierungsraten zu Quote-Currency
+                             z.B. {"BNB": Decimal("700.00")} fuer BNB/Quote-Preis
 
     Returns:
         Erstelltes Lot als Dict
@@ -202,7 +202,7 @@ def create_lot_from_buy_fill(
         created_at=lot_domain.created_at,
         qty_base_initial=lot_domain.qty_base_initial,
         qty_base_open=lot_domain.qty_base_open,
-        cost_eur=lot_domain.cost_eur,
+        cost_quote=lot_domain.cost_quote,
         status=LotStatusEnum[lot_domain.status.value],
         target_margin_pct=lot_domain.target_margin_pct,
     )
@@ -227,8 +227,8 @@ def process_sell_fill_fifo(
         db: Database Session
         user_id: User ID
         sell_event_id: Sell Event ID (LedgerEvent)
-        fee_conversion_rates: Optional dict mit Konvertierungsraten zu EUR
-                             z.B. {"BNB": Decimal("700.00")} für BNB/EUR-Preis
+        fee_conversion_rates: Optional dict mit Konvertierungsraten zu Quote-Currency
+                             z.B. {"BNB": Decimal("700.00")} fuer BNB/Quote-Preis
 
     Returns:
         Dict mit updated_lots und allocations
@@ -284,7 +284,7 @@ def process_sell_fill_fifo(
             sell_fill_id=allocation.sell_fill_id,
             trade_lot_id=allocation.trade_lot_id,
             qty_allocated=allocation.qty_allocated,
-            realized_pnl_eur=allocation.realized_pnl_eur,
+            realized_pnl_quote=allocation.realized_pnl_quote,
             created_at=allocation.created_at,
         )
         db.add(alloc_db)
@@ -294,7 +294,7 @@ def process_sell_fill_fifo(
                 "sell_fill_id": allocation.sell_fill_id,
                 "trade_lot_id": allocation.trade_lot_id,
                 "qty_allocated": str(allocation.qty_allocated),
-                "realized_pnl_eur": str(allocation.realized_pnl_eur),
+                "realized_pnl_quote": str(allocation.realized_pnl_quote),
             }
         )
 
@@ -324,7 +324,7 @@ def process_sell_fill_lot_specific(
         user_id: User ID
         sell_event_id: Sell Event ID (LedgerEvent)
         target_lot_id: ID des Ziel-Lots
-        fee_conversion_rates: Optional dict mit Konvertierungsraten zu EUR
+        fee_conversion_rates: Optional dict mit Konvertierungsraten zu Quote-Currency
 
     Returns:
         Dict mit updated_lots und allocations
@@ -392,7 +392,7 @@ def process_sell_fill_lot_specific(
             sell_fill_id=allocation.sell_fill_id,
             trade_lot_id=allocation.trade_lot_id,
             qty_allocated=allocation.qty_allocated,
-            realized_pnl_eur=allocation.realized_pnl_eur,
+            realized_pnl_quote=allocation.realized_pnl_quote,
             created_at=allocation.created_at,
         )
         db.add(alloc_db)
@@ -402,7 +402,7 @@ def process_sell_fill_lot_specific(
                 "sell_fill_id": allocation.sell_fill_id,
                 "trade_lot_id": allocation.trade_lot_id,
                 "qty_allocated": str(allocation.qty_allocated),
-                "realized_pnl_eur": str(allocation.realized_pnl_eur),
+                "realized_pnl_quote": str(allocation.realized_pnl_quote),
             }
         )
 
@@ -432,7 +432,7 @@ def process_sell_fill_for_pairing(
         user_id: User ID
         sell_event_id: Sell Event ID (LedgerEvent)
         pairing_id: Pairing ID (aus linked_pairing_id der Order)
-        fee_conversion_rates: Optional dict mit Konvertierungsraten zu EUR
+        fee_conversion_rates: Optional dict mit Konvertierungsraten zu Quote-Currency
 
     Returns:
         Dict mit updated_lots und allocations
@@ -504,12 +504,12 @@ def process_sell_fill_for_pairing(
     # Pairing-Lots zuerst, dann Overflow-Lots (nach User-Strategie)
     all_lots = pairing_lots_domain + remaining_lots_domain
 
-    net_proceeds_per_btc = _compute_net_proceeds_per_btc(
+    net_proceeds_per_base = _compute_net_proceeds_per_base(
         sell_event_domain, fee_conversion_rates
     )
 
     updated_lots_domain, allocations_domain, remaining = _allocate_qty_to_lots(
-        sell_event_domain, all_lots, sell_event_domain.amount, net_proceeds_per_btc
+        sell_event_domain, all_lots, sell_event_domain.amount, net_proceeds_per_base
     )
 
     from app.symbol_registry import get_min_base_precision
@@ -535,7 +535,7 @@ def process_sell_fill_for_pairing(
             sell_fill_id=allocation.sell_fill_id,
             trade_lot_id=allocation.trade_lot_id,
             qty_allocated=allocation.qty_allocated,
-            realized_pnl_eur=allocation.realized_pnl_eur,
+            realized_pnl_quote=allocation.realized_pnl_quote,
             created_at=allocation.created_at,
         )
         db.add(alloc_db)
@@ -545,7 +545,7 @@ def process_sell_fill_for_pairing(
                 "sell_fill_id": allocation.sell_fill_id,
                 "trade_lot_id": allocation.trade_lot_id,
                 "qty_allocated": str(allocation.qty_allocated),
-                "realized_pnl_eur": str(allocation.realized_pnl_eur),
+                "realized_pnl_quote": str(allocation.realized_pnl_quote),
             }
         )
 
@@ -598,7 +598,7 @@ def process_sell_fill_with_strategy(
         user_id: User ID
         sell_event_id: Sell Event ID (LedgerEvent)
         strategy: Allocation Strategy (FIFO, LIFO, HIGHEST_COST)
-        fee_conversion_rates: Optional dict mit Konvertierungsraten zu EUR
+        fee_conversion_rates: Optional dict mit Konvertierungsraten zu Quote-Currency
 
     Returns:
         Dict mit updated_lots und allocations
@@ -644,7 +644,7 @@ def process_sell_fill_with_strategy(
             sell_fill_id=allocation.sell_fill_id,
             trade_lot_id=allocation.trade_lot_id,
             qty_allocated=allocation.qty_allocated,
-            realized_pnl_eur=allocation.realized_pnl_eur,
+            realized_pnl_quote=allocation.realized_pnl_quote,
             created_at=allocation.created_at,
         )
         db.add(alloc_db)
@@ -654,7 +654,7 @@ def process_sell_fill_with_strategy(
                 "sell_fill_id": allocation.sell_fill_id,
                 "trade_lot_id": allocation.trade_lot_id,
                 "qty_allocated": str(allocation.qty_allocated),
-                "realized_pnl_eur": str(allocation.realized_pnl_eur),
+                "realized_pnl_quote": str(allocation.realized_pnl_quote),
             }
         )
 
@@ -684,7 +684,7 @@ def process_sell_fill(
         db: Database Session
         user_id: User ID
         sell_event_id: Sell Event ID (LedgerEvent)
-        fee_conversion_rates: Optional dict mit Konvertierungsraten zu EUR
+        fee_conversion_rates: Optional dict mit Konvertierungsraten zu Quote-Currency
 
     Returns:
         Dict mit updated_lots und allocations
@@ -875,9 +875,9 @@ def _lot_db_to_dict(lot_db: TradeLotDB, db: Session = None, fill_event=None) -> 
         "created_at": lot_db.created_at.isoformat(),
         "qty_base_initial": str(lot_db.qty_base_initial),
         "qty_base_open": str(lot_db.qty_base_open),
-        "cost_eur": str(lot_db.cost_eur),
+        "cost_quote": str(lot_db.cost_quote),
         "break_even": (
-            str(lot_db.cost_eur / lot_db.qty_base_initial)
+            str(lot_db.cost_quote / lot_db.qty_base_initial)
             if lot_db.qty_base_initial
             else "0"
         ),
@@ -899,7 +899,7 @@ def _lot_db_to_domain(lot_db: TradeLotDB) -> DomainLot:
         created_at=lot_db.created_at,
         qty_base_initial=lot_db.qty_base_initial,
         qty_base_open=lot_db.qty_base_open,
-        cost_eur=lot_db.cost_eur,
+        cost_quote=lot_db.cost_quote,
         status=LotStatus[lot_db.status.value],
         target_margin_pct=lot_db.target_margin_pct,
         symbol=lot_db.symbol,
@@ -1008,7 +1008,7 @@ def get_mergeable_groups(db: Session, user_id: str) -> List[dict]:
                         for lot in eligible
                     ],
                     "total_qty_base": str(sum(lot.qty_base_initial for lot in eligible)),
-                    "total_cost_eur": str(sum(lot.cost_eur for lot in eligible)),
+                    "total_cost_quote": str(sum(lot.cost_quote for lot in eligible)),
                 }
             )
 
@@ -1109,7 +1109,7 @@ def merge_lots(db: Session, user_id: str, lot_ids: List[str]) -> dict:
     keeper_db = next(lot for lot in lots_db if lot.id == validation.keeper_lot_id)
     keeper_db.qty_base_initial = merge_result.new_qty_base_initial
     keeper_db.qty_base_open = merge_result.new_qty_base_open
-    keeper_db.cost_eur = merge_result.new_cost_eur
+    keeper_db.cost_quote = merge_result.new_cost_quote
 
     # Persistieren: Gemergte Lots markieren
     now = _utcnow()
@@ -1140,14 +1140,14 @@ def merge_lots(db: Session, user_id: str, lot_ids: List[str]) -> dict:
                 "keeper": {
                     "qty_initial": str(keeper_domain.qty_base_initial),
                     "qty_open": str(keeper_domain.qty_base_open),
-                    "cost_eur": str(keeper_domain.cost_eur),
+                    "cost_quote": str(keeper_domain.cost_quote),
                 },
                 "merged": [
                     {
                         "lot_id": lot.id,
                         "qty_initial": str(lot.qty_base_initial),
                         "qty_open": str(lot.qty_base_open),
-                        "cost_eur": str(lot.cost_eur),
+                        "cost_quote": str(lot.cost_quote),
                     }
                     for lot in to_merge_domain
                 ],
@@ -1155,7 +1155,7 @@ def merge_lots(db: Session, user_id: str, lot_ids: List[str]) -> dict:
             "after": {
                 "qty_initial": str(merge_result.new_qty_base_initial),
                 "qty_open": str(merge_result.new_qty_base_open),
-                "cost_eur": str(merge_result.new_cost_eur),
+                "cost_quote": str(merge_result.new_cost_quote),
                 "break_even": str(merge_result.new_break_even),
             },
         },

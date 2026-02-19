@@ -1,11 +1,11 @@
 /**
  * OpenOrdersPanel - Zeigt offene Sell Orders und Buy Orders als separate Tabellen
  */
-import { formatEUR, formatBase, formatDate } from '../utils/formatters';
-import { useAppState } from '../contexts/AppStateContext';
+import { formatQuote, formatBase, formatDate } from '../utils/formatters';
+import { useSymbol } from '../contexts/SymbolContext';
 
 const OpenOrdersPanel = ({ openOrders, openBuyOrders = [] }) => {
-  const { marketPrice, activeSymbol } = useAppState();
+  const { symbol: activeSymbol, marketPrice } = useSymbol();
   if (openOrders.length === 0 && openBuyOrders.length === 0) return null;
 
   return (
@@ -30,9 +30,9 @@ const OpenOrdersPanel = ({ openOrders, openBuyOrders = [] }) => {
                 <tr key={order.id} className={belowMarket ? 'order-row-warning' : ''}>
                   <td><span className={`order-status-dot ${belowMarket ? 'warning' : 'open'}`} /> {order.status}</td>
                   <td>
-                    {formatEUR(order.price)}
+                    {formatQuote(order.price, activeSymbol)}
                     {belowMarket && (
-                      <span className="order-warning-badge" title={`Sell-Preis liegt unter dem Marktpreis (${formatEUR(marketPrice)})`}>
+                      <span className="order-warning-badge" title={`Sell-Preis liegt unter dem Marktpreis (${formatQuote(marketPrice, activeSymbol)})`}>
                         Unter Markt
                       </span>
                     )}
@@ -75,9 +75,9 @@ const OpenOrdersPanel = ({ openOrders, openBuyOrders = [] }) => {
                 <tr key={order.id}>
                   <td><span className="order-status-dot open" /> {order.status}</td>
                   <td>{order.type}</td>
-                  <td>{formatEUR(price)}</td>
+                  <td>{formatQuote(price, activeSymbol)}</td>
                   <td>{formatBase(qty, activeSymbol)}</td>
-                  <td>{formatEUR(price * qty)}</td>
+                  <td>{formatQuote(price * qty, activeSymbol)}</td>
                 </tr>
                 );
               })}

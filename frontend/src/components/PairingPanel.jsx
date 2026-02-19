@@ -10,8 +10,9 @@ import {
   getPairingSuggestions,
   createPairing,
 } from '../api/client';
-import { formatNumber, formatEUR, formatBase } from '../utils/formatters';
-import { useAppState } from '../contexts/AppStateContext';
+import { formatNumber, formatQuote, formatBase } from '../utils/formatters';
+import { useSymbol } from '../contexts/SymbolContext';
+import { useUser } from '../contexts/UserContext';
 import useNotification from '../hooks/useNotification';
 import PairingExistingTab from './PairingExistingTab';
 import './PairingPanel.css';
@@ -24,7 +25,8 @@ const PairingPanel = ({
   onTabChange,
   onHighlightLots,
 }) => {
-  const { userId, marketPrice, activeSymbol } = useAppState();
+  const { userId } = useUser();
+  const { symbol: activeSymbol, marketPrice } = useSymbol();
   const queryClient = useQueryClient();
   const { message: actionMessage, showMessage, dismissMessage } = useNotification();
 
@@ -41,7 +43,7 @@ const PairingPanel = ({
     isLoading: suggestionsLoading,
     refetch: refetchSuggestions,
   } = useQuery({
-    queryKey: ['pairingSuggestions', userId, marketPrice, thresholdPct],
+    queryKey: ['pairingSuggestions', activeSymbol, userId, marketPrice, thresholdPct],
     queryFn: () => getPairingSuggestions(userId, marketPrice, thresholdPct / 100, activeSymbol),
     enabled: activeTab === 'suggestions' && !!marketPrice,
     refetchInterval: 60000,
@@ -96,7 +98,7 @@ const PairingPanel = ({
   // ─── Helpers ───
 
   const fmt = formatNumber;
-  const fmtEUR = formatEUR;
+  const fmtQuote = (num) => formatQuote(num, activeSymbol);
   const fmtBase = (num) => formatBase(num, activeSymbol);
 
   // ─── Render ───
@@ -185,15 +187,15 @@ const PairingPanel = ({
                       </div>
                       <div>
                         <span className="label">Netto Kosten</span><br />
-                        {fmtEUR(s.net_cost)}
+                        {fmtQuote(s.net_cost)}
                       </div>
                       <div>
                         <span className="label">Netto P&L</span><br />
-                        {fmtEUR(s.net_pnl_eur)}
+                        {fmtQuote(s.net_pnl_quote)}
                       </div>
                       <div>
                         <span className="label">Marktwert</span><br />
-                        {fmtEUR(s.net_value)}
+                        {fmtQuote(s.net_value)}
                       </div>
                     </div>
                     <div className="pairing-card-lots">
@@ -240,12 +242,12 @@ const PairingPanel = ({
                 </div>
                 <div className="summary-card">
                   <span className="summary-label">Gesamt Kosten</span>
-                  <span className="summary-value">{fmtEUR(manualPreview.totalCost)}</span>
+                  <span className="summary-value">{fmtQuote(manualPreview.totalCost)}</span>
                 </div>
                 <div className={`summary-card ${manualPreview.netPnl >= 0 ? 'summary-profit' : 'summary-loss'}`}>
                   <span className="summary-label">Netto P&L</span>
                   <span className="summary-value">
-                    {fmtEUR(manualPreview.netPnl)} ({manualPreview.netPnlPct >= 0 ? '+' : ''}{fmt(manualPreview.netPnlPct)}%)
+                    {fmtQuote(manualPreview.netPnl)} ({manualPreview.netPnlPct >= 0 ? '+' : ''}{fmt(manualPreview.netPnlPct)}%)
                   </span>
                 </div>
               </div>
@@ -269,7 +271,7 @@ const PairingPanel = ({
                           {lot.binance_order_id || lot.id.slice(0, 12) + '...'}
                         </td>
                         <td>{fmtBase(lot.qty_base_open)}</td>
-                        <td>{fmtEUR(lot.break_even)}</td>
+                        <td>{fmtQuote(lot.break_even)}</td>
                         <td className={pnlPct >= 0 ? 'profit' : 'loss'}>
                           {pnlPct >= 0 ? '+' : ''}{fmt(pnlPct)}%
                         </td>

@@ -27,7 +27,8 @@ from sqlalchemy.orm import Session
 logger = logging.getLogger(__name__)
 
 from app.domain.models import LedgerEvent, EventType, EventSource, TradeSide
-from app.domain.lots import compute_fee_eur_value
+from app.utils.fee_conversion import compute_fee_quote_value
+from app.symbol_registry import get_base_asset, get_quote_asset
 from app.db.models import LedgerEventDB, TradeSideEnum
 from app.services.sync_service import persist_ledger_event
 from app.services.lot_service import create_lot_from_buy_fill, process_sell_fill
@@ -215,13 +216,16 @@ def import_trading_bots_csv(
             "message": f"All {total_rows} trades already imported",
         }
 
-    # 3. Ledger Events persistieren (mit fee_eur_value)
+    # 3. Ledger Events persistieren (mit fee_quote_value)
     created_events = []
     for event in new_events:
-        fee_eur_value = compute_fee_eur_value(
-            event.fee_amount, event.fee_asset, event.price, None
+        quote_asset = get_quote_asset(event.symbol or "BTCEUR")
+        fee_quote_value = compute_fee_quote_value(
+            event.fee_amount, event.fee_asset, event.price, None,
+            quote_asset=quote_asset,
+            base_asset=get_base_asset(event.symbol or "BTCEUR"),
         )
-        event_db = persist_ledger_event(db, user_id, event, fee_eur_value)
+        event_db = persist_ledger_event(db, user_id, event, fee_quote_value)
         created_events.append(event_db)
 
     db.flush()

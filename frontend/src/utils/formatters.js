@@ -5,7 +5,7 @@
  * German locale (de-DE) fuer Zahlen, Waehrungen, Daten.
  */
 
-import { getBaseDecimals, getBaseLabel } from './symbolRegistry';
+import { getBaseDecimals, getBaseLabel, getQuoteAsset } from './symbolRegistry';
 
 export const formatNumber = (num, decimals = 2) => {
   if (num === null || num === undefined) return 'N/A';
@@ -23,6 +23,13 @@ export const formatBase = (num, symbol = 'BTCEUR') => {
   const decimals = getBaseDecimals(symbol);
   const label = getBaseLabel(symbol);
   return `${formatNumber(num, decimals)} ${label}`;
+};
+
+export const formatQuote = (num, symbol = 'BTCEUR') => {
+  const quote = getQuoteAsset(symbol);
+  if (quote === 'EUR') return formatEUR(num);
+  if (quote === 'BTC') return `${formatNumber(num, 8)} BTC`;
+  return `${formatNumber(num, 4)} ${quote}`;
 };
 
 export const formatPct = (num) => `${num >= 0 ? '+' : ''}${formatNumber(num, 2)}%`;

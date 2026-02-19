@@ -82,7 +82,7 @@ class OrderService:
         symbol = lot_db.symbol
 
         # Zielpreis berechnen
-        break_even = lot_db.cost_eur / lot_db.qty_base_initial
+        break_even = lot_db.cost_quote / lot_db.qty_base_initial
 
         # Lot-spezifische Margin oder global
         margin = lot_db.target_margin_pct if lot_db.target_margin_pct else target_margin_pct

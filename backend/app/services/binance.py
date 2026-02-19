@@ -15,6 +15,7 @@ from binance.exceptions import BinanceAPIException
 logger = logging.getLogger(__name__)
 
 from app.domain.models import LedgerEvent, EventType, EventSource, TradeSide
+from app.symbol_registry import get_base_asset
 from app.utils.retry import retry_on_transient_error
 
 
@@ -195,8 +196,8 @@ class BinanceService:
         # Wenn Fee in BTC: qty muss um fee_amount reduziert werden (Consumer-Logik)
         # Wenn Fee in EUR/BNB: qty ist die tatsächliche BTC-Menge (Fee betrifft EUR/BNB)
 
-        # Asset bestimmen (bei BTCEUR ist asset immer BTC)
-        asset = "BTC"
+        # Asset bestimmen (Base-Asset des Trading Pairs)
+        asset = get_base_asset(symbol)
 
         return LedgerEvent(
             id=f"binance_{symbol}_{trade_id}",

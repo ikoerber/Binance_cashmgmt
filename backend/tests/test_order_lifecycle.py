@@ -80,7 +80,7 @@ def test_lot(db_session, test_user):
         created_from_fill_id=fill_event.id,
         qty_base_initial=Decimal("0.01"),
         qty_base_open=Decimal("0.01"),
-        cost_eur=Decimal("500.50"),
+        cost_quote=Decimal("500.50"),
         status=LotStatusEnum.OPEN,
         target_margin_pct=Decimal("0.05"),
     )

@@ -47,7 +47,7 @@ def _sync_handle_fill_event(user_id: str, raw_data: dict) -> Optional[dict]:
     Schritte:
     1. Fill-Daten aus executionReport extrahieren
     2. Idempotenz pruefen (source_id = trade_id)
-    3. LedgerEventDB erstellen (mit fee_eur_value)
+    3. LedgerEventDB erstellen (mit fee_quote_value)
     4. BUY: create_lot_from_buy_fill()
        SELL: process_sell_fill() (Strategy-Routing)
     5. Ergebnis-Dict zurueckgeben
@@ -88,11 +88,11 @@ def _sync_handle_fill_event(user_id: str, raw_data: dict) -> Optional[dict]:
             logger.debug("Fill bereits verarbeitet (trade_id=%s), ueberspringe", trade_id)
             return None
 
-        # 3. Fee EUR-Wert berechnen
+        # 3. Fee Quote-Wert berechnen
         from app.symbol_registry import get_base_asset, get_quote_asset
         base_asset = get_base_asset(symbol)
         quote_asset = get_quote_asset(symbol)
-        fee_eur_value = _compute_realtime_fee_eur_value(fee_amount, fee_asset, price, base_asset, quote_asset)
+        fee_quote_value = _compute_realtime_fee_quote_value(fee_amount, fee_asset, price, base_asset, quote_asset)
 
         # 4. raw_payload normalisieren fuer process_sell_fill Kompatibilitaet
         # process_sell_fill (lot_service.py:673) sucht raw_payload["orderId"]
@@ -115,7 +115,7 @@ def _sync_handle_fill_event(user_id: str, raw_data: dict) -> Optional[dict]:
             side=TradeSideEnum[side],
             fee_asset=fee_asset if fee_amount and fee_amount > 0 else None,
             fee_amount=fee_amount if fee_amount and fee_amount > 0 else None,
-            fee_eur_value=fee_eur_value,
+            fee_quote_value=fee_quote_value,
             source=EventSourceEnum.BINANCE,
             source_id=source_id,
             raw_payload=normalized_payload,
@@ -125,8 +125,8 @@ def _sync_handle_fill_event(user_id: str, raw_data: dict) -> Optional[dict]:
 
         # 6. Fee-Konvertierungsraten fuer lot_service rekonstruieren
         fee_conversion_rates = None
-        if fee_asset and fee_asset not in ("EUR", base_asset) and fee_eur_value and fee_amount and fee_amount > 0:
-            fee_conversion_rates = {fee_asset: fee_eur_value / fee_amount}
+        if fee_asset and fee_asset not in (quote_asset, base_asset) and fee_quote_value and fee_amount and fee_amount > 0:
+            fee_conversion_rates = {fee_asset: fee_quote_value / fee_amount}
 
         # 7. Lot erstellen oder Sell allokieren
         result = {
@@ -230,7 +230,7 @@ def _extract_fill_from_execution_report(raw_data: dict) -> Optional[Dict[str, An
     }
 
 
-def _compute_realtime_fee_eur_value(
+def _compute_realtime_fee_quote_value(
     fee_amount: Optional[Decimal],
     fee_asset: Optional[str],
     fill_price: Decimal,
@@ -238,11 +238,11 @@ def _compute_realtime_fee_eur_value(
     quote_asset: str = "EUR",
 ) -> Optional[Decimal]:
     """
-    Vereinfachte Fee-EUR-Wert-Berechnung fuer Echtzeit-Fills.
+    Vereinfachte Fee-Quote-Wert-Berechnung fuer Echtzeit-Fills.
 
     Strategie:
     - Quote-Asset Fee: as-is
-    - Base-Asset Fee: × fill_price (Base/Quote Preis zum Trade-Zeitpunkt)
+    - Base-Asset Fee: x fill_price (Base/Quote Preis zum Trade-Zeitpunkt)
     - BNB/andere: Aktueller Preis via Binance Public API
       (akzeptable Approximation; Reconciliation faengt Diskrepanzen)
 

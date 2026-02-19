@@ -70,7 +70,7 @@ class LedgerEvent:
 
     fee_asset: Optional[str] = None
     fee_amount: Optional[Decimal] = None
-    fee_eur_value: Optional[Decimal] = None  # Vorberechneter EUR-Wert der Fee (fuer BNB/andere Fee-Assets)
+    fee_quote_value: Optional[Decimal] = None  # Vorberechneter Quote-Currency-Wert der Fee (fuer BNB/andere Fee-Assets)
 
     source: EventSource = EventSource.BINANCE
     source_id: Optional[str] = None  # z.B. Binance tradeId
@@ -94,7 +94,7 @@ class TradeLot:
     qty_base_initial: Decimal  # Ursprüngliche Netto-Menge (BRUTTO minus Base-Fee)
     qty_base_open: Decimal  # Aktuell offene Menge
 
-    cost_eur: Decimal  # Gesamtkosten in EUR (inkl. Fees)
+    cost_quote: Decimal  # Gesamtkosten in Quote-Currency (inkl. Fees)
 
     status: LotStatus = LotStatus.OPEN
     target_margin_pct: Optional[Decimal] = None  # Lot-spezifische Zielmarge
@@ -105,10 +105,10 @@ class TradeLot:
         """Break-even Preis pro Base-Asset"""
         if self.qty_base_initial == 0:
             return Decimal("0")
-        return self.cost_eur / self.qty_base_initial
+        return self.cost_quote / self.qty_base_initial
 
     def unrealized_pnl(self, market_price: Decimal) -> Decimal:
-        """Unrealisierte P&L in EUR"""
+        """Unrealisierte P&L in Quote-Currency"""
         return (market_price * self.qty_base_open) - (self.break_even * self.qty_base_open)
 
     def unrealized_pnl_pct(self, market_price: Decimal) -> Decimal:
@@ -129,7 +129,7 @@ class SellAllocation:
     sell_fill_id: str  # Referenz zum Sell LedgerEvent
     trade_lot_id: str
     qty_allocated: Decimal  # Wie viel BTC von diesem Lot verkauft wurde
-    realized_pnl_eur: Decimal  # Realisierte P&L in EUR
+    realized_pnl_quote: Decimal  # Realisierte P&L in Quote-Currency
     created_at: datetime
 
 
@@ -142,7 +142,7 @@ class PairingItem:
     """
     lot_id: str
     qty_base: Decimal  # Wie viel Base-Asset von diesem Lot im Pairing
-    cost_eur: Decimal  # Anteilige Kosten
+    cost_quote: Decimal  # Anteilige Kosten in Quote-Currency
 
 
 class PairingStatus(Enum):
@@ -168,7 +168,7 @@ class Pairing:
 
     def net_cost(self) -> Decimal:
         """Netto-Kosten aller Items"""
-        return sum((item.cost_eur for item in self.items), Decimal("0"))
+        return sum((item.cost_quote for item in self.items), Decimal("0"))
 
     def net_qty_base(self) -> Decimal:
         """Netto-Base-Menge aller Items"""
@@ -179,7 +179,7 @@ class Pairing:
         return self.net_qty_base() * market_price
 
     def net_pnl(self, market_price: Decimal) -> Decimal:
-        """Netto-P&L in EUR"""
+        """Netto-P&L in Quote-Currency"""
         return self.net_value(market_price) - self.net_cost()
 
     def net_pnl_pct(self, market_price: Decimal) -> Decimal:
@@ -205,17 +205,17 @@ class PairingSimulation:
 
     # Erwartete Ergebnisse
     total_base_to_sell: Decimal
-    expected_proceeds_eur: Decimal  # Nach Fees
-    expected_costs_eur: Decimal
-    expected_realized_pnl_eur: Decimal
+    expected_proceeds_quote: Decimal  # Nach Fees
+    expected_costs_quote: Decimal
+    expected_realized_pnl_quote: Decimal
 
     # Auswirkungen
     affected_lots: List[dict]  # Welche Lots werden geschlossen/teilweise geschlossen
     remaining_portfolio_base: Decimal
-    remaining_portfolio_cost_eur: Decimal
+    remaining_portfolio_cost_quote: Decimal
 
     # Fees
-    estimated_fee_eur: Decimal
+    estimated_fee_quote: Decimal
     fee_pct: Decimal  # z.B. 0.001 für 0.1%
 
 
@@ -225,25 +225,25 @@ class DailyPerformance:
     date: datetime
 
     # Realized P&L today (from sells)
-    realized_pnl_today_eur: Decimal
+    realized_pnl_today_quote: Decimal
 
     # Today's buys
     buys_count_today: int
     buys_volume_base_today: Decimal
-    buys_volume_eur_today: Decimal
+    buys_volume_quote_today: Decimal
 
     # Today's sells
     sells_count_today: int
     sells_volume_base_today: Decimal
-    sells_volume_eur_today: Decimal
+    sells_volume_quote_today: Decimal
 
     # Unrealized P&L change
-    unrealized_pnl_start_of_day_eur: Decimal
-    unrealized_pnl_current_eur: Decimal
+    unrealized_pnl_start_of_day_quote: Decimal
+    unrealized_pnl_current_quote: Decimal
 
     @property
-    def unrealized_pnl_change_eur(self) -> Decimal:
-        return self.unrealized_pnl_current_eur - self.unrealized_pnl_start_of_day_eur
+    def unrealized_pnl_change_quote(self) -> Decimal:
+        return self.unrealized_pnl_current_quote - self.unrealized_pnl_start_of_day_quote
 
 
 @dataclass
@@ -257,31 +257,31 @@ class PortfolioState:
 
     # Base-Asset Position
     base_qty: Decimal  # Gesamte Base-Asset-Menge
-    base_cost_basis_eur: Decimal  # Gesamtkosten in EUR
+    base_cost_basis_quote: Decimal  # Gesamtkosten in Quote-Currency
 
-    # EUR Cash
-    eur_available: Decimal  # Verfügbare EUR
+    # Quote-Currency Cash
+    quote_available: Decimal  # Verfuegbare Quote-Currency
 
     # P&L
-    realized_pnl_eur: Decimal  # Realisierte Gewinne/Verluste
+    realized_pnl_quote: Decimal  # Realisierte Gewinne/Verluste in Quote-Currency
 
     # External Cashflows
-    external_net_eur: Decimal  # Summe externe Ein-/Auszahlungen
+    external_net_quote: Decimal  # Summe externe Ein-/Auszahlungen in Quote-Currency
 
     @property
     def break_even(self) -> Optional[Decimal]:
         """Portfolio Break-even Preis"""
         if self.base_qty == 0:
             return None
-        return self.base_cost_basis_eur / self.base_qty
+        return self.base_cost_basis_quote / self.base_qty
 
-    def market_value_eur(self, market_price: Decimal) -> Decimal:
-        """Marktwert des Base-Asset-Bestands in EUR"""
+    def market_value_quote(self, market_price: Decimal) -> Decimal:
+        """Marktwert des Base-Asset-Bestands in Quote-Currency"""
         return self.base_qty * market_price
 
-    def unrealized_pnl_eur(self, market_price: Decimal) -> Decimal:
-        """Unrealisierte P&L in EUR"""
-        return self.market_value_eur(market_price) - self.base_cost_basis_eur
+    def unrealized_pnl_quote(self, market_price: Decimal) -> Decimal:
+        """Unrealisierte P&L in Quote-Currency"""
+        return self.market_value_quote(market_price) - self.base_cost_basis_quote
 
     def target_price(self, target_margin_pct: Decimal, fee_buffer_pct: Decimal = Decimal("0")) -> Optional[Decimal]:
         """Zielverkaufspreis basierend auf Break-even und Zielmarge"""

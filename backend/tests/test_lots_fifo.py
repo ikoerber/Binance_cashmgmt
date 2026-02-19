@@ -42,7 +42,7 @@ def test_create_lot_from_buy_simple():
     assert lot.created_from_fill_id == "fill_1"
     assert lot.qty_base_initial == Decimal("0.01")
     assert lot.qty_base_open == Decimal("0.01")
-    assert lot.cost_eur == Decimal("500.00")  # 0.01 * 50000
+    assert lot.cost_quote == Decimal("500.00")  # 0.01 * 50000
     assert lot.break_even == Decimal("50000.00")
     assert lot.status == LotStatus.OPEN
 
@@ -66,7 +66,7 @@ def test_create_lot_with_eur_fee():
     lot = create_trade_lot_from_buy_fill(buy_event)
 
     # Kosten = 500 + 1 = 501 EUR
-    assert lot.cost_eur == Decimal("501.00")
+    assert lot.cost_quote == Decimal("501.00")
     assert lot.break_even == Decimal("50100.00")  # 501 / 0.01
 
 
@@ -93,7 +93,7 @@ def test_create_lot_with_btc_fee():
     # break_even = 500.00 / 0.00999 = 50050.05
     assert lot.qty_base_initial == Decimal("0.00999")
     assert lot.qty_base_open == Decimal("0.00999")
-    assert lot.cost_eur == Decimal("500.00")
+    assert lot.cost_quote == Decimal("500.00")
     expected_be = Decimal("500.00") / Decimal("0.00999")
     assert abs(lot.break_even - expected_be) < Decimal("0.01")
 
@@ -154,7 +154,7 @@ def test_fifo_allocation_single_lot_full():
     assert allocation.trade_lot_id == lot.id
     assert allocation.qty_allocated == Decimal("0.01")
     # P&L = (55000 - 50000) * 0.01 = 50 EUR
-    assert allocation.realized_pnl_eur == Decimal("50.00")
+    assert allocation.realized_pnl_quote == Decimal("50.00")
 
     updated_lot = updated_lots[0]
     assert updated_lot.qty_base_open == Decimal("0")
@@ -194,7 +194,7 @@ def test_fifo_allocation_single_lot_partial():
     allocation = allocations[0]
     assert allocation.qty_allocated == Decimal("0.005")
     # P&L = (55000 - 50000) * 0.005 = 25 EUR
-    assert allocation.realized_pnl_eur == Decimal("25.00")
+    assert allocation.realized_pnl_quote == Decimal("25.00")
 
     updated_lot = updated_lots[0]
     assert updated_lot.qty_base_open == Decimal("0.005")
@@ -251,13 +251,13 @@ def test_fifo_allocation_multiple_lots():
     alloc1 = next(a for a in allocations if a.trade_lot_id == lot1.id)
     assert alloc1.qty_allocated == Decimal("0.01")
     # P&L = (55000 - 50000) * 0.01 = 50 EUR Gewinn
-    assert alloc1.realized_pnl_eur == Decimal("50.00")
+    assert alloc1.realized_pnl_quote == Decimal("50.00")
 
     # Zweite Allocation: Lot2 wird halb geschlossen
     alloc2 = next(a for a in allocations if a.trade_lot_id == lot2.id)
     assert alloc2.qty_allocated == Decimal("0.005")
     # P&L = (55000 - 60000) * 0.005 = -25 EUR Verlust
-    assert alloc2.realized_pnl_eur == Decimal("-25.00")
+    assert alloc2.realized_pnl_quote == Decimal("-25.00")
 
     # Lot-Status prüfen
     updated_lot1 = next(l for l in updated_lots if l.id == lot1.id)
@@ -306,7 +306,7 @@ def test_fifo_allocation_with_fee():
     # Erlös netto = 549 EUR
     # Kosten = 500 EUR
     # P&L = 549 - 500 = 49 EUR
-    assert allocation.realized_pnl_eur == Decimal("49.00")
+    assert allocation.realized_pnl_quote == Decimal("49.00")
 
 
 def test_fifo_allocation_insufficient_lots():

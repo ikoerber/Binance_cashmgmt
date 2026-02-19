@@ -2,64 +2,93 @@
  * useLotsData - Custom Hook fuer Lots-Daten, Filter und Sortierung
  *
  * Extrahiert aus LotsTable: Queries, Filter-State, Sort-State, berechnete Werte.
+ * Filter-State wird in URL Search Params persistiert (Phase 4):
+ * - Symbol-Wechsel startet sauber (ohne Filter)
+ * - Browser Back/Forward behaelt Filter bei
  */
-import { useState, useMemo, useEffect } from 'react';
+import { useMemo, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { getLots, getOrdersForUser, listPairings, getPortfolio, getMergeGroups } from '../api/client';
-import { useAppState } from '../contexts/AppStateContext';
+import { useSymbol } from '../contexts/SymbolContext';
+import { useUser } from '../contexts/UserContext';
 
 const roundPrice = (p) => Math.round(p / 50) * 50;
 
 export default function useLotsData() {
-  const { userId, marketPrice, activeSymbol } = useAppState();
+  const { userId } = useUser();
+  const { symbol: activeSymbol, marketPrice } = useSymbol();
 
-  // Filter state
-  const [statusFilter, setStatusFilter] = useState(null);
-  const [fromDate, setFromDate] = useState('');
-  const [toDate, setToDate] = useState('');
-  const [orderFilter, setOrderFilter] = useState('');
-  const [showClosed, setShowClosed] = useState(false);
+  // Filter state via URL Search Params
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  // Sort state
-  const [sortColumn, setSortColumn] = useState(null);
-  const [sortDirection, setSortDirection] = useState('asc');
+  const statusFilter = searchParams.get('status') || null;
+  const fromDate = searchParams.get('from') || '';
+  const toDate = searchParams.get('to') || '';
+  const orderFilter = searchParams.get('order') || '';
+  const showClosed = searchParams.get('closed') === '1';
+  const sortColumn = searchParams.get('sort') || null;
+  const sortDirection = searchParams.get('dir') || 'asc';
+
+  // Helper: Update einzelnen Search Param (entfernt leere Werte)
+  const setParam = useCallback((key, value) => {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      if (value === null || value === '' || value === undefined) {
+        next.delete(key);
+      } else {
+        next.set(key, value);
+      }
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
+
+  const setStatusFilter = (v) => setParam('status', v);
+  const setFromDate = (v) => setParam('from', v);
+  const setToDate = (v) => setParam('to', v);
+  const setOrderFilter = (v) => setParam('order', v);
+  const setShowClosed = (v) => setParam('closed', v ? '1' : null);
 
   const toggleSort = (column) => {
-    if (sortColumn === column) {
-      setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setSortColumn(column);
-      setSortDirection('asc');
-    }
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      if (sortColumn === column) {
+        next.set('dir', sortDirection === 'asc' ? 'desc' : 'asc');
+      } else {
+        next.set('sort', column);
+        next.set('dir', 'asc');
+      }
+      return next;
+    }, { replace: true });
   };
 
   // ─── Queries ───
 
   const { data: lotsData, isLoading, error } = useQuery({
-    queryKey: ['lots', userId, activeSymbol, statusFilter, fromDate, toDate],
+    queryKey: ['lots', activeSymbol, userId, statusFilter, fromDate, toDate],
     queryFn: () => getLots(userId, statusFilter, 1000, 0, fromDate || null, toDate ? `${toDate}T23:59:59` : null, activeSymbol),
   });
 
   const { data: ordersData } = useQuery({
-    queryKey: ['orders', userId, activeSymbol, 'open'],
-    queryFn: () => getOrdersForUser(userId, 'OPEN'),
+    queryKey: ['orders', activeSymbol, userId, 'open'],
+    queryFn: () => getOrdersForUser(userId, 'OPEN', activeSymbol),
   });
 
   const { data: pairingsData } = useQuery({
-    queryKey: ['pairings', userId, activeSymbol, null],
-    queryFn: () => listPairings(userId),
+    queryKey: ['pairings', activeSymbol, userId, null],
+    queryFn: () => listPairings(userId, null, activeSymbol),
   });
 
   const stablePrice = roundPrice(marketPrice);
   const { data: portfolio } = useQuery({
-    queryKey: ['portfolio', userId, activeSymbol, stablePrice],
+    queryKey: ['portfolio', activeSymbol, userId, stablePrice],
     queryFn: () => getPortfolio(userId, marketPrice, activeSymbol),
     enabled: !!marketPrice,
   });
 
   const { data: mergeGroupsData } = useQuery({
-    queryKey: ['merge-groups', userId, activeSymbol],
-    queryFn: () => getMergeGroups(userId),
+    queryKey: ['merge-groups', activeSymbol, userId],
+    queryFn: () => getMergeGroups(userId, activeSymbol),
   });
 
   // ─── Computed Values ───
@@ -88,7 +117,7 @@ export default function useLotsData() {
     const allLots = lotsData?.lots || [];
     return allLots
       .filter((lot) => lot.status === 'OPEN' || lot.status === 'PARTIAL_CLOSED')
-      .reduce((sum, lot) => sum + parseFloat(lot.cost_eur), 0);
+      .reduce((sum, lot) => sum + parseFloat(lot.cost_quote), 0);
   }, [lotsData]);
 
   const totalOpenQty = useMemo(() => {
@@ -132,7 +161,7 @@ export default function useLotsData() {
   }, [mergeGroupsData]);
 
   const depotPnl = portfolio
-    ? (parseFloat(portfolio.market_value_eur) + parseFloat(portfolio.eur_available)) - parseFloat(portfolio.external_net_eur)
+    ? (parseFloat(portfolio.market_value_quote) + parseFloat(portfolio.quote_available)) - parseFloat(portfolio.external_net_quote)
     : null;
 
   return {

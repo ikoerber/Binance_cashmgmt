@@ -22,8 +22,8 @@ from .models import (
     AllocationStrategy,
 )
 from app.constants import MIN_BTC_PRECISION  # Fallback fuer Code-Pfade ohne Symbol-Kontext
-from app.symbol_registry import get_base_asset, get_min_base_precision
-from app.utils.fee_conversion import compute_fee_eur_value  # noqa: F401 — Re-Export fuer Abwaertskompatibilitaet
+from app.symbol_registry import get_base_asset, get_quote_asset, get_min_base_precision
+from app.utils.fee_conversion import compute_fee_quote_value  # noqa: F401 — Re-Export fuer Abwaertskompatibilitaet
 
 
 def create_trade_lot_from_buy_fill(
@@ -37,8 +37,8 @@ def create_trade_lot_from_buy_fill(
 
     Args:
         fill_event: Buy TRADE_FILL Event
-        fee_conversion_rates: Optional dict mit Konvertierungsraten zu EUR
-                             z.B. {"BNB": Decimal("700.00")} für BNB/EUR-Preis
+        fee_conversion_rates: Optional dict mit Konvertierungsraten zu Quote-Currency
+                             z.B. {"BNB": Decimal("700.00")} fuer BNB/Quote-Preis
 
     Returns:
         TradeLot
@@ -57,34 +57,37 @@ def create_trade_lot_from_buy_fill(
 
     # Kosten und Netto-Menge berechnen
     # WICHTIG: qty von Binance ist BRUTTO (VOR Fee-Abzug)!
-    # - BTC Fee: qty reduzieren, cost = price * amount (EUR tatsächlich bezahlt)
-    # - EUR Fee: cost += fee (zusätzliche EUR-Kosten)
-    # - BNB Fee: cost += bnb_fee_eur (zusätzliche Kosten in EUR umgerechnet)
-    cost_eur = fill_event.price * fill_event.amount
+    # - Base-Asset Fee: qty reduzieren, cost = price * amount (Quote tatsaechlich bezahlt)
+    # - Quote-Asset Fee: cost += fee (zusaetzliche Quote-Currency-Kosten)
+    # - BNB Fee: cost += bnb_fee_quote (zusaetzliche Kosten in Quote-Currency umgerechnet)
+    cost_quote = fill_event.price * fill_event.amount
     qty_net = fill_event.amount
 
-    # Base-Asset aus Symbol ableiten
+    # Base-Asset und Quote-Asset aus Symbol ableiten
     symbol = fill_event.symbol or "BTCEUR"
     base_asset = get_base_asset(symbol)
+    quote_asset = get_quote_asset(symbol)
 
     if fill_event.fee_asset == base_asset and fill_event.fee_amount and fill_event.price:
-        # Fee in Base-Asset: Menge reduzieren, KEINE zusätzlichen EUR-Kosten
+        # Fee in Base-Asset: Menge reduzieren, KEINE zusaetzlichen Quote-Currency-Kosten
         # (die Fee wird von der erhaltenen Menge abgezogen, nicht extra bezahlt)
         qty_net = fill_event.amount - fill_event.fee_amount
-    elif fill_event.fee_asset == "EUR" and fill_event.fee_amount:
-        # Fee in EUR: zusätzliche EUR-Kosten
-        cost_eur += fill_event.fee_amount
+    elif fill_event.fee_asset == quote_asset and fill_event.fee_amount:
+        # Fee in Quote-Currency: zusaetzliche Quote-Currency-Kosten
+        cost_quote += fill_event.fee_amount
     elif fill_event.fee_amount and fill_event.fee_asset:
-        # Fee in BNB oder anderem Asset: EUR-Gegenwert zu Kosten addieren
-        # Prioritaet: 1. Vorberechneter fee_eur_value (persistiert), 2. Konvertierungsraten
-        fee_eur_value = fill_event.fee_eur_value
-        if fee_eur_value is None:
-            fee_eur_value = compute_fee_eur_value(
+        # Fee in BNB oder anderem Asset: Quote-Currency-Gegenwert zu Kosten addieren
+        # Prioritaet: 1. Vorberechneter fee_quote_value (persistiert), 2. Konvertierungsraten
+        fee_quote_value = fill_event.fee_quote_value
+        if fee_quote_value is None:
+            fee_quote_value = compute_fee_quote_value(
                 fill_event.fee_amount, fill_event.fee_asset,
                 fill_event.price, fee_conversion_rates,
+                quote_asset=quote_asset,
+                base_asset=base_asset,
             )
-        if fee_eur_value is not None:
-            cost_eur += fee_eur_value
+        if fee_quote_value is not None:
+            cost_quote += fee_quote_value
         else:
             logger.warning(
                 "BNB/other fee lost: fill=%s, fee=%s %s — no conversion rate available",
@@ -97,7 +100,7 @@ def create_trade_lot_from_buy_fill(
         created_at=fill_event.timestamp,
         qty_base_initial=qty_net,
         qty_base_open=qty_net,
-        cost_eur=cost_eur,
+        cost_quote=cost_quote,
         status=LotStatus.OPEN,
         symbol=symbol,
     )
@@ -105,38 +108,42 @@ def create_trade_lot_from_buy_fill(
     return lot
 
 
-def _compute_net_proceeds_per_btc(
+def _compute_net_proceeds_per_base(
     sell_event: LedgerEvent,
     fee_conversion_rates: dict[str, Decimal] | None = None
 ) -> Decimal:
     """
-    Berechnet Netto-Erlös pro BTC nach Fees
+    Berechnet Netto-Erloes pro Base-Asset nach Fees
 
     Args:
         sell_event: Sell TRADE_FILL Event (muss price und amount haben)
-        fee_conversion_rates: Optional dict mit Konvertierungsraten zu EUR
+        fee_conversion_rates: Optional dict mit Konvertierungsraten zu Quote-Currency
 
     Returns:
-        Netto-Erlös pro BTC als Decimal
+        Netto-Erloes pro Base-Asset als Decimal
     """
-    sell_proceeds_per_btc = sell_event.price
+    symbol = sell_event.symbol or "BTCEUR"
+    quote_asset = get_quote_asset(symbol)
+    sell_proceeds_per_base = sell_event.price
 
-    # Fee vom Erlös abziehen
-    total_fee_eur = Decimal("0")
-    if sell_event.fee_asset == "EUR" and sell_event.fee_amount:
-        total_fee_eur = sell_event.fee_amount
-    elif sell_event.fee_asset == get_base_asset(sell_event.symbol or "BTCEUR") and sell_event.fee_amount and sell_event.price:
-        total_fee_eur = sell_event.fee_amount * sell_event.price
+    # Fee vom Erloes abziehen
+    total_fee_quote = Decimal("0")
+    if sell_event.fee_asset == quote_asset and sell_event.fee_amount:
+        total_fee_quote = sell_event.fee_amount
+    elif sell_event.fee_asset == get_base_asset(symbol) and sell_event.fee_amount and sell_event.price:
+        total_fee_quote = sell_event.fee_amount * sell_event.price
     elif sell_event.fee_amount and sell_event.fee_asset:
-        # Prioritaet: 1. Vorberechneter fee_eur_value, 2. Konvertierungsraten
-        fee_eur = sell_event.fee_eur_value
-        if fee_eur is None:
-            fee_eur = compute_fee_eur_value(
+        # Prioritaet: 1. Vorberechneter fee_quote_value, 2. Konvertierungsraten
+        fee_quote = sell_event.fee_quote_value
+        if fee_quote is None:
+            fee_quote = compute_fee_quote_value(
                 sell_event.fee_amount, sell_event.fee_asset,
                 sell_event.price, fee_conversion_rates,
+                quote_asset=quote_asset,
+                base_asset=get_base_asset(symbol),
             )
-        if fee_eur is not None:
-            total_fee_eur = fee_eur
+        if fee_quote is not None:
+            total_fee_quote = fee_quote
         else:
             logger.warning(
                 "BNB/other fee lost on sell: fill=%s, fee=%s %s — no conversion rate available",
@@ -144,25 +151,25 @@ def _compute_net_proceeds_per_btc(
             )
 
     # Fee anteilig auf Base-Asset verteilen
-    min_prec = get_min_base_precision(sell_event.symbol or "BTCEUR")
-    fee_per_unit = total_fee_eur / sell_event.amount if sell_event.amount > min_prec else Decimal("0")
-    return sell_proceeds_per_btc - fee_per_unit
+    min_prec = get_min_base_precision(symbol)
+    fee_per_unit = total_fee_quote / sell_event.amount if sell_event.amount > min_prec else Decimal("0")
+    return sell_proceeds_per_base - fee_per_unit
 
 
 def _allocate_qty_to_lots(
     sell_event: LedgerEvent,
     lots: List[TradeLot],
     qty_to_allocate: Decimal,
-    net_proceeds_per_btc: Decimal,
+    net_proceeds_per_base: Decimal,
 ) -> Tuple[List[TradeLot], List[SellAllocation], Decimal]:
     """
     Allokiert eine Sell-Menge auf eine Liste von Lots (der Reihe nach).
 
     Args:
-        sell_event: Sell TRADE_FILL Event (für IDs)
+        sell_event: Sell TRADE_FILL Event (fuer IDs)
         lots: Lots in Allokations-Reihenfolge
         qty_to_allocate: Zu verkaufende Menge
-        net_proceeds_per_btc: Netto-Erlös pro BTC
+        net_proceeds_per_base: Netto-Erloes pro Base-Asset
 
     Returns:
         Tuple[updated_lots, allocations, remaining_qty]
@@ -179,7 +186,7 @@ def _allocate_qty_to_lots(
         qty_from_this_lot = min(qty_to_allocate, lot.qty_base_open)
 
         cost_per_unit = lot.break_even
-        proceeds_this_allocation = net_proceeds_per_btc * qty_from_this_lot
+        proceeds_this_allocation = net_proceeds_per_base * qty_from_this_lot
         cost_this_allocation = cost_per_unit * qty_from_this_lot
         realized_pnl = proceeds_this_allocation - cost_this_allocation
 
@@ -188,7 +195,7 @@ def _allocate_qty_to_lots(
             sell_fill_id=sell_event.id,
             trade_lot_id=lot.id,
             qty_allocated=qty_from_this_lot,
-            realized_pnl_eur=realized_pnl,
+            realized_pnl_quote=realized_pnl,
             created_at=sell_event.timestamp,
         )
         allocations.append(allocation)
@@ -248,7 +255,7 @@ def allocate_sell_with_strategy(
         sell_event: Sell TRADE_FILL Event
         open_lots: Liste offener TradeLots
         strategy: Allocation Strategy (FIFO, LIFO, HIGHEST_COST)
-        fee_conversion_rates: Optional dict mit Konvertierungsraten zu EUR
+        fee_conversion_rates: Optional dict mit Konvertierungsraten zu Quote-Currency
 
     Returns:
         Tuple[updated_lots, allocations]
@@ -267,10 +274,10 @@ def allocate_sell_with_strategy(
 
     sorted_lots = _sort_lots_by_strategy(open_lots, strategy)
 
-    net_proceeds_per_btc = _compute_net_proceeds_per_btc(sell_event, fee_conversion_rates)
+    net_proceeds_per_base = _compute_net_proceeds_per_base(sell_event, fee_conversion_rates)
 
     updated_lots, allocations, remaining = _allocate_qty_to_lots(
-        sell_event, sorted_lots, sell_event.amount, net_proceeds_per_btc
+        sell_event, sorted_lots, sell_event.amount, net_proceeds_per_base
     )
 
     min_prec = get_min_base_precision(sell_event.symbol or "BTCEUR")
@@ -316,7 +323,7 @@ def allocate_sell_to_lot(
         sell_event: Sell TRADE_FILL Event
         target_lot: Das Lot, dem der Sell zugeordnet werden soll
         remaining_open_lots: Weitere offene Lots fuer Overflow
-        fee_conversion_rates: Optional dict mit Konvertierungsraten zu EUR
+        fee_conversion_rates: Optional dict mit Konvertierungsraten zu Quote-Currency
         overflow_strategy: Strategie fuer Overflow-Allokation (Default: FIFO)
 
     Returns:
@@ -338,11 +345,11 @@ def allocate_sell_to_lot(
     if target_lot.qty_base_open <= min_prec:
         raise ValueError(f"Target lot {target_lot.id} has no open quantity")
 
-    net_proceeds_per_btc = _compute_net_proceeds_per_btc(sell_event, fee_conversion_rates)
+    net_proceeds_per_base = _compute_net_proceeds_per_base(sell_event, fee_conversion_rates)
 
     # Phase 1: Ziel-Lot allokieren
     target_updated, target_allocs, remaining = _allocate_qty_to_lots(
-        sell_event, [target_lot], sell_event.amount, net_proceeds_per_btc
+        sell_event, [target_lot], sell_event.amount, net_proceeds_per_base
     )
 
     # Phase 2: Overflow nach overflow_strategy auf restliche Lots
@@ -352,7 +359,7 @@ def allocate_sell_to_lot(
             overflow_strategy,
         )
         fifo_updated, fifo_allocs, still_remaining = _allocate_qty_to_lots(
-            sell_event, overflow_lots, remaining, net_proceeds_per_btc
+            sell_event, overflow_lots, remaining, net_proceeds_per_base
         )
 
         if still_remaining > min_prec:
@@ -391,5 +398,5 @@ def calculate_lot_target_price(
 
 
 
-# compute_fee_eur_value ist nach app.utils.fee_conversion verschoben.
+# compute_fee_quote_value ist nach app.utils.fee_conversion verschoben.
 # Re-Export via Import oben fuer Abwaertskompatibilitaet.

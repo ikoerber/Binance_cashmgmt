@@ -9,7 +9,8 @@ import {
 } from '../api/client';
 import { formatNumber, formatDate } from '../utils/formatters';
 import { zoneDistance } from '../utils/orderblockHelpers.jsx';
-import { useAppState } from '../contexts/AppStateContext';
+import { useSymbol } from '../contexts/SymbolContext';
+import { useUser } from '../contexts/UserContext';
 import useNotification from '../hooks/useNotification';
 import OrderblockChart from './OrderblockChart';
 import OrderblockKPIs from './OrderblockKPIs';
@@ -19,7 +20,8 @@ import OrderblockTradeTable from './OrderblockTradeTable';
 import './Orderblock.css';
 
 const Orderblock = () => {
-  const { userId, marketPrice } = useAppState();
+  const { userId } = useUser();
+  const { symbol, marketPrice } = useSymbol();
   const queryClient = useQueryClient();
   const { message, showMessage: showMsg, dismissMessage } = useNotification();
 
@@ -51,18 +53,19 @@ const Orderblock = () => {
   }, [settings?.ob_interval]);
 
   const { data: zonesData, isLoading: zonesLoading, isError: zonesError } = useQuery({
-    queryKey: ['ob-zones', userId, selectedInterval],
-    queryFn: () => getOrderblockZones(userId, { interval: selectedInterval }),
+    queryKey: ['ob-zones', symbol, userId, selectedInterval],
+    queryFn: () => getOrderblockZones(userId, { symbol, interval: selectedInterval }),
   });
 
   const { data: runsData, isError: runsError } = useQuery({
-    queryKey: ['ob-backtest-runs', userId],
-    queryFn: () => getOrderblockBacktestRuns(userId),
+    queryKey: ['ob-backtest-runs', symbol, userId],
+    queryFn: () => getOrderblockBacktestRuns(userId, symbol),
   });
 
   const { data: candleData, isLoading: candlesLoading, isError: candlesError } = useQuery({
-    queryKey: ['ob-candles', userId, selectedZone?.id, selectedInterval],
+    queryKey: ['ob-candles', symbol, userId, selectedZone?.id, selectedInterval],
     queryFn: () => getOrderblockCandles(userId, {
+      symbol,
       interval: selectedInterval,
       zoneId: selectedZone.id,
     }),
@@ -73,20 +76,20 @@ const Orderblock = () => {
   // ─── Mutations ───
 
   const analyzeMutation = useMutation({
-    mutationFn: () => analyzeOrderblocks(userId, { interval: selectedInterval, months }),
+    mutationFn: () => analyzeOrderblocks(userId, { symbol, interval: selectedInterval, months }),
     onSuccess: (data) => {
       setAnalyzeResult(data);
-      queryClient.invalidateQueries({ queryKey: ['ob-zones', userId] });
-      queryClient.invalidateQueries({ queryKey: ['ob-backtest-runs', userId] });
+      queryClient.invalidateQueries({ queryKey: ['ob-zones', symbol, userId] });
+      queryClient.invalidateQueries({ queryKey: ['ob-backtest-runs', symbol, userId] });
       showMsg('success', `Analyse abgeschlossen: ${data.zones?.length || 0} Zonen, ${data.trades?.length || 0} Trades simuliert.`);
     },
     onError: (err) => showMsg('error', err.response?.data?.detail || err.message),
   });
 
   const deleteMutation = useMutation({
-    mutationFn: () => deleteOrderblockZones(userId, { interval: selectedInterval }),
+    mutationFn: () => deleteOrderblockZones(userId, { symbol, interval: selectedInterval }),
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['ob-zones', userId] });
+      queryClient.invalidateQueries({ queryKey: ['ob-zones', symbol, userId] });
       setAnalyzeResult(null);
       showMsg('success', `${data.deleted || 0} Zonen gelöscht.`);
     },
@@ -152,8 +155,9 @@ const Orderblock = () => {
   }, [selectedTradeRow, allZones]);
 
   const { data: tradeCandleData, isLoading: tradeCandlesLoading } = useQuery({
-    queryKey: ['ob-candles-trade', userId, selectedTradeRow?.ob_id, selectedTradeRow?.entry_timestamp, selectedInterval],
+    queryKey: ['ob-candles-trade', symbol, userId, selectedTradeRow?.ob_id, selectedTradeRow?.entry_timestamp, selectedInterval],
     queryFn: () => getOrderblockCandles(userId, {
+      symbol,
       interval: selectedInterval,
       startTime: selectedTradeRow.entry_timestamp,
       endTime: selectedTradeRow.exit_timestamp || selectedTradeRow.entry_timestamp,

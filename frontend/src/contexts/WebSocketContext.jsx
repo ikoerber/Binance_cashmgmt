@@ -94,26 +94,32 @@ export const WebSocketProvider = ({ userId = 'user_123', children }) => {
             break;
           }
 
-          case 'order_update':
+          case 'order_update': {
             setLastOrderUpdate(data);
-            // TanStack Query Cache invalidieren — Komponenten refetchen automatisch
-            queryClient.invalidateQueries({ queryKey: ['orders'] });
-            queryClient.invalidateQueries({ queryKey: ['lots'] });
-            queryClient.invalidateQueries({ queryKey: ['portfolio'] });
+            // Symbol-scoped Invalidation — nur betroffenes Paar refetchen
+            const orderSym = data.symbol || 'BTCEUR';
+            queryClient.invalidateQueries({ queryKey: ['orders', orderSym] });
+            queryClient.invalidateQueries({ queryKey: ['lots', orderSym] });
+            queryClient.invalidateQueries({ queryKey: ['portfolio', orderSym] });
             break;
+          }
 
-          case 'balance_update':
+          case 'balance_update': {
             setLastBalanceUpdate(data);
-            queryClient.invalidateQueries({ queryKey: ['portfolio'] });
+            const balSym = data.symbol || 'BTCEUR';
+            queryClient.invalidateQueries({ queryKey: ['portfolio', balSym] });
             break;
+          }
 
-          case 'fill_processed':
+          case 'fill_processed': {
             setLastFillEvent(data);
-            // Fill verarbeitet — alle relevanten Queries invalidieren
-            queryClient.invalidateQueries({ queryKey: ['lots'] });
-            queryClient.invalidateQueries({ queryKey: ['portfolio'] });
-            queryClient.invalidateQueries({ queryKey: ['orders'] });
+            // Fill verarbeitet — symbol-scoped Queries invalidieren
+            const fillSym = data.symbol || data.data?.symbol || 'BTCEUR';
+            queryClient.invalidateQueries({ queryKey: ['lots', fillSym] });
+            queryClient.invalidateQueries({ queryKey: ['portfolio', fillSym] });
+            queryClient.invalidateQueries({ queryKey: ['orders', fillSym] });
             break;
+          }
 
           case 'pong':
             // Heartbeat Response — nichts zu tun

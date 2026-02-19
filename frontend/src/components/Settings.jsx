@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getSettings, updateSettings } from '../api/client';
-import { useAppState } from '../contexts/AppStateContext';
+import { useUser } from '../contexts/UserContext';
 import useNotification from '../hooks/useNotification';
 import './Settings.css';
 
 const Settings = () => {
-  const { userId } = useAppState();
+  const { userId } = useUser();
   const queryClient = useQueryClient();
   const { message, showMessage, dismissMessage } = useNotification();
   const [maxOrderValueEur, setMaxOrderValueEur] = useState('');

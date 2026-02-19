@@ -14,7 +14,7 @@ from app.db.models import OrderDB, OrderStatusEnum, EventTypeEnum, LedgerEventDB
 from app.services.binance import BinanceService
 from app.services.order_tracking_service import OrderTrackingService
 from app.services.sync_service import SyncService
-from app.symbol_registry import get_base_asset
+from app.symbol_registry import get_base_asset, get_quote_asset
 
 logger = logging.getLogger(__name__)
 
@@ -136,7 +136,7 @@ class ReconciliationService:
         user_id: str,
         symbol: str = "BTCEUR",
         tolerance_base: Decimal = Decimal("0.0001"),
-        tolerance_eur: Decimal = Decimal("1.00")
+        tolerance_quote: Decimal = Decimal("1.00")
     ) -> Dict[str, Any]:
         """
         Vergleicht Binance Balances mit berechneten Balances aus Ledger
@@ -146,16 +146,18 @@ class ReconciliationService:
             user_id: User ID
             symbol: Trading Pair (Default: BTCEUR)
             tolerance_base: Acceptable base asset difference
-            tolerance_eur: Acceptable EUR difference
+            tolerance_quote: Acceptable quote asset difference
 
         Returns:
             Balance reconciliation report
         """
         base_asset = get_base_asset(symbol)
+        quote_asset = get_quote_asset(symbol)
         report = {
             "base_asset": base_asset,
+            "quote_asset": quote_asset,
             "base": {},
-            "eur": {},
+            "quote": {},
             "within_tolerance": True,
             "errors": []
         }
@@ -167,7 +169,7 @@ class ReconciliationService:
                                for balance in account["balances"]}
 
             base_binance = binance_balances.get(base_asset, Decimal("0"))
-            eur_binance = binance_balances.get("EUR", Decimal("0"))
+            quote_binance = binance_balances.get(quote_asset, Decimal("0"))
 
         except Exception:
             logger.exception("Failed to fetch Binance balances for user=%s", user_id)
@@ -201,26 +203,26 @@ class ReconciliationService:
             if event.fee_asset == base_asset:
                 base_calculated -= event.fee_amount if event.fee_amount else Decimal("0")
 
-        # EUR: Sum all EUR events + EUR from base asset trades
-        # 1. Direct EUR events (DEPOSIT, WITHDRAWAL, EXTERNAL_CASHFLOW, ADJUSTMENT)
-        ledger_events_eur = db.query(LedgerEventDB).filter(
+        # Quote: Sum all quote asset events + quote from base asset trades
+        # 1. Direct quote asset events (DEPOSIT, WITHDRAWAL, EXTERNAL_CASHFLOW, ADJUSTMENT)
+        ledger_events_quote = db.query(LedgerEventDB).filter(
             LedgerEventDB.user_id == user_id,
-            LedgerEventDB.asset == "EUR"
+            LedgerEventDB.asset == quote_asset
         ).all()
 
-        eur_calculated = Decimal("0")
-        for event in ledger_events_eur:
+        quote_calculated = Decimal("0")
+        for event in ledger_events_quote:
             if event.type.value == "DEPOSIT":
-                eur_calculated += event.amount
+                quote_calculated += event.amount
             elif event.type.value == "WITHDRAWAL":
-                eur_calculated -= event.amount
+                quote_calculated -= event.amount
             elif event.type.value == "EXTERNAL_CASHFLOW":
                 # EXTERNAL_CASHFLOW: positiv = Einzahlung, negativ = Auszahlung
-                eur_calculated += event.amount
+                quote_calculated += event.amount
             elif event.type.value == "ADJUSTMENT":
-                eur_calculated += event.amount
+                quote_calculated += event.amount
 
-        # 2. EUR from base asset trades (BUY = spend EUR, SELL = receive EUR)
+        # 2. Quote from base asset trades (BUY = spend quote, SELL = receive quote)
         base_trades = db.query(LedgerEventDB).filter(
             LedgerEventDB.user_id == user_id,
             LedgerEventDB.asset == base_asset,
@@ -229,21 +231,21 @@ class ReconciliationService:
 
         for trade in base_trades:
             if trade.price and trade.amount:
-                eur_value = trade.price * trade.amount
+                quote_value = trade.price * trade.amount
                 if trade.side.value == "BUY":
-                    eur_calculated -= eur_value  # Spent EUR
+                    quote_calculated -= quote_value  # Spent quote
                 elif trade.side.value == "SELL":
-                    eur_calculated += eur_value  # Received EUR
+                    quote_calculated += quote_value  # Received quote
 
-        # 3. Subtract EUR fees (nur von TRADE_FILLs — bei Deposits/Withdrawals
+        # 3. Subtract quote fees (nur von TRADE_FILLs — bei Deposits/Withdrawals
         #    ist fee_amount ggf. bereits im amount enthalten)
         for trade in base_trades:
-            if trade.fee_asset == "EUR" and trade.fee_amount:
-                eur_calculated -= trade.fee_amount
+            if trade.fee_asset == quote_asset and trade.fee_amount:
+                quote_calculated -= trade.fee_amount
 
         # 4. Compare
         base_diff = abs(base_binance - base_calculated)
-        eur_diff = abs(eur_binance - eur_calculated)
+        quote_diff = abs(quote_binance - quote_calculated)
 
         report["base"] = {
             "asset": base_asset,
@@ -253,16 +255,17 @@ class ReconciliationService:
             "within_tolerance": base_diff <= tolerance_base
         }
 
-        report["eur"] = {
-            "binance": str(eur_binance),
-            "calculated": str(eur_calculated),
-            "diff": str(eur_diff),
-            "within_tolerance": eur_diff <= tolerance_eur
+        report["quote"] = {
+            "asset": quote_asset,
+            "binance": str(quote_binance),
+            "calculated": str(quote_calculated),
+            "diff": str(quote_diff),
+            "within_tolerance": quote_diff <= tolerance_quote
         }
 
         report["within_tolerance"] = (
             report["base"]["within_tolerance"] and
-            report["eur"]["within_tolerance"]
+            report["quote"]["within_tolerance"]
         )
 
         return report

@@ -193,7 +193,7 @@ def test_pairing_simulation():
     assert len(simulation.affected_lots) == len(pairing.items)
 
     # P&L sollte positiv sein
-    assert simulation.expected_realized_pnl_eur > 0
+    assert simulation.expected_realized_pnl_quote > 0
 
 
 def test_pairing_simulation_with_losers():
@@ -346,14 +346,14 @@ def test_pairing_simulation_with_custom_sell_price():
     )
 
     # P&L muss bei hoeherem Verkaufspreis hoeher sein
-    assert sim_custom.expected_realized_pnl_eur > sim_default.expected_realized_pnl_eur
+    assert sim_custom.expected_realized_pnl_quote > sim_default.expected_realized_pnl_quote
 
     # Erloese pruefen: total_base * sell_price - fees
     total_base = pairing.net_qty_base()
     expected_gross = total_base * custom_sell_price
     expected_fee = expected_gross * fee_pct
     expected_proceeds = expected_gross - expected_fee
-    assert sim_custom.expected_proceeds_eur == expected_proceeds
+    assert sim_custom.expected_proceeds_quote == expected_proceeds
 
     # market_price bleibt unveraendert (fuer Display)
     assert sim_custom.market_price == market_price

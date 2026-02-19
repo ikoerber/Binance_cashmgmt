@@ -99,7 +99,7 @@ def test_lots(db_session, test_user):
             created_from_fill_id=fill_event.id,
             qty_base_initial=qty,
             qty_base_open=qty,
-            cost_eur=cost,
+            cost_quote=cost,
             status=LotStatusEnum.OPEN,
             target_margin_pct=Decimal("0.05"),
         )
@@ -217,7 +217,7 @@ def test_pairing_items_relationship(db_session, test_user, test_lots):
     item_db = pairing_db.items[0]
     assert item_db.lot_id in [test_lots[0].id, test_lots[1].id]
     assert item_db.qty_base > 0
-    assert item_db.cost_eur > 0
+    assert item_db.cost_quote > 0
 
 
 def test_pairing_cascade_delete(db_session, test_user, test_lots):
@@ -340,7 +340,7 @@ def test_simulate_includes_planned_orders(db_session, test_user, test_lots):
 
     # Bestehende Felder weiterhin vorhanden
     assert "total_base_to_sell" in result
-    assert "expected_proceeds_eur" in result
+    assert "expected_proceeds_quote" in result
     assert "affected_lots" in result
 
 

@@ -19,14 +19,18 @@ body {
 
 .navbar {
   background: linear-gradient(135deg, var(--color-accent-navbar-start) 0%, var(--color-accent-navbar-end) 100%);
-  padding: 20px 40px;
+  padding: 14px 40px;
   color: white;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .navbar h1 {
   font-size: 24px;
-  margin-bottom: 15px;
+  margin-bottom: 0;
+}
+
+.navbar h1 a:hover {
+  opacity: 0.9;
 }
 
 .nav-links {
@@ -142,7 +146,59 @@ code {
   justify-content: space-between;
   align-items: center;
   gap: 16px;
-  margin-bottom: 15px;
+}
+
+.global-nav-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-pill {
+  text-decoration: none;
+}
+
+/* Tier-2: Symbol Sub-Navigation */
+.symbol-subnav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 40px;
+  background: #1e293b;
+  border-bottom: 1px solid #334155;
+}
+
+.subnav-links {
+  display: flex;
+  gap: 8px;
+}
+
+.subnav-links a {
+  padding: 8px 16px;
+  background: rgba(255, 255, 255, 0.08);
+  border: none;
+  border-radius: 6px;
+  color: #94a3b8;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-decoration: none;
+}
+
+.subnav-links a:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: white;
+}
+
+.subnav-links a.active {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+
+.symbol-subnav .live-price {
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
 }
 
 .live-price {

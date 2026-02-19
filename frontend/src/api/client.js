@@ -42,8 +42,10 @@ export const getLotDetail = async (userId, lotId) => {
 };
 
 // Lot Merge API
-export const getMergeGroups = async (userId) => {
-  const response = await apiClient.get(`/api/lots/${userId}/merge-groups`);
+export const getMergeGroups = async (userId, symbol = null) => {
+  const response = await apiClient.get(`/api/lots/${userId}/merge-groups`, {
+    params: { symbol },
+  });
   return response.data;
 };
 
@@ -53,9 +55,9 @@ export const mergeLots = async (userId, lotIds) => {
 };
 
 // Orders API
-export const getOrdersForUser = async (userId, status = null) => {
+export const getOrdersForUser = async (userId, status = null, symbol = null) => {
   const response = await apiClient.get(`/api/orders/${userId}/list`, {
-    params: { status },
+    params: { status, symbol },
   });
   return response.data;
 };
@@ -111,9 +113,9 @@ export const createPairing = async (userId, items, thresholdPct, symbol = 'BTCEU
   return response.data;
 };
 
-export const listPairings = async (userId, status = null) => {
+export const listPairings = async (userId, status = null, symbol = null) => {
   const response = await apiClient.get(`/api/pairing/${userId}/list`, {
-    params: { status },
+    params: { status, symbol },
   });
   return response.data;
 };

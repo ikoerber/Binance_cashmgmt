@@ -12,12 +12,14 @@ import OpenOrdersPanel from './OpenOrdersPanel';
 import LotSummaryCards from './LotSummaryCards';
 import useLotsData from '../hooks/useLotsData';
 import useNotification from '../hooks/useNotification';
-import { useAppState } from '../contexts/AppStateContext';
-import { formatNumber, formatEUR, formatBase, formatDate, formatTime } from '../utils/formatters';
+import { useSymbol } from '../contexts/SymbolContext';
+import { useUser } from '../contexts/UserContext';
+import { formatNumber, formatQuote, formatBase, formatDate, formatTime } from '../utils/formatters';
 import './LotsTable.css';
 
 const LotsTable = () => {
-  const { userId, marketPrice, activeSymbol } = useAppState();
+  const { userId } = useUser();
+  const { symbol: activeSymbol, marketPrice } = useSymbol();
   const queryClient = useQueryClient();
   const { message: syncMessage, showMessage, dismissMessage } = useNotification(8000);
 
@@ -299,7 +301,7 @@ const LotsTable = () => {
                             if (
                               window.confirm(
                                 `${lotIds.length} Lots der Order ${group.binance_order_id} zusammenfassen?\n` +
-                                  `Gesamt: ${formatBase(group.total_qty_base, activeSymbol)}, ${formatEUR(group.total_cost_eur)}`
+                                  `Gesamt: ${formatBase(group.total_qty_base, activeSymbol)}, ${formatQuote(group.total_cost_quote, activeSymbol)}`
                               )
                             ) {
                               mergeMutation.mutate({ lotIds });
@@ -316,15 +318,15 @@ const LotsTable = () => {
                     <td className="time">{formatTime(lot.created_at)}</td>
                     <td>{formatBase(lot.qty_base_initial, activeSymbol)}</td>
                     <td>{formatBase(lot.qty_base_open, activeSymbol)}</td>
-                    <td>{formatEUR(lot.cost_eur)}</td>
-                    <td>{formatEUR(lot.break_even)}</td>
+                    <td>{formatQuote(lot.cost_quote, activeSymbol)}</td>
+                    <td>{formatQuote(lot.break_even, activeSymbol)}</td>
                     <td className="sell-order-cell">
                       {orderByLotId[lot.id] ? (
                         <span className={`order-indicator ${parseFloat(orderByLotId[lot.id].price) <= marketPrice ? 'order-below-market' : ''}`}>
                           <span className={`order-status-dot ${parseFloat(orderByLotId[lot.id].price) <= marketPrice ? 'warning' : 'open'}`} />
-                          {formatEUR(orderByLotId[lot.id].price)}
+                          {formatQuote(orderByLotId[lot.id].price, activeSymbol)}
                           {parseFloat(orderByLotId[lot.id].price) <= marketPrice && (
-                            <span className="order-warning-badge" title={`Sell-Preis liegt unter dem Marktpreis (${formatEUR(marketPrice)})`}>
+                            <span className="order-warning-badge" title={`Sell-Preis liegt unter dem Marktpreis (${formatQuote(marketPrice, activeSymbol)})`}>
                               Unter Markt
                             </span>
                           )}
@@ -348,7 +350,7 @@ const LotsTable = () => {
                     </td>
                     <td className={isProfitable ? 'profit' : 'loss'}>
                       <div className="pnl-cell">
-                        <span className="pnl-amount">{formatEUR(unrealizedPnl)}</span>
+                        <span className="pnl-amount">{formatQuote(unrealizedPnl, activeSymbol)}</span>
                         <span className="pnl-pct">{unrealizedPnlPct >= 0 ? '+' : ''}{formatNumber(unrealizedPnlPct, 2)}%</span>
                       </div>
                     </td>

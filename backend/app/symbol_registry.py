@@ -20,6 +20,8 @@ class TradingPair:
 KNOWN_PAIRS = {
     "BTCEUR": TradingPair("BTCEUR", "BTC", "EUR", 8, 2, "BTC/EUR"),
     "ETHEUR": TradingPair("ETHEUR", "ETH", "EUR", 5, 2, "ETH/EUR"),
+    "XRPEUR": TradingPair("XRPEUR", "XRP", "EUR", 2, 4, "XRP/EUR"),
+    "XRPBTC": TradingPair("XRPBTC", "XRP", "BTC", 2, 8, "XRP/BTC"),
 }
 
 

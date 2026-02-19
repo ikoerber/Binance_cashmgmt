@@ -125,13 +125,13 @@ def simulate_pairing_execution(
         "pairing_id": pairing.id,
         "market_price": str(market_price),
         "total_base_to_sell": str(simulation.total_base_to_sell),
-        "expected_proceeds_eur": str(simulation.expected_proceeds_eur),
-        "expected_costs_eur": str(simulation.expected_costs_eur),
-        "expected_realized_pnl_eur": str(simulation.expected_realized_pnl_eur),
+        "expected_proceeds_quote": str(simulation.expected_proceeds_quote),
+        "expected_costs_quote": str(simulation.expected_costs_quote),
+        "expected_realized_pnl_quote": str(simulation.expected_realized_pnl_quote),
         "affected_lots": simulation.affected_lots,
         "remaining_portfolio_base": str(simulation.remaining_portfolio_base),
-        "remaining_portfolio_cost_eur": str(simulation.remaining_portfolio_cost_eur),
-        "estimated_fee_eur": str(simulation.estimated_fee_eur),
+        "remaining_portfolio_cost_quote": str(simulation.remaining_portfolio_cost_quote),
+        "estimated_fee_quote": str(simulation.estimated_fee_quote),
         "fee_pct": str(simulation.fee_pct),
         "fee_buffer_pct": str(fee_buffer_pct),
         "planned_orders": [aggregated_order],
@@ -152,14 +152,14 @@ def _pairing_to_dict(pairing: DomainPairing, market_price: Decimal) -> dict:
             {
                 "lot_id": item.lot_id,
                 "qty_base": str(item.qty_base),
-                "cost_eur": str(item.cost_eur),
+                "cost_quote": str(item.cost_quote),
             }
             for item in pairing.items
         ],
         "net_cost": str(pairing.net_cost()),
         "net_qty_base": str(pairing.net_qty_base()),
         "net_value": str(pairing.net_value(market_price)),
-        "net_pnl_eur": str(pairing.net_pnl(market_price)),
+        "net_pnl_quote": str(pairing.net_pnl(market_price)),
         "net_pnl_pct": str(pairing.net_pnl_pct(market_price)),
         "is_profitable": pairing.is_profitable(market_price),
     }
@@ -176,7 +176,7 @@ def _pairing_db_to_domain(pairing_db: PairingDB) -> DomainPairing:
         PairingItem(
             lot_id=item.lot_id,
             qty_base=item.qty_base,
-            cost_eur=item.cost_eur
+            cost_quote=item.cost_quote
         )
         for item in pairing_db.items
     ]
@@ -258,16 +258,16 @@ def create_pairing(
 
         # Anteilige Kosten berechnen
         if lot_db.qty_base_initial > 0:
-            cost_eur = (lot_db.cost_eur / lot_db.qty_base_initial) * qty_base
+            cost_quote = (lot_db.cost_quote / lot_db.qty_base_initial) * qty_base
         else:
-            cost_eur = Decimal("0")
+            cost_quote = Decimal("0")
 
         pairing_item = PairingItemDB(
             id=str(uuid.uuid4()),
             pairing_id=pairing_id,
             lot_id=item["lot_id"],
             qty_base=qty_base,
-            cost_eur=cost_eur
+            cost_quote=cost_quote
         )
         db.add(pairing_item)
 
@@ -309,7 +309,8 @@ def get_pairing_by_id(
 def list_pairings(
     db: Session,
     user_id: str,
-    status: Optional[str] = None
+    status: Optional[str] = None,
+    symbol: Optional[str] = None
 ) -> List[dict]:
     """
     Listet alle Pairings für User
@@ -318,6 +319,7 @@ def list_pairings(
         db: Database Session
         user_id: User ID
         status: Optional status filter (DRAFT, LOCKED, EXECUTED)
+        symbol: Optional symbol filter (z.B. BTCEUR)
 
     Returns:
         Liste von Pairing dicts
@@ -326,6 +328,9 @@ def list_pairings(
 
     if status:
         query = query.filter(PairingDB.status == PairingStatusEnum[status])
+
+    if symbol:
+        query = query.filter(PairingDB.symbol == symbol)
 
     pairings_db = query.order_by(PairingDB.created_at.desc()).all()
 

@@ -22,9 +22,9 @@ def test_portfolio_empty_ledger():
     portfolio = compute_portfolio_from_ledger([])
 
     assert portfolio.base_qty == Decimal("0")
-    assert portfolio.base_cost_basis_eur == Decimal("0")
-    assert portfolio.eur_available == Decimal("0")
-    assert portfolio.realized_pnl_eur == Decimal("0")
+    assert portfolio.base_cost_basis_quote == Decimal("0")
+    assert portfolio.quote_available == Decimal("0")
+    assert portfolio.realized_pnl_quote == Decimal("0")
     assert portfolio.break_even is None
 
 
@@ -48,9 +48,9 @@ def test_portfolio_single_buy_no_fee():
 
     # Erwartet: 0.01 BTC für 500 EUR gekauft
     assert portfolio.base_qty == Decimal("0.01")
-    assert portfolio.base_cost_basis_eur == Decimal("500.00")
+    assert portfolio.base_cost_basis_quote == Decimal("500.00")
     assert portfolio.break_even == Decimal("50000.00")
-    assert portfolio.eur_available == Decimal("-500.00")  # EUR ausgegeben
+    assert portfolio.quote_available == Decimal("-500.00")  # EUR ausgegeben
 
 
 def test_portfolio_buy_with_eur_fee():
@@ -75,7 +75,7 @@ def test_portfolio_buy_with_eur_fee():
 
     # Erwartet: 0.01 BTC, Kosten = 500 + 1 = 501 EUR
     assert portfolio.base_qty == Decimal("0.01")
-    assert portfolio.base_cost_basis_eur == Decimal("501.00")
+    assert portfolio.base_cost_basis_quote == Decimal("501.00")
     assert portfolio.break_even == Decimal("50100.00")  # 501 / 0.01
 
 
@@ -104,7 +104,7 @@ def test_portfolio_buy_with_btc_fee():
     # - Kosten = 50000 * 0.01 = 500.00 EUR (nur EUR tatsächlich bezahlt)
     # - Break-even = 500 / 0.00999 ≈ 50050.05
     assert portfolio.base_qty == Decimal("0.00999")
-    assert portfolio.base_cost_basis_eur == Decimal("500.00")
+    assert portfolio.base_cost_basis_quote == Decimal("500.00")
     expected_be = Decimal("500.00") / Decimal("0.00999")
     assert abs(portfolio.break_even - expected_be) < Decimal("0.01")
 
@@ -141,7 +141,7 @@ def test_portfolio_multiple_buys_wac():
     # - Kosten = 500 + 600 = 1100 EUR
     # - Break-even = 1100 / 0.02 = 55000 EUR
     assert portfolio.base_qty == Decimal("0.02")
-    assert portfolio.base_cost_basis_eur == Decimal("1100.00")
+    assert portfolio.base_cost_basis_quote == Decimal("1100.00")
     assert portfolio.break_even == Decimal("55000.00")
 
 
@@ -182,9 +182,9 @@ def test_portfolio_buy_then_sell_partial():
     # - Realisierte P&L = 275 - 250 = 25 EUR
     # - Verbleibende Kostenbasis = 500 - 250 = 250 EUR
     assert portfolio.base_qty == Decimal("0.005")
-    assert portfolio.base_cost_basis_eur == Decimal("250.00")
-    assert portfolio.realized_pnl_eur == Decimal("25.00")
-    assert portfolio.eur_available == Decimal("-225.00")  # -500 (buy) + 275 (sell)
+    assert portfolio.base_cost_basis_quote == Decimal("250.00")
+    assert portfolio.realized_pnl_quote == Decimal("25.00")
+    assert portfolio.quote_available == Decimal("-225.00")  # -500 (buy) + 275 (sell)
 
 
 def test_portfolio_buy_then_sell_with_fee():
@@ -225,7 +225,7 @@ def test_portfolio_buy_then_sell_with_fee():
     # - Kosten = 500 EUR
     # - P&L = 549 - 500 = 49 EUR
     assert portfolio.base_qty == Decimal("0")
-    assert portfolio.realized_pnl_eur == Decimal("49.00")
+    assert portfolio.realized_pnl_quote == Decimal("49.00")
 
 
 def test_portfolio_external_cashflow():
@@ -260,9 +260,9 @@ def test_portfolio_external_cashflow():
     # - BTC-Kostenbasis bleibt 500 EUR (unverändert)
     # - External Net = 1000 EUR
     assert portfolio.base_qty == Decimal("0.01")
-    assert portfolio.base_cost_basis_eur == Decimal("500.00")
+    assert portfolio.base_cost_basis_quote == Decimal("500.00")
     assert portfolio.break_even == Decimal("50000.00")
-    assert portfolio.external_net_eur == Decimal("1000.00")
+    assert portfolio.external_net_quote == Decimal("1000.00")
 
 
 def test_calculate_target_price():
@@ -301,14 +301,14 @@ def test_portfolio_state_unrealized_pnl():
 
     # Marktpreis steigt auf 55k
     market_price = Decimal("55000.00")
-    unrealized = portfolio.unrealized_pnl_eur(market_price)
+    unrealized = portfolio.unrealized_pnl_quote(market_price)
 
     # Erwartet: (55000 * 0.01) - 500 = 50 EUR Gewinn
     assert unrealized == Decimal("50.00")
 
     # Marktpreis fällt auf 45k
     market_price_down = Decimal("45000.00")
-    unrealized_loss = portfolio.unrealized_pnl_eur(market_price_down)
+    unrealized_loss = portfolio.unrealized_pnl_quote(market_price_down)
 
     # Erwartet: (45000 * 0.01) - 500 = -50 EUR Verlust
     assert unrealized_loss == Decimal("-50.00")
@@ -328,7 +328,7 @@ def test_portfolio_buy_with_bnb_fee():
             side=TradeSide.BUY,
             fee_asset="BNB",
             fee_amount=Decimal("0.001"),
-            fee_eur_value=Decimal("0.70"),  # 0.001 BNB * 700 EUR/BNB
+            fee_quote_value=Decimal("0.70"),  # 0.001 BNB * 700 EUR/BNB
             source=EventSource.BINANCE,
         )
     ]
@@ -340,12 +340,12 @@ def test_portfolio_buy_with_bnb_fee():
     # - cost = 500.00 + 0.70 = 500.70 EUR
     # - break_even = 500.70 / 0.01 = 50070.00
     assert portfolio.base_qty == Decimal("0.01")
-    assert portfolio.base_cost_basis_eur == Decimal("500.70")
+    assert portfolio.base_cost_basis_quote == Decimal("500.70")
     assert portfolio.break_even == Decimal("50070.00")
 
 
 def test_portfolio_buy_with_bnb_fee_no_eur_value():
-    """Test: Buy mit BNB Fee ohne fee_eur_value - graceful degradation"""
+    """Test: Buy mit BNB Fee ohne fee_quote_value - graceful degradation"""
     events = [
         LedgerEvent(
             id="1",
@@ -358,16 +358,16 @@ def test_portfolio_buy_with_bnb_fee_no_eur_value():
             side=TradeSide.BUY,
             fee_asset="BNB",
             fee_amount=Decimal("0.001"),
-            # fee_eur_value ist None (historische Daten nicht verfuegbar)
+            # fee_quote_value ist None (historische Daten nicht verfuegbar)
             source=EventSource.BINANCE,
         )
     ]
 
     portfolio = compute_portfolio_from_ledger(events)
 
-    # Ohne fee_eur_value wird BNB-Fee ignoriert (graceful degradation)
+    # Ohne fee_quote_value wird BNB-Fee ignoriert (graceful degradation)
     assert portfolio.base_qty == Decimal("0.01")
-    assert portfolio.base_cost_basis_eur == Decimal("500.00")
+    assert portfolio.base_cost_basis_quote == Decimal("500.00")
 
 
 def test_portfolio_sell_with_bnb_fee():
@@ -393,7 +393,7 @@ def test_portfolio_sell_with_bnb_fee():
             side=TradeSide.SELL,
             fee_asset="BNB",
             fee_amount=Decimal("0.001"),
-            fee_eur_value=Decimal("0.70"),
+            fee_quote_value=Decimal("0.70"),
             source=EventSource.BINANCE,
         ),
     ]
@@ -403,4 +403,4 @@ def test_portfolio_sell_with_bnb_fee():
     # Erlos: 550.00 - 0.70 (BNB fee) = 549.30
     # Kosten: 500.00
     # P&L: 49.30
-    assert portfolio.realized_pnl_eur == Decimal("49.30")
+    assert portfolio.realized_pnl_quote == Decimal("49.30")

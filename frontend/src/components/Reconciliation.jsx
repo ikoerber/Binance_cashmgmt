@@ -6,9 +6,10 @@ import {
   reconcileBalances,
   reconcileFills,
 } from '../api/client';
-import { formatNumber, formatEUR, formatBase } from '../utils/formatters';
-import { getBaseLabel } from '../utils/symbolRegistry';
-import { useAppState } from '../contexts/AppStateContext';
+import { formatNumber, formatQuote, formatBase } from '../utils/formatters';
+import { getBaseLabel, getQuoteLabel } from '../utils/symbolRegistry';
+import { useSymbol } from '../contexts/SymbolContext';
+import { useUser } from '../contexts/UserContext';
 import useNotification from '../hooks/useNotification';
 import './Reconciliation.css';
 
@@ -46,6 +47,7 @@ const BalanceCard = ({ asset, data, formatFn }) => (
 const BalancesSection = ({ report, activeSymbol }) => {
   if (!report) return null;
   const baseLabel = getBaseLabel(activeSymbol);
+  const quoteLabel = getQuoteLabel(activeSymbol);
   return (
     <div className="recon-section">
       <div className="recon-section-header">
@@ -57,7 +59,7 @@ const BalancesSection = ({ report, activeSymbol }) => {
       {report.errors?.length > 0 && <ErrorBanner errors={report.errors} />}
       <div className="balance-comparison-grid">
         <BalanceCard asset={baseLabel} data={report.base} formatFn={(v) => formatBase(v, activeSymbol)} />
-        <BalanceCard asset="EUR" data={report.eur} formatFn={formatEUR} />
+        <BalanceCard asset={quoteLabel} data={report.quote} formatFn={(v) => formatQuote(v, activeSymbol)} />
       </div>
     </div>
   );
@@ -144,7 +146,8 @@ const FillsSection = ({ report }) => {
 };
 
 const Reconciliation = () => {
-  const { userId, activeSymbol } = useAppState();
+  const { userId } = useUser();
+  const { symbol: activeSymbol } = useSymbol();
   const queryClient = useQueryClient();
   const { message, showMessage, dismissMessage } = useNotification();
   const [lastRunTime, setLastRunTime] = useState(null);

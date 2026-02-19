@@ -22,7 +22,7 @@ from app.domain.lots import (
     create_trade_lot_from_buy_fill,
     allocate_sell_to_lot,
     allocate_sell_fifo,
-    _compute_net_proceeds_per_btc,
+    _compute_net_proceeds_per_base,
 )
 
 
@@ -78,7 +78,7 @@ def test_allocate_sell_to_specific_lot_full():
     assert allocations[0].trade_lot_id == lot.id
     assert allocations[0].qty_allocated == Decimal("0.01")
     # P&L = (55000 - 50000) * 0.01 = 50 EUR
-    assert allocations[0].realized_pnl_eur == Decimal("50.00")
+    assert allocations[0].realized_pnl_quote == Decimal("50.00")
 
     target = next(l for l in updated_lots if l.id == lot.id)
     assert target.qty_base_open == Decimal("0")
@@ -102,7 +102,7 @@ def test_allocate_sell_to_specific_lot_partial():
     assert len(allocations) == 1
     assert allocations[0].qty_allocated == Decimal("0.004")
     # P&L = (55000 - 50000) * 0.004 = 20 EUR
-    assert allocations[0].realized_pnl_eur == Decimal("20.00")
+    assert allocations[0].realized_pnl_quote == Decimal("20.00")
 
     target = next(l for l in updated_lots if l.id == lot.id)
     assert target.qty_base_open == Decimal("0.006")
@@ -137,13 +137,13 @@ def test_allocate_sell_to_specific_lot_with_overflow_fifo():
     alloc_b = next(a for a in allocations if a.trade_lot_id == lot_b.id)
     assert alloc_b.qty_allocated == Decimal("0.005")
     # P&L = (55000 - 50000) * 0.005 = 25 EUR
-    assert alloc_b.realized_pnl_eur == Decimal("25.00")
+    assert alloc_b.realized_pnl_quote == Decimal("25.00")
 
     # Allocation 2: Overflow an Lot A (FIFO)
     alloc_a = next(a for a in allocations if a.trade_lot_id == lot_a.id)
     assert alloc_a.qty_allocated == Decimal("0.003")
     # P&L = (55000 - 60000) * 0.003 = -15 EUR
-    assert alloc_a.realized_pnl_eur == Decimal("-15.00")
+    assert alloc_a.realized_pnl_quote == Decimal("-15.00")
 
     # Lot B: CLOSED
     updated_b = next(l for l in updated_lots if l.id == lot_b.id)
@@ -207,7 +207,7 @@ def test_allocate_sell_to_specific_lot_skips_fifo_ordering():
     assert allocations[0].trade_lot_id == lot_c.id
     assert allocations[0].qty_allocated == Decimal("0.01")
     # P&L = (56000 - 50000) * 0.01 = 60 EUR
-    assert allocations[0].realized_pnl_eur == Decimal("60.00")
+    assert allocations[0].realized_pnl_quote == Decimal("60.00")
 
     # Lot C: CLOSED, Lots A und B: unveraendert
     updated_c = next(l for l in updated_lots if l.id == lot_c.id)
@@ -242,7 +242,7 @@ def test_allocate_sell_to_specific_lot_with_eur_fee():
 
     # Erloes brutto = 550 EUR, Fee = 1 EUR, netto = 549 EUR
     # Kosten = 500 EUR → P&L = 49 EUR
-    assert allocations[0].realized_pnl_eur == Decimal("49.00")
+    assert allocations[0].realized_pnl_quote == Decimal("49.00")
 
 
 def test_allocate_sell_to_specific_lot_with_bnb_fee():
@@ -271,7 +271,7 @@ def test_allocate_sell_to_specific_lot_with_bnb_fee():
     expected_fee_eur = Decimal("0.001") * Decimal("700")  # 0.70
     net_per_btc = Decimal("55000") - (expected_fee_eur / Decimal("0.01"))
     expected_pnl = (net_per_btc - Decimal("50000")) * Decimal("0.01")
-    assert abs(allocations[0].realized_pnl_eur - expected_pnl) < Decimal("0.01")
+    assert abs(allocations[0].realized_pnl_quote - expected_pnl) < Decimal("0.01")
 
 
 def test_allocate_sell_to_specific_lot_overflow_insufficient():
@@ -302,7 +302,7 @@ def test_compute_net_proceeds_helper_consistency():
         fee_amount=Decimal("1.00"),
     )
 
-    net = _compute_net_proceeds_per_btc(sell)
+    net = _compute_net_proceeds_per_base(sell)
 
     # 55000 - (1.00 / 0.01) = 55000 - 100 = 54900
     assert net == Decimal("54900")
@@ -331,10 +331,10 @@ def test_allocate_sell_to_lot_vs_fifo_different_result():
     _, fifo_allocs = allocate_sell_fifo(sell, [lot_a, lot_b])
     assert fifo_allocs[0].trade_lot_id == lot_a.id
     # P&L = (55000 - 60000) * 0.01 = -50 EUR
-    assert fifo_allocs[0].realized_pnl_eur == Decimal("-50.00")
+    assert fifo_allocs[0].realized_pnl_quote == Decimal("-50.00")
 
     # Lot-spezifisch: nimmt Lot B (Gewinner) → Gewinn
     _, specific_allocs = allocate_sell_to_lot(sell, lot_b, [lot_a])
     assert specific_allocs[0].trade_lot_id == lot_b.id
     # P&L = (55000 - 50000) * 0.01 = 50 EUR
-    assert specific_allocs[0].realized_pnl_eur == Decimal("50.00")
+    assert specific_allocs[0].realized_pnl_quote == Decimal("50.00")

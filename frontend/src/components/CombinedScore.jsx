@@ -8,7 +8,9 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getCombinedScore, getSettings } from '../api/client';
 import { formatNumber } from '../utils/formatters';
-import { useAppState } from '../contexts/AppStateContext';
+import { useSymbol } from '../contexts/SymbolContext';
+import { useUser } from '../contexts/UserContext';
+import { getPairLabel } from '../utils/symbolRegistry';
 import './CombinedScore.css';
 
 const QUALITY_LABELS = {
@@ -26,7 +28,8 @@ const MACRO_REC_COLORS = {
 };
 
 const CombinedScore = () => {
-  const { userId } = useAppState();
+  const { userId } = useUser();
+  const { symbol } = useSymbol();
   const [showMacroDetail, setShowMacroDetail] = useState(false);
   const [showSentimentDetail, setShowSentimentDetail] = useState(false);
 
@@ -38,8 +41,8 @@ const CombinedScore = () => {
   const interval = settings?.macro_signal_interval || '15';
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['combined-score', userId, interval],
-    queryFn: () => getCombinedScore(userId, interval),
+    queryKey: ['combined-score', symbol, userId, interval],
+    queryFn: () => getCombinedScore(userId, interval, symbol),
     refetchInterval: interval === '1' ? 30000 : interval === '5' ? 45000 : 60000,
   });
 
@@ -54,7 +57,7 @@ const CombinedScore = () => {
       {/* Header */}
       <div className="combined-header">
         <div className="combined-header-left">
-          <h2>Combined Score <span>BTC/EUR</span></h2>
+          <h2>Combined Score <span>{getPairLabel(symbol)}</span></h2>
           <span className="combined-interval-badge">{interval}-Min</span>
           <span className={`combined-quality-badge quality-${data.overall_quality}`}>
             {QUALITY_LABELS[data.overall_quality] || data.overall_quality}

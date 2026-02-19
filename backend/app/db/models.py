@@ -128,7 +128,7 @@ class LedgerEventDB(Base):
 
     fee_asset = Column(String, nullable=True)
     fee_amount = Column(Numeric(precision=20, scale=10), nullable=True)
-    fee_eur_value = Column(Numeric(precision=20, scale=10), nullable=True)  # Vorberechneter EUR-Wert der Fee
+    fee_quote_value = Column(Numeric(precision=20, scale=10), nullable=True)  # Vorberechneter Quote-Asset-Wert der Fee
 
     source = Column(SQLEnum(EventSourceEnum), nullable=False)
     source_id = Column(String, nullable=True, index=True)  # Binance tradeId/orderId
@@ -167,7 +167,7 @@ class TradeLotDB(Base):
     qty_base_initial = Column(Numeric(precision=20, scale=10), nullable=False)
     qty_base_open = Column(Numeric(precision=20, scale=10), nullable=False)
 
-    cost_eur = Column(Numeric(precision=20, scale=2), nullable=False)
+    cost_quote = Column(Numeric(precision=20, scale=10), nullable=False)  # Kosten in Quote-Asset
 
     status = Column(SQLEnum(LotStatusEnum), nullable=False, default=LotStatusEnum.OPEN)
     target_margin_pct = Column(Numeric(precision=10, scale=6), nullable=True)
@@ -201,7 +201,7 @@ class SellAllocationDB(Base):
     trade_lot_id = Column(String, ForeignKey("trade_lots.id"), nullable=False)
 
     qty_allocated = Column(Numeric(precision=20, scale=10), nullable=False)
-    realized_pnl_eur = Column(Numeric(precision=20, scale=2), nullable=False)
+    realized_pnl_quote = Column(Numeric(precision=20, scale=10), nullable=False)  # Realisierte P&L in Quote-Asset
 
     created_at = Column(DateTime, nullable=False, default=_utcnow)
 
@@ -308,7 +308,7 @@ class PairingItemDB(Base):
     lot_id = Column(String, ForeignKey("trade_lots.id"), nullable=False)
 
     qty_base = Column(Numeric(precision=20, scale=10), nullable=False)
-    cost_eur = Column(Numeric(precision=20, scale=2), nullable=False)
+    cost_quote = Column(Numeric(precision=20, scale=10), nullable=False)  # Kosten in Quote-Asset
 
     # Relationships
     pairing = relationship("PairingDB", back_populates="items")

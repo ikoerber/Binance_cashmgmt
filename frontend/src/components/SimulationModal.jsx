@@ -4,12 +4,15 @@
  * Zeigt Simulation-Details und erlaubt das Anpassen des Verkaufspreises.
  */
 import { useState } from 'react';
-import { formatNumber, formatEUR, formatBase } from '../utils/formatters';
-import { useAppState } from '../contexts/AppStateContext';
+import { formatNumber, formatQuote, formatBase } from '../utils/formatters';
+import { useSymbol } from '../contexts/SymbolContext';
+import { getQuoteLabel, getBaseLabel } from '../utils/symbolRegistry';
 
 const SimulationModal = ({ simulationData, onClose, onResimulate }) => {
-  const { activeSymbol } = useAppState();
+  const { symbol: activeSymbol } = useSymbol();
   const fmtBase = (num) => formatBase(num, activeSymbol);
+  const fmtQuote = (num) => formatQuote(num, activeSymbol);
+  const quoteLabel = getQuoteLabel(activeSymbol);
 
   if (!simulationData) return null;
 
@@ -57,7 +60,7 @@ const SimulationModal = ({ simulationData, onClose, onResimulate }) => {
         <div className="simulation-grid">
           <div className="sim-card">
             <span className="sim-label">Marktpreis</span>
-            <span className="sim-value">{formatEUR(simulationData.market_price)}</span>
+            <span className="sim-value">{fmtQuote(simulationData.market_price)}</span>
           </div>
           <div className="sim-card">
             <span className="sim-label">BTC zu verkaufen</span>
@@ -65,21 +68,21 @@ const SimulationModal = ({ simulationData, onClose, onResimulate }) => {
           </div>
           <div className="sim-card">
             <span className="sim-label">Erwarteter Erloes</span>
-            <span className="sim-value">{formatEUR(simulationData.expected_proceeds_eur)}</span>
+            <span className="sim-value">{fmtQuote(simulationData.expected_proceeds_quote)}</span>
           </div>
           <div className="sim-card">
             <span className="sim-label">Kosten</span>
-            <span className="sim-value">{formatEUR(simulationData.expected_costs_eur)}</span>
+            <span className="sim-value">{fmtQuote(simulationData.expected_costs_quote)}</span>
           </div>
           <div className="sim-card">
             <span className="sim-label">Geschaetzte Gebuehren</span>
             <span className="sim-value">
-              {formatEUR(simulationData.estimated_fee_eur)} ({formatNumber(parseFloat(simulationData.fee_pct) * 100)}%)
+              {fmtQuote(simulationData.estimated_fee_quote)} ({formatNumber(parseFloat(simulationData.fee_pct) * 100)}%)
             </span>
           </div>
-          <div className={`sim-card ${parseFloat(simulationData.expected_realized_pnl_eur) >= 0 ? 'sim-profit' : 'sim-loss'}`}>
+          <div className={`sim-card ${parseFloat(simulationData.expected_realized_pnl_quote) >= 0 ? 'sim-profit' : 'sim-loss'}`}>
             <span className="sim-label">Realisierte P&L</span>
-            <span className="sim-value">{formatEUR(simulationData.expected_realized_pnl_eur)}</span>
+            <span className="sim-value">{fmtQuote(simulationData.expected_realized_pnl_quote)}</span>
           </div>
         </div>
 
@@ -111,7 +114,7 @@ const SimulationModal = ({ simulationData, onClose, onResimulate }) => {
 
         <div className="simulation-remaining">
           <span>Verbleibendes Portfolio: {fmtBase(simulationData.remaining_portfolio_base)}</span>
-          <span>Verbleibende Kosten: {formatEUR(simulationData.remaining_portfolio_cost_eur)}</span>
+          <span>Verbleibende Kosten: {fmtQuote(simulationData.remaining_portfolio_cost_quote)}</span>
         </div>
 
         {simulationData.planned_orders && simulationData.planned_orders.length > 0 && (
@@ -121,14 +124,14 @@ const SimulationModal = ({ simulationData, onClose, onResimulate }) => {
             {simulationData.has_max_value_violation && (
               <div className="sim-warning">
                 Achtung: Der Orderwert ueberschreitet das Maximum
-                von {formatEUR(simulationData.max_order_value_eur)}.
+                von {fmtQuote(simulationData.max_order_value_quote)}.
                 Die Ausfuehrung wird fehlschlagen.
               </div>
             )}
 
             <div className="sell-price-editor">
               <label className="sell-price-label">
-                Verkaufspreis (EUR)
+                Verkaufspreis ({quoteLabel})
                 {isCustom && <span className="custom-badge">Angepasst</span>}
               </label>
               <div className="sell-price-input-row">
@@ -172,21 +175,21 @@ const SimulationModal = ({ simulationData, onClose, onResimulate }) => {
                     <span className="sim-value" style={{ fontSize: 14 }}>{order.type}</span>
                   </div>
                   <div className="sim-card">
-                    <span className="sim-label">Menge (BTC)</span>
+                    <span className="sim-label">Menge ({getBaseLabel(activeSymbol)})</span>
                     <span className="sim-value">{fmtBase(order.quantity)}</span>
                   </div>
                   <div className="sim-card">
-                    <span className="sim-label">Preis (EUR)</span>
-                    <span className="sim-value">{formatEUR(order.price)}</span>
+                    <span className="sim-label">Preis ({quoteLabel})</span>
+                    <span className="sim-value">{fmtQuote(order.price)}</span>
                   </div>
                   <div className="sim-card">
                     <span className="sim-label">Stop-Preis</span>
-                    <span className="sim-value">{formatEUR(order.stopPrice)}</span>
+                    <span className="sim-value">{fmtQuote(order.stopPrice)}</span>
                   </div>
                   <div className={`sim-card ${order.exceeds_max_order_value ? 'sim-loss' : ''}`}>
-                    <span className="sim-label">Orderwert (EUR)</span>
+                    <span className="sim-label">Orderwert ({quoteLabel})</span>
                     <span className="sim-value">
-                      {formatEUR(order.order_value_eur)}
+                      {fmtQuote(order.order_value_quote)}
                       {order.exceeds_max_order_value && ' !!'}
                     </span>
                   </div>
@@ -204,7 +207,7 @@ const SimulationModal = ({ simulationData, onClose, onResimulate }) => {
 
             <div className="order-params-summary">
               <span>Fee-Buffer: {(parseFloat(simulationData.fee_buffer_pct) * 100).toFixed(1)}%</span>
-              <span>Max. Orderwert: {formatEUR(simulationData.max_order_value_eur)}</span>
+              <span>Max. Orderwert: {fmtQuote(simulationData.max_order_value_quote)}</span>
             </div>
           </>
         )}

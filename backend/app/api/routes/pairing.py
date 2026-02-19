@@ -203,6 +203,7 @@ def create_pairing_endpoint(
 def list_pairings_endpoint(
     user_id: str,
     status: Optional[str] = Query(None, description="Filter by status (DRAFT, LOCKED, EXECUTED)"),
+    symbol: Optional[str] = Query(None, description="Filter by symbol (z.B. BTCEUR)"),
     db: Session = Depends(get_db)
 ):
     """
@@ -211,18 +212,19 @@ def list_pairings_endpoint(
     Args:
         user_id: User ID
         status: Optional status filter
+        symbol: Optional symbol filter
         db: Database Session (injected)
 
     Returns:
         List of pairings
     """
     try:
-        pairings = list_pairings(db, user_id, status)
+        pairings = list_pairings(db, user_id, status, symbol)
 
         return {
             "pairings": pairings,
             "count": len(pairings),
-            "filter": {"status": status}
+            "filter": {"status": status, "symbol": symbol}
         }
     except Exception as e:
         logger.exception("Pairing endpoint failed for user=%s", user_id)

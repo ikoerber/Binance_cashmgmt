@@ -3,16 +3,16 @@
  *
  * Zeigt eine kurze Benachrichtigung wenn ein Fill via WebSocket Phase 3
  * in Echtzeit verarbeitet wurde. Auto-Dismiss nach 5 Sekunden.
+ *
+ * Lebt ausserhalb von SymbolLayout — Symbol wird aus dem Fill-Event gelesen.
  */
 import { useState, useEffect, useRef } from 'react';
 import { useWebSocket } from '../contexts/WebSocketContext';
-import { useAppState } from '../contexts/AppStateContext';
-import { formatBase, formatEUR } from '../utils/formatters';
+import { formatBase, formatQuote } from '../utils/formatters';
 import './FillNotification.css';
 
 export default function FillNotification() {
   const { lastFillEvent } = useWebSocket();
-  const { activeSymbol } = useAppState();
   const [visible, setVisible] = useState(false);
   const [notification, setNotification] = useState(null);
   const timeoutRef = useRef(null);
@@ -26,7 +26,7 @@ export default function FillNotification() {
       qty: fill.qty,
       price: fill.price,
       action: fill.action,
-      symbol: fill.symbol || null,
+      symbol: fill.symbol || 'BTCEUR',
     });
     setVisible(true);
 
@@ -50,7 +50,7 @@ export default function FillNotification() {
       <div className="fill-notification-content">
         <strong>{isBuy ? 'Buy' : 'Sell'} Fill verarbeitet</strong>
         <span className="fill-notification-detail">
-          {formatBase(notification.qty, notification.symbol || activeSymbol)} @ {formatEUR(notification.price)}
+          {formatBase(notification.qty, notification.symbol)} @ {formatQuote(notification.price, notification.symbol)}
         </span>
         <small className="fill-notification-action">
           {notification.action === 'lot_created' ? 'Neues Lot erstellt' : 'Sell allokiert'}

@@ -4,7 +4,7 @@ Tests fuer historische Fee-Konvertierung
 Testet:
 - BinanceService.get_historical_price()
 - SyncService._get_per_fill_fee_conversion_rates()
-- compute_fee_eur_value() (domain/lots.py)
+- compute_fee_quote_value() (domain/lots.py)
 """
 from datetime import datetime
 from decimal import Decimal
@@ -14,7 +14,7 @@ import pytest
 
 from app.services.binance import BinanceService
 from app.services.sync_service import SyncService
-from app.domain.lots import compute_fee_eur_value
+from app.domain.lots import compute_fee_quote_value
 from app.domain.models import LedgerEvent, EventType, EventSource, TradeSide
 
 
@@ -198,36 +198,36 @@ def test_per_fill_rates_skips_eur_btc_fees():
     mock_binance.get_historical_price.assert_not_called()
 
 
-# === compute_fee_eur_value() (domain/lots.py) ===
+# === compute_fee_quote_value() (domain/lots.py) ===
 
 
-def test_compute_fee_eur_value_eur_fee():
+def test_compute_fee_quote_value_eur_fee():
     """Test: EUR-Fee -> direkt zurueckgeben"""
-    result = compute_fee_eur_value(Decimal("1.50"), "EUR", Decimal("50000"), {})
+    result = compute_fee_quote_value(Decimal("1.50"), "EUR", Decimal("50000"), {})
     assert result == Decimal("1.50")
 
 
-def test_compute_fee_eur_value_btc_fee():
-    """Test: BTC-Fee -> fee_amount * fill_price"""
-    result = compute_fee_eur_value(Decimal("0.00001"), "BTC", Decimal("50000"), {})
+def test_compute_fee_quote_value_btc_fee():
+    """Test: Base-Asset-Fee -> fee_amount * fill_price"""
+    result = compute_fee_quote_value(Decimal("0.00001"), "BTC", Decimal("50000"), {}, base_asset="BTC")
     # 0.00001 * 50000 = 0.50
     assert result == Decimal("0.50000")
 
 
-def test_compute_fee_eur_value_bnb_fee():
+def test_compute_fee_quote_value_bnb_fee():
     """Test: BNB-Fee -> fee_amount * conversion_rate"""
-    result = compute_fee_eur_value(Decimal("0.001"), "BNB", Decimal("50000"), {"BNB": Decimal("700.00")})
+    result = compute_fee_quote_value(Decimal("0.001"), "BNB", Decimal("50000"), {"BNB": Decimal("700.00")})
     # 0.001 * 700 = 0.70
     assert result == Decimal("0.700")
 
 
-def test_compute_fee_eur_value_no_fee():
+def test_compute_fee_quote_value_no_fee():
     """Test: Kein Fee -> None"""
-    result = compute_fee_eur_value(None, None, Decimal("50000"), {})
+    result = compute_fee_quote_value(None, None, Decimal("50000"), {})
     assert result is None
 
 
-def test_compute_fee_eur_value_unknown_asset():
-    """Test: Unbekanntes Fee-Asset ohne Rate -> ValueError"""
-    with pytest.raises(ValueError, match="No conversion rate for fee asset XRP"):
-        compute_fee_eur_value(Decimal("10"), "XRP", Decimal("50000"), {})
+def test_compute_fee_quote_value_unknown_asset():
+    """Test: Unbekanntes Fee-Asset ohne Rate und ohne base_asset Match -> None"""
+    result = compute_fee_quote_value(Decimal("10"), "XRP", Decimal("50000"), {})
+    assert result is None

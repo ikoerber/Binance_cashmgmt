@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 from app.services.binance import BinanceService
 from app.services.lot_service import create_lot_from_buy_fill, process_sell_fill
 from app.domain.models import LedgerEvent, TradeSide, EventType
-from app.domain.lots import compute_fee_eur_value
+from app.utils.fee_conversion import compute_fee_quote_value
 from app.db.models import LedgerEventDB, EventTypeEnum, EventSourceEnum, TradeSideEnum
 from app.symbol_registry import get_base_asset, get_quote_asset
 
@@ -27,7 +27,7 @@ def persist_ledger_event(
     db: Session,
     user_id: str,
     event: LedgerEvent,
-    fee_eur_value: Decimal | None = None,
+    fee_quote_value: Decimal | None = None,
 ) -> LedgerEventDB:
     """
     Persistiert ein LedgerEvent (Domain Model) als LedgerEventDB in der Datenbank.
@@ -38,7 +38,7 @@ def persist_ledger_event(
         db: Database Session
         user_id: User ID
         event: LedgerEvent (Domain Model)
-        fee_eur_value: Vorberechneter EUR-Wert der Fee
+        fee_quote_value: Vorberechneter Quote-Currency-Wert der Fee
 
     Returns:
         Persistiertes LedgerEventDB
@@ -55,7 +55,7 @@ def persist_ledger_event(
         side=TradeSideEnum[event.side.value] if event.side else None,
         fee_asset=event.fee_asset,
         fee_amount=event.fee_amount,
-        fee_eur_value=fee_eur_value,
+        fee_quote_value=fee_quote_value,
         source=EventSourceEnum[event.source.value],
         source_id=event.source_id,
         note=event.note,
@@ -120,14 +120,18 @@ class SyncService:
         # 3. Historische Fee-Konvertierungsraten pro Fill abrufen
         per_fill_rates = self._get_per_fill_fee_conversion_rates(new_fills, symbol)
 
-        # 4. Ledger Events persistieren (mit fee_eur_value)
+        # 4. Ledger Events persistieren (mit fee_quote_value)
+        quote_asset = get_quote_asset(symbol)
         created_events = []
         for fill in new_fills:
             fill_rates = per_fill_rates.get(fill.id, {})
-            fee_eur_value = compute_fee_eur_value(
-                fill.fee_amount, fill.fee_asset, fill.price, fill_rates if fill_rates else None
+            fee_quote_value = compute_fee_quote_value(
+                fill.fee_amount, fill.fee_asset, fill.price,
+                fill_rates if fill_rates else None,
+                quote_asset=quote_asset,
+                base_asset=get_base_asset(symbol),
             )
-            event_db = self._persist_ledger_event(db, user_id, fill, fee_eur_value=fee_eur_value)
+            event_db = self._persist_ledger_event(db, user_id, fill, fee_quote_value=fee_quote_value)
             created_events.append((event_db, fill_rates))
 
         db.flush()
@@ -337,7 +341,7 @@ class SyncService:
                     except Exception as e2:
                         logger.error(
                             "Fee-Konvertierung fehlgeschlagen fuer %s/%s bei %s "
-                            "(historisch + aktuell). fee_eur_value wird None — "
+                            "(historisch + aktuell). fee_quote_value wird None — "
                             "Fee geht in Portfolio-Berechnung verloren. Fill: %s",
                             asset, quote_asset, minute_key, fill.id,
                         )
@@ -353,7 +357,7 @@ class SyncService:
         db: Session,
         user_id: str,
         event: LedgerEvent,
-        fee_eur_value: Decimal | None = None,
+        fee_quote_value: Decimal | None = None,
     ) -> LedgerEventDB:
         """Delegiert an die modul-level persist_ledger_event Funktion."""
-        return persist_ledger_event(db, user_id, event, fee_eur_value)
+        return persist_ledger_event(db, user_id, event, fee_quote_value)
