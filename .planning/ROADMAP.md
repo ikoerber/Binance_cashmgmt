@@ -30,10 +30,10 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. All 4 allocation paths (FIFO, LIFO, HIGHEST_COST, lot-specific) filter by base-asset before sorting
   3. Symbol Registry provides `get_symbols_for_base_asset()` that returns all symbols for a given base (e.g., XRP -> [XRPEUR, XRPBTC])
   4. Existing BTC/EUR and ETH/EUR sell allocation behavior is unchanged (backward compatible)
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 01-01: TBD
+- [ ] 01-01-PLAN.md -- Add base-asset filtering to all 4 sell allocation paths + symbol registry helper + isolation tests
 
 ### Phase 2: EUR Cost Basis
 **Goal**: Every lot has a deterministic EUR cost basis computed from the historical exchange rate at fill time
@@ -88,7 +88,7 @@ Dependency graph: `(Phase 1 || Phase 2) -> Phase 3 -> Phase 4`
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Sell Allocation Symbol Isolation | 0/? | Not started | - |
+| 1. Sell Allocation Symbol Isolation | 0/1 | Planned | - |
 | 2. EUR Cost Basis | 0/? | Not started | - |
 | 3. Cross-Pair Pairing | 0/? | Not started | - |
 | 4. Sell Routing | 0/? | Not started | - |
