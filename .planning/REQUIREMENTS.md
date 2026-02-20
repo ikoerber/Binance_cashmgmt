@@ -21,10 +21,10 @@
 
 ### Cross-Pair Pairing
 
-- [ ] **PAIR-01**: Pairing-Heuristik akzeptiert Lots aus XRPEUR und XRPBTC in einem Pairing
-- [ ] **PAIR-02**: P&L-Berechnung in Pairing-Heuristik verwendet EUR-normalisierte Kostenbasis (`cost_eur`)
-- [ ] **PAIR-03**: Pairing-Modell verwendet `base_asset` statt `symbol` fuer Cross-Pair-Pairings
-- [ ] **PAIR-04**: Cross-Pair Simulation zeigt EUR-P&L mit Dual-Route-Vergleich (XRPEUR vs XRPBTC x BTCEUR)
+- [x] **PAIR-01**: Pairing-Heuristik akzeptiert Lots aus XRPEUR und XRPBTC in einem Pairing
+- [x] **PAIR-02**: P&L-Berechnung in Pairing-Heuristik verwendet EUR-normalisierte Kostenbasis (`cost_eur`)
+- [x] **PAIR-03**: Pairing-Modell verwendet `base_asset` statt `symbol` fuer Cross-Pair-Pairings
+- [x] **PAIR-04**: Cross-Pair Simulation zeigt EUR-P&L mit Dual-Route-Vergleich (XRPEUR vs XRPBTC x BTCEUR)
 - [ ] **PAIR-05**: Frontend Pairing-UI unterstuetzt gemischte XRP/EUR + XRP/BTC Lots mit Pair-Herkunft-Badge
 
 ### Sell Routing
@@ -70,10 +70,10 @@
 | COST-03 | Phase 2 | Complete |
 | COST-04 | Phase 2 | Complete |
 | COST-05 | Phase 2 | Complete |
-| PAIR-01 | Phase 3 | Pending |
-| PAIR-02 | Phase 3 | Pending |
-| PAIR-03 | Phase 3 | Pending |
-| PAIR-04 | Phase 3 | Pending |
+| PAIR-01 | Phase 3 | Complete |
+| PAIR-02 | Phase 3 | Complete |
+| PAIR-03 | Phase 3 | Complete |
+| PAIR-04 | Phase 3 | Complete |
 | PAIR-05 | Phase 3 | Pending |
 | ROUTE-01 | Phase 4 | Pending |
 | ROUTE-02 | Phase 4 | Pending |

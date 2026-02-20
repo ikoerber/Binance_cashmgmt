@@ -64,7 +64,7 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 03-01-PLAN.md -- TDD: Cross-pair pairing domain logic (EUR-normalized heuristic, dual-route comparison, model extensions)
+- [x] 03-01-PLAN.md -- TDD: Cross-pair pairing domain logic (EUR-normalized heuristic, dual-route comparison, model extensions)
 - [ ] 03-02-PLAN.md -- Service layer + DB migration + API extension (multi-symbol lot loading, base_asset persistence, dual-route simulation endpoint)
 - [ ] 03-03-PLAN.md -- Frontend cross-pair UI (cross-pair toggle, pair-of-origin badges, dual-route display in SimulationModal)
 
@@ -93,5 +93,5 @@ Dependency graph: `(Phase 1 || Phase 2) -> Phase 3 -> Phase 4`
 |-------|----------------|--------|-----------|
 | 1. Sell Allocation Symbol Isolation | 1/1 | Complete | 2026-02-20 |
 | 2. EUR Cost Basis | 2/2 | Complete | 2026-02-20 |
-| 3. Cross-Pair Pairing | 0/3 | Planning complete | - |
+| 3. Cross-Pair Pairing | 1/3 | In Progress | - |
 | 4. Sell Routing | 0/? | Not started | - |
