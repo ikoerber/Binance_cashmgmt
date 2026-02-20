@@ -15,13 +15,16 @@ import {
   deletePairing,
 } from '../api/client';
 import { formatNumber, formatQuote, formatBase } from '../utils/formatters';
+import { getPairLabel } from '../utils/symbolRegistry';
 import { useSymbol } from '../contexts/SymbolContext';
 import { useUser } from '../contexts/UserContext';
+import { useWebSocket } from '../contexts/WebSocketContext';
 import SimulationModal from './SimulationModal';
 
 const PairingExistingTab = ({ onHighlightLots, showMessage }) => {
   const { userId } = useUser();
   const { symbol: activeSymbol, marketPrice } = useSymbol();
+  const { prices } = useWebSocket();
   const queryClient = useQueryClient();
 
   const [existingStatusFilter, setExistingStatusFilter] = useState(null);
@@ -100,10 +103,21 @@ const PairingExistingTab = ({ onHighlightLots, showMessage }) => {
 
   // ─── Handlers ───
 
-  const handleSimulate = async (pairingId, sellPrice = null) => {
+  const handleSimulate = async (pairingId, sellPrice = null, pairing = null) => {
     setSimulatingPairingId(pairingId);
     try {
-      const result = await simulatePairing(userId, pairingId, marketPrice, 0.001, 0.002, sellPrice);
+      // For cross-pair pairings, pass secondary prices from WebSocket
+      let xrpbtcPrice = null;
+      let btceurPrice = null;
+      if (pairing?.base_asset) {
+        const wsXrpbtc = prices['XRPBTC'];
+        const wsBtceur = prices['BTCEUR'];
+        if (wsXrpbtc != null && wsBtceur != null) {
+          xrpbtcPrice = wsXrpbtc;
+          btceurPrice = wsBtceur;
+        }
+      }
+      const result = await simulatePairing(userId, pairingId, marketPrice, 0.001, 0.002, sellPrice, xrpbtcPrice, btceurPrice);
       setSimulationsByPairingId(prev => ({
         ...prev,
         [pairingId]: { data: { ...result, pairing_id: pairingId }, sellPrice },
@@ -119,7 +133,10 @@ const PairingExistingTab = ({ onHighlightLots, showMessage }) => {
 
   const handleResimulate = async (newPrice) => {
     if (!activePairingId) return;
-    await handleSimulate(activePairingId, newPrice);
+    // Find the pairing object to pass cross-pair context
+    const allPairings = existingData?.pairings || [];
+    const activePairing = allPairings.find(p => p.id === activePairingId) || null;
+    await handleSimulate(activePairingId, newPrice, activePairing);
   };
 
   const handleExecute = (pairingId) => {
@@ -190,6 +207,9 @@ const PairingExistingTab = ({ onHighlightLots, showMessage }) => {
                     {p.status}
                   </span>
                   {p.items.length} Lots
+                  {p.base_asset && (
+                    <span className="cross-pair-label">{p.base_asset} Cross-Pair</span>
+                  )}
                 </span>
                 <span className="pairing-pnl">
                   {formatNumber(parseFloat(p.threshold_pct) * 100)}%
@@ -215,6 +235,11 @@ const PairingExistingTab = ({ onHighlightLots, showMessage }) => {
                 {p.items.map((item) => (
                   <span key={item.lot_id} className="lot-chip" title={item.lot_id}>
                     {item.lot_id.slice(0, 8)}...
+                    {item.lot_symbol && (
+                      <span className={`pair-origin-badge ${item.lot_symbol.includes('BTC') ? 'pair-btc' : 'pair-eur'}`}>
+                        {getPairLabel(item.lot_symbol)}
+                      </span>
+                    )}
                   </span>
                 ))}
               </div>
@@ -223,7 +248,7 @@ const PairingExistingTab = ({ onHighlightLots, showMessage }) => {
                   <>
                     <button
                       className="btn-simulate"
-                      onClick={() => handleSimulate(p.id, simulationsByPairingId[p.id]?.sellPrice || null)}
+                      onClick={() => handleSimulate(p.id, simulationsByPairingId[p.id]?.sellPrice || null, p)}
                       disabled={simulatingPairingId === p.id}
                     >
                       {simulatingPairingId === p.id ? 'Simuliere...' : 'Simulation'}
@@ -252,7 +277,7 @@ const PairingExistingTab = ({ onHighlightLots, showMessage }) => {
                   <>
                     <button
                       className="btn-simulate"
-                      onClick={() => handleSimulate(p.id, simulationsByPairingId[p.id]?.sellPrice || null)}
+                      onClick={() => handleSimulate(p.id, simulationsByPairingId[p.id]?.sellPrice || null, p)}
                       disabled={simulatingPairingId === p.id}
                     >
                       {simulatingPairingId === p.id ? 'Simuliere...' : 'Simulation ansehen'}

@@ -763,6 +763,66 @@
   background: #cbd5e1;
 }
 
+/* ─── Cross-Pair Toggle ─── */
+.cross-pair-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.2s;
+  min-height: 38px;
+}
+
+.cross-pair-toggle input[type="checkbox"] {
+  accent-color: #6366f1;
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.cross-pair-toggle:has(input:checked) {
+  background: #eef2ff;
+  color: #4338ca;
+}
+
+/* ─── Pair-of-Origin Badge ─── */
+.pair-origin-badge {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  vertical-align: middle;
+}
+
+.pair-origin-badge.pair-eur {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.pair-origin-badge.pair-btc {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+/* ─── Cross-Pair Label on Card Header ─── */
+.cross-pair-label {
+  display: inline-block;
+  padding: 1px 6px;
+  background: #e0e7ff;
+  color: #4338ca;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
 /* ─── Responsive ─── */
 @media (max-width: 768px) {
   .pairing-panel {

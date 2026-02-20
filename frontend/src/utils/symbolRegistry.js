@@ -32,3 +32,8 @@ export const getQuoteDecimals = (symbol) => {
 };
 
 export const getQuoteLabel = (symbol) => KNOWN_PAIRS[symbol]?.quote ?? 'EUR';
+
+export const getBaseAsset = (symbol) => KNOWN_PAIRS[symbol]?.base ?? null;
+
+export const getSymbolsForBaseAsset = (baseAsset) =>
+  Object.keys(KNOWN_PAIRS).filter((sym) => KNOWN_PAIRS[sym].base === baseAsset);
