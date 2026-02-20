@@ -25,7 +25,7 @@
 - [x] **PAIR-02**: P&L-Berechnung in Pairing-Heuristik verwendet EUR-normalisierte Kostenbasis (`cost_eur`)
 - [x] **PAIR-03**: Pairing-Modell verwendet `base_asset` statt `symbol` fuer Cross-Pair-Pairings
 - [x] **PAIR-04**: Cross-Pair Simulation zeigt EUR-P&L mit Dual-Route-Vergleich (XRPEUR vs XRPBTC x BTCEUR)
-- [ ] **PAIR-05**: Frontend Pairing-UI unterstuetzt gemischte XRP/EUR + XRP/BTC Lots mit Pair-Herkunft-Badge
+- [x] **PAIR-05**: Frontend Pairing-UI unterstuetzt gemischte XRP/EUR + XRP/BTC Lots mit Pair-Herkunft-Badge
 
 ### Sell Routing
 
@@ -74,7 +74,7 @@
 | PAIR-02 | Phase 3 | Complete |
 | PAIR-03 | Phase 3 | Complete |
 | PAIR-04 | Phase 3 | Complete |
-| PAIR-05 | Phase 3 | Pending |
+| PAIR-05 | Phase 3 | Complete |
 | ROUTE-01 | Phase 4 | Pending |
 | ROUTE-02 | Phase 4 | Pending |
 | ROUTE-03 | Phase 4 | Pending |

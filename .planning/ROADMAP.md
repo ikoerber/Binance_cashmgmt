@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Sell Allocation Symbol Isolation** - Fix cross-asset contamination bug by filtering sell allocation queries on base-asset
 - [x] **Phase 2: EUR Cost Basis** - Persist historical BTC/EUR rate on BTC-quoted lots for deterministic EUR-normalized P&L (completed 2026-02-20)
-- [ ] **Phase 3: Cross-Pair Pairing** - Enable mixed XRP/EUR + XRP/BTC lot pairings with EUR-normalized P&L and dual-route simulation
+- [x] **Phase 3: Cross-Pair Pairing** - Enable mixed XRP/EUR + XRP/BTC lot pairings with EUR-normalized P&L and dual-route simulation (completed 2026-02-20)
 - [ ] **Phase 4: Sell Routing** - Automatically route pairing execution to the pair with highest EUR proceeds
 
 ## Phase Details
@@ -65,8 +65,8 @@ Plans:
 
 Plans:
 - [x] 03-01-PLAN.md -- TDD: Cross-pair pairing domain logic (EUR-normalized heuristic, dual-route comparison, model extensions)
-- [ ] 03-02-PLAN.md -- Service layer + DB migration + API extension (multi-symbol lot loading, base_asset persistence, dual-route simulation endpoint)
-- [ ] 03-03-PLAN.md -- Frontend cross-pair UI (cross-pair toggle, pair-of-origin badges, dual-route display in SimulationModal)
+- [x] 03-02-PLAN.md -- Service layer + DB migration + API extension (multi-symbol lot loading, base_asset persistence, dual-route simulation endpoint)
+- [x] 03-03-PLAN.md -- Frontend cross-pair UI (cross-pair toggle, pair-of-origin badges, dual-route display in SimulationModal)
 
 ### Phase 4: Sell Routing
 **Goal**: System automatically executes pairing sells via the pair that maximizes EUR proceeds
@@ -93,5 +93,5 @@ Dependency graph: `(Phase 1 || Phase 2) -> Phase 3 -> Phase 4`
 |-------|----------------|--------|-----------|
 | 1. Sell Allocation Symbol Isolation | 1/1 | Complete | 2026-02-20 |
 | 2. EUR Cost Basis | 2/2 | Complete | 2026-02-20 |
-| 3. Cross-Pair Pairing | 1/3 | In Progress | - |
+| 3. Cross-Pair Pairing | 3/3 | Complete | 2026-02-20 |
 | 4. Sell Routing | 0/? | Not started | - |

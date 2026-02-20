@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-20)
 
 **Core value:** XRP-Lots unabhaengig vom Quote-Asset (EUR oder BTC) in einem Pairing buendeln und ueber das ertragreichere Pair verkaufen
-**Current focus:** Phase 3 (Cross-Pair Pairing) -- Plan 02 complete, Plan 03 next (frontend)
+**Current focus:** Phase 3 complete -- all 3 plans done. Phase 4 (Sell Routing) next.
 
 ## Current Position
 
 Phase: 3 of 4 (Cross-Pair Pairing)
-Plan: 2 of 3 in current phase
-Status: 03-02 complete (service + API), 03-03 next (frontend cross-pair UI)
-Last activity: 2026-02-20 -- Completed 03-02-PLAN.md
+Plan: 3 of 3 in current phase
+Status: Phase 3 complete (all plans done: domain, service+API, frontend)
+Last activity: 2026-02-20 -- Completed 03-03-PLAN.md
 
-Progress: [#######---] 67% (Phase 3)
+Progress: [##########] 100% (Phase 3)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 5
-- Average duration: 3.8min
-- Total execution time: 19min
+- Total plans completed: 6
+- Average duration: 3.7min
+- Total execution time: 22min
 
 **By Phase:**
 
@@ -29,10 +29,10 @@ Progress: [#######---] 67% (Phase 3)
 |-------|-------|-------|----------|
 | 01 Sell Allocation | 1 | 3min | 3min |
 | 02 EUR Cost Basis | 2 | 7min | 3.5min |
-| 03 Cross-Pair Pairing | 2 | 9min | 4.5min |
+| 03 Cross-Pair Pairing | 3 | 12min | 4min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (3min), 02-01 (3min), 02-02 (4min), 03-01 (4min), 03-02 (5min)
+- Last 5 plans: 02-01 (3min), 02-02 (4min), 03-01 (4min), 03-02 (5min), 03-03 (3min)
 - Trend: stable
 
 *Updated after each plan completion*
@@ -64,6 +64,9 @@ Recent decisions affecting current work:
 - [Phase 03-02]: xrpbtc_price and btceur_price transported as Decimal strings (not float) per Decimal-String-Transport invariant
 - [Phase 03-02]: cost_eur on PairingItemDB computed proportionally from lot's cost_eur based on qty_base/qty_base_initial ratio
 - [Phase 03-02]: Existing pairings get base_asset=NULL in migration -- no backfill needed
+- [Phase 03-03]: Secondary prices (XRPBTC, BTCEUR) sourced from WebSocket prices map -- no additional REST calls
+- [Phase 03-03]: Graceful degradation: if secondary prices unavailable, simulation works without dual-route section
+- [Phase 03-03]: Cross-Pair toggle hidden entirely when base asset has only one symbol (e.g., BTC)
 
 ### Pending Todos
 
@@ -71,10 +74,10 @@ None yet.
 
 ### Blockers/Concerns
 
-- [Research gap]: Frontend UX for mixed-pair pairings needs wireframe during Phase 3 planning
+None.
 
 ## Session Continuity
 
 Last session: 2026-02-20
-Stopped at: Completed 03-02-PLAN.md (Phase 3 plan 2 of 3, frontend UI next)
+Stopped at: Completed 03-03-PLAN.md (Phase 3 complete, Phase 4 Sell Routing next)
 Resume file: None
