@@ -93,5 +93,5 @@ Dependency graph: `(Phase 1 || Phase 2) -> Phase 3 -> Phase 4`
 |-------|----------------|--------|-----------|
 | 1. Sell Allocation Symbol Isolation | 1/1 | Complete | 2026-02-20 |
 | 2. EUR Cost Basis | 2/2 | Complete | 2026-02-20 |
-| 3. Cross-Pair Pairing | 3/3 | Complete | 2026-02-20 |
+| 3. Cross-Pair Pairing | 3/3 | Complete    | 2026-02-20 |
 | 4. Sell Routing | 0/? | Not started | - |
