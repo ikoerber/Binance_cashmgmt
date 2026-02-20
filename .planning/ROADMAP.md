@@ -14,7 +14,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 **Parallelization Note:** Phases 1 and 2 have zero dependencies on each other. They can be executed in any order or in parallel. Both must complete before Phase 3 begins.
 
-- [ ] **Phase 1: Sell Allocation Symbol Isolation** - Fix cross-asset contamination bug by filtering sell allocation queries on base-asset
+- [x] **Phase 1: Sell Allocation Symbol Isolation** - Fix cross-asset contamination bug by filtering sell allocation queries on base-asset
 - [ ] **Phase 2: EUR Cost Basis** - Persist historical BTC/EUR rate on BTC-quoted lots for deterministic EUR-normalized P&L
 - [ ] **Phase 3: Cross-Pair Pairing** - Enable mixed XRP/EUR + XRP/BTC lot pairings with EUR-normalized P&L and dual-route simulation
 - [ ] **Phase 4: Sell Routing** - Automatically route pairing execution to the pair with highest EUR proceeds
@@ -33,7 +33,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 1 plan
 
 Plans:
-- [ ] 01-01-PLAN.md -- Add base-asset filtering to all 4 sell allocation paths + symbol registry helper + isolation tests
+- [x] 01-01-PLAN.md -- Add base-asset filtering to all 4 sell allocation paths + symbol registry helper + isolation tests
 
 ### Phase 2: EUR Cost Basis
 **Goal**: Every lot has a deterministic EUR cost basis computed from the historical exchange rate at fill time
@@ -88,7 +88,7 @@ Dependency graph: `(Phase 1 || Phase 2) -> Phase 3 -> Phase 4`
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Sell Allocation Symbol Isolation | 0/1 | Planned | - |
+| 1. Sell Allocation Symbol Isolation | 1/1 | Complete | 2026-02-20 |
 | 2. EUR Cost Basis | 0/? | Not started | - |
 | 3. Cross-Pair Pairing | 0/? | Not started | - |
 | 4. Sell Routing | 0/? | Not started | - |

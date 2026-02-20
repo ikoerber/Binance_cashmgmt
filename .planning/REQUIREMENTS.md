@@ -7,9 +7,9 @@
 
 ### Sell Allocation
 
-- [ ] **ALLOC-01**: Sell-Fills allokieren nur gegen Lots desselben Base-Assets (XRP-Sells gegen XRP-Lots, BTC-Sells gegen BTC-Lots)
-- [ ] **ALLOC-02**: Symbol Registry bietet `get_symbols_for_base_asset()` Hilfsfunktion fuer Base-Asset-Gruppierung
-- [ ] **ALLOC-03**: Alle 4 Sell-Allocation-Pfade (FIFO, LIFO, HIGHEST_COST, lot-specific) filtern nach Base-Asset
+- [x] **ALLOC-01**: Sell-Fills allokieren nur gegen Lots desselben Base-Assets (XRP-Sells gegen XRP-Lots, BTC-Sells gegen BTC-Lots)
+- [x] **ALLOC-02**: Symbol Registry bietet `get_symbols_for_base_asset()` Hilfsfunktion fuer Base-Asset-Gruppierung
+- [x] **ALLOC-03**: Alle 4 Sell-Allocation-Pfade (FIFO, LIFO, HIGHEST_COST, lot-specific) filtern nach Base-Asset
 
 ### EUR Cost Basis
 
@@ -62,9 +62,9 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ALLOC-01 | Phase 1 | Pending |
-| ALLOC-02 | Phase 1 | Pending |
-| ALLOC-03 | Phase 1 | Pending |
+| ALLOC-01 | Phase 1 | Complete |
+| ALLOC-02 | Phase 1 | Complete |
+| ALLOC-03 | Phase 1 | Complete |
 | COST-01 | Phase 2 | Pending |
 | COST-02 | Phase 2 | Pending |
 | COST-03 | Phase 2 | Pending |
