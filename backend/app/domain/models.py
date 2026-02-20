@@ -95,6 +95,8 @@ class TradeLot:
     qty_base_open: Decimal  # Aktuell offene Menge
 
     cost_quote: Decimal  # Gesamtkosten in Quote-Currency (inkl. Fees)
+    cost_eur: Optional[Decimal] = None  # EUR-equivalent Kosten (None = needs backfill)
+    quote_to_eur_rate: Optional[Decimal] = None  # Konvertierungsrate zum Fill-Zeitpunkt (None = needs backfill)
 
     status: LotStatus = LotStatus.OPEN
     target_margin_pct: Optional[Decimal] = None  # Lot-spezifische Zielmarge
@@ -106,6 +108,13 @@ class TradeLot:
         if self.qty_base_initial == 0:
             return Decimal("0")
         return self.cost_quote / self.qty_base_initial
+
+    @property
+    def break_even_eur(self) -> Optional[Decimal]:
+        """Break-even Preis pro Base-Asset in EUR (None wenn cost_eur unbekannt oder qty == 0)"""
+        if self.cost_eur is None or self.qty_base_initial == 0:
+            return None
+        return self.cost_eur / self.qty_base_initial
 
     def unrealized_pnl(self, market_price: Decimal) -> Decimal:
         """Unrealisierte P&L in Quote-Currency"""

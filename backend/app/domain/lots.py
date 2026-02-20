@@ -28,7 +28,8 @@ from app.utils.fee_conversion import compute_fee_quote_value  # noqa: F401 — R
 
 def create_trade_lot_from_buy_fill(
     fill_event: LedgerEvent,
-    fee_conversion_rates: dict[str, Decimal] | None = None
+    fee_conversion_rates: dict[str, Decimal] | None = None,
+    quote_to_eur_rate: Decimal | None = None,
 ) -> TradeLot:
     """
     Erstellt ein TradeLot aus einem Buy-Fill Event
@@ -94,6 +95,20 @@ def create_trade_lot_from_buy_fill(
                 fill_event.id, fill_event.fee_amount, fill_event.fee_asset,
             )
 
+    # EUR Cost Basis Computation
+    # EUR-quoted lots: cost_eur = cost_quote (trivially EUR)
+    # Non-EUR-quoted lots with rate: cost_eur = cost_quote * quote_to_eur_rate
+    # Non-EUR-quoted lots without rate: cost_eur = None (needs backfill)
+    if quote_asset == "EUR":
+        effective_rate = Decimal("1")
+        computed_cost_eur = cost_quote
+    elif quote_to_eur_rate is not None:
+        effective_rate = quote_to_eur_rate
+        computed_cost_eur = cost_quote * quote_to_eur_rate
+    else:
+        effective_rate = None
+        computed_cost_eur = None
+
     lot = TradeLot(
         id=f"lot_{fill_event.id}",
         created_from_fill_id=fill_event.id,
@@ -101,6 +116,8 @@ def create_trade_lot_from_buy_fill(
         qty_base_initial=qty_net,
         qty_base_open=qty_net,
         cost_quote=cost_quote,
+        cost_eur=computed_cost_eur,
+        quote_to_eur_rate=effective_rate,
         status=LotStatus.OPEN,
         symbol=symbol,
     )
