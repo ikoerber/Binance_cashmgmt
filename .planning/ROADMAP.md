@@ -45,10 +45,11 @@ Plans:
   3. For EUR-quoted lots, `cost_eur` equals `cost_quote` and `quote_to_eur_rate` is 1.0 (no API call needed)
   4. Alembic migration backfills existing lots correctly: EUR-quoted lots get rate=1.0, BTC-quoted lots get historical rate or backfill flag
   5. `break_even_eur` (cost_eur / qty_base_initial) is computable for every lot regardless of quote currency
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 02-01: TBD
+- [ ] 02-01-PLAN.md -- TDD: Domain layer EUR cost basis (TradeLot dataclass + lots.py cost computation + tests)
+- [ ] 02-02-PLAN.md -- Service integration + DB migration + backfill script (sync rate fetching, lot persistence, Alembic, backfill)
 
 ### Phase 3: Cross-Pair Pairing
 **Goal**: Users can create pairings that combine XRP/EUR and XRP/BTC lots with accurate EUR-denominated P&L
