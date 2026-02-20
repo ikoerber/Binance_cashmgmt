@@ -279,6 +279,7 @@ class PairingDB(Base):
     user_id = Column(String, ForeignKey("users.id"), nullable=False)
 
     symbol = Column(String, nullable=False, server_default="BTCEUR")
+    base_asset = Column(String, nullable=True)  # Base-Asset fuer Cross-Pair (z.B. "XRP"), NULL fuer Single-Pair
 
     threshold_pct = Column(Numeric(precision=10, scale=6), nullable=False)  # z.B. 0.05 für 5%
     status = Column(SQLEnum(PairingStatusEnum), nullable=False, default=PairingStatusEnum.DRAFT)
@@ -311,6 +312,8 @@ class PairingItemDB(Base):
 
     qty_base = Column(Numeric(precision=20, scale=10), nullable=False)
     cost_quote = Column(Numeric(precision=20, scale=10), nullable=False)  # Kosten in Quote-Asset
+    cost_eur = Column(Numeric(precision=20, scale=10), nullable=True)  # EUR-normalisierte Kosten (fuer Cross-Pair)
+    lot_symbol = Column(String, nullable=True)  # Pair-of-origin (z.B. "XRPEUR" oder "XRPBTC")
 
     # Relationships
     pairing = relationship("PairingDB", back_populates="items")

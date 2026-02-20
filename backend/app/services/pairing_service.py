@@ -5,8 +5,9 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 import uuid
 
-from app.domain.pairing import suggest_pairings, simulate_pairing
+from app.domain.pairing import suggest_pairings, simulate_pairing, compute_dual_route_comparison
 from app.domain.models import TradeLot as DomainLot, Pairing as DomainPairing, PairingItem, PairingStatus, utcnow
+from app.symbol_registry import get_symbols_for_base_asset
 from app.domain.orders import compute_pairing_order_params
 from app.db.models import TradeLotDB, LotStatusEnum, PairingDB, PairingItemDB, PairingStatusEnum, UserSettingsDB
 from app.services.lot_service import _lot_db_to_domain
@@ -18,6 +19,7 @@ def get_pairing_suggestions(
     market_price: Decimal,
     threshold_pct: Decimal = Decimal("0.05"),
     symbol: str = "BTCEUR",
+    base_asset: str | None = None,
 ) -> List[dict]:
     """
     Holt Pairing-Vorschläge für User
@@ -25,30 +27,56 @@ def get_pairing_suggestions(
     Args:
         db: Database Session
         user_id: User ID
-        market_price: Aktueller Marktpreis
+        market_price: Aktueller Marktpreis (EUR wenn base_asset gesetzt)
         threshold_pct: Zielmarge (z.B. 0.05 für 5%)
         symbol: Trading Pair (z.B. "BTCEUR")
+        base_asset: Base-Asset fuer Cross-Pair (z.B. "XRP"). Wenn gesetzt,
+                    werden Lots aller Symbols dieses Base-Assets geladen.
 
     Returns:
         Liste von Pairing-Vorschlägen
     """
-    # Hole offene Lots fuer das Symbol
-    lots_db = (
-        db.query(TradeLotDB)
-        .filter(
-            TradeLotDB.user_id == user_id,
-            TradeLotDB.symbol == symbol,
-            TradeLotDB.qty_base_open > 0
+    if base_asset is not None:
+        # Cross-pair mode: Load lots from all symbols for this base asset
+        symbols = get_symbols_for_base_asset(base_asset)
+        lots_db = (
+            db.query(TradeLotDB)
+            .filter(
+                TradeLotDB.user_id == user_id,
+                TradeLotDB.symbol.in_(symbols),
+                TradeLotDB.qty_base_open > 0,
+            )
+            .order_by(TradeLotDB.created_at.asc())
+            .all()
         )
-        .order_by(TradeLotDB.created_at.asc())
-        .all()
-    )
 
-    # Zu Domain Models konvertieren
-    lots_domain = [_lot_db_to_domain(lot_db) for lot_db in lots_db]
+        lots_domain = [_lot_db_to_domain(lot_db) for lot_db in lots_db]
 
-    # Pairing-Vorschläge generieren
-    pairings = suggest_pairings(lots_domain, market_price, threshold_pct)
+        # Validate all lots have cost_eur (required for EUR-normalized P&L)
+        for lot in lots_domain:
+            if lot.cost_eur is None:
+                raise ValueError(
+                    f"Lot {lot.id} hat kein cost_eur -- EUR-Kostenumrechnung erforderlich"
+                )
+
+        # EUR-normalized pairing suggestions
+        pairings = suggest_pairings(lots_domain, market_price, threshold_pct, use_eur_cost=True)
+    else:
+        # Single-pair mode: existing behavior unchanged
+        lots_db = (
+            db.query(TradeLotDB)
+            .filter(
+                TradeLotDB.user_id == user_id,
+                TradeLotDB.symbol == symbol,
+                TradeLotDB.qty_base_open > 0,
+            )
+            .order_by(TradeLotDB.created_at.asc())
+            .all()
+        )
+
+        lots_domain = [_lot_db_to_domain(lot_db) for lot_db in lots_db]
+
+        pairings = suggest_pairings(lots_domain, market_price, threshold_pct)
 
     # Zu Dicts konvertieren
     return [_pairing_to_dict(pairing, market_price) for pairing in pairings]
@@ -62,6 +90,8 @@ def simulate_pairing_execution(
     fee_pct: Decimal = Decimal("0.001"),
     fee_buffer_pct: Decimal = Decimal("0.002"),
     custom_sell_price: Decimal | None = None,
+    xrpbtc_price: Decimal | None = None,
+    btceur_price: Decimal | None = None,
 ) -> dict:
     """
     Simuliert Pairing-Ausfuehrung inkl. geplanter Binance-Order-Parameter
@@ -74,9 +104,11 @@ def simulate_pairing_execution(
         fee_pct: Trading Fee (z.B. 0.001 fuer 0.1%)
         fee_buffer_pct: Fee-Puffer fuer Zielpreis (z.B. 0.002 fuer 0.2%)
         custom_sell_price: Optionaler benutzerdefinierter Verkaufspreis
+        xrpbtc_price: XRPBTC-Preis fuer Dual-Route-Vergleich (optional)
+        btceur_price: BTCEUR-Preis fuer Dual-Route-Vergleich (optional)
 
     Returns:
-        Simulation-Details inkl. planned_orders
+        Simulation-Details inkl. planned_orders (und dual_route_comparison wenn Preise gegeben)
     """
     # Pairing aus DB laden
     pairing = get_pairing_by_id(db, user_id, pairing_id)
@@ -121,7 +153,7 @@ def simulate_pairing_execution(
 
     has_max_value_violation = aggregated_order["exceeds_max_order_value"]
 
-    return {
+    result = {
         "pairing_id": pairing.id,
         "market_price": str(market_price),
         "total_base_to_sell": str(simulation.total_base_to_sell),
@@ -139,12 +171,48 @@ def simulate_pairing_execution(
         "max_order_value_eur": str(max_value),
     }
 
+    # Dual-route comparison for cross-pair pairings
+    if xrpbtc_price is not None and btceur_price is not None and pairing.base_asset is not None:
+        drc = compute_dual_route_comparison(
+            total_base=simulation.total_base_to_sell,
+            xrpeur_price=market_price,
+            xrpbtc_price=xrpbtc_price,
+            btceur_price=btceur_price,
+            fee_pct=fee_pct,
+        )
+        result["dual_route_comparison"] = {
+            "route_direct": {
+                "symbol": drc.route_direct.symbol,
+                "sell_price": str(drc.route_direct.sell_price),
+                "gross_proceeds_eur": str(drc.route_direct.gross_proceeds_eur),
+                "fees_eur": str(drc.route_direct.fees_eur),
+                "net_proceeds_eur": str(drc.route_direct.net_proceeds_eur),
+                "conversion_rate": str(drc.route_direct.conversion_rate) if drc.route_direct.conversion_rate is not None else None,
+                "fee_steps": drc.route_direct.fee_steps,
+            },
+            "route_indirect": {
+                "symbol": drc.route_indirect.symbol,
+                "sell_price": str(drc.route_indirect.sell_price),
+                "gross_proceeds_eur": str(drc.route_indirect.gross_proceeds_eur),
+                "fees_eur": str(drc.route_indirect.fees_eur),
+                "net_proceeds_eur": str(drc.route_indirect.net_proceeds_eur),
+                "conversion_rate": str(drc.route_indirect.conversion_rate) if drc.route_indirect.conversion_rate is not None else None,
+                "fee_steps": drc.route_indirect.fee_steps,
+            },
+            "recommended_route": drc.recommended_route,
+            "eur_difference": str(drc.eur_difference),
+        }
+
+    return result
+
 
 def _pairing_to_dict(pairing: DomainPairing, market_price: Decimal) -> dict:
     """Konvertiert Pairing zu Dict"""
-    return {
+    result = {
         "id": pairing.id,
         "symbol": pairing.symbol,
+        "base_asset": pairing.base_asset,
+        "is_cross_pair": pairing.is_cross_pair,
         "threshold_pct": str(pairing.threshold_pct),
         "status": pairing.status.value,
         "created_at": pairing.created_at.isoformat() if pairing.created_at else None,
@@ -153,6 +221,8 @@ def _pairing_to_dict(pairing: DomainPairing, market_price: Decimal) -> dict:
                 "lot_id": item.lot_id,
                 "qty_base": str(item.qty_base),
                 "cost_quote": str(item.cost_quote),
+                "cost_eur": str(item.cost_eur) if item.cost_eur is not None else None,
+                "lot_symbol": item.lot_symbol,
             }
             for item in pairing.items
         ],
@@ -163,6 +233,13 @@ def _pairing_to_dict(pairing: DomainPairing, market_price: Decimal) -> dict:
         "net_pnl_pct": str(pairing.net_pnl_pct(market_price)),
         "is_profitable": pairing.is_profitable(market_price),
     }
+
+    # Include net_cost_eur for cross-pair pairings
+    net_cost_eur = pairing.net_cost_eur()
+    if net_cost_eur is not None:
+        result["net_cost_eur"] = str(net_cost_eur)
+
+    return result
 
 
 # ============================================================================
@@ -176,7 +253,9 @@ def _pairing_db_to_domain(pairing_db: PairingDB) -> DomainPairing:
         PairingItem(
             lot_id=item.lot_id,
             qty_base=item.qty_base,
-            cost_quote=item.cost_quote
+            cost_quote=item.cost_quote,
+            cost_eur=item.cost_eur,
+            lot_symbol=item.lot_symbol,
         )
         for item in pairing_db.items
     ]
@@ -188,6 +267,7 @@ def _pairing_db_to_domain(pairing_db: PairingDB) -> DomainPairing:
         status=PairingStatus(pairing_db.status.value),
         created_at=pairing_db.created_at,
         symbol=pairing_db.symbol,
+        base_asset=pairing_db.base_asset,
     )
 
 
@@ -197,6 +277,7 @@ def create_pairing(
     items: List[dict],
     threshold_pct: Decimal,
     symbol: str = "BTCEUR",
+    base_asset: str | None = None,
 ) -> dict:
     """
     Erstellt und persistiert ein Pairing
@@ -207,6 +288,7 @@ def create_pairing(
         items: Liste von {lot_id, qty_base}
         threshold_pct: Zielmarge (z.B. 0.05 für 5%)
         symbol: Trading Pair (z.B. "BTCEUR")
+        base_asset: Base-Asset fuer Cross-Pair (z.B. "XRP"), None fuer Single-Pair
 
     Returns:
         Pairing dict
@@ -245,6 +327,7 @@ def create_pairing(
         id=pairing_id,
         user_id=user_id,
         symbol=symbol,
+        base_asset=base_asset,
         threshold_pct=threshold_pct,
         status=PairingStatusEnum.DRAFT,
         created_at=utcnow()
@@ -262,12 +345,22 @@ def create_pairing(
         else:
             cost_quote = Decimal("0")
 
+        # Cross-pair: Berechne cost_eur anteilig und speichere lot_symbol
+        cost_eur = None
+        lot_symbol = None
+        if base_asset is not None:
+            lot_symbol = lot_db.symbol
+            if lot_db.cost_eur is not None and lot_db.qty_base_initial > 0:
+                cost_eur = (lot_db.cost_eur / lot_db.qty_base_initial) * qty_base
+
         pairing_item = PairingItemDB(
             id=str(uuid.uuid4()),
             pairing_id=pairing_id,
             lot_id=item["lot_id"],
             qty_base=qty_base,
-            cost_quote=cost_quote
+            cost_quote=cost_quote,
+            cost_eur=cost_eur,
+            lot_symbol=lot_symbol,
         )
         db.add(pairing_item)
 
@@ -310,7 +403,8 @@ def list_pairings(
     db: Session,
     user_id: str,
     status: Optional[str] = None,
-    symbol: Optional[str] = None
+    symbol: Optional[str] = None,
+    base_asset: str | None = None,
 ) -> List[dict]:
     """
     Listet alle Pairings für User
@@ -320,6 +414,7 @@ def list_pairings(
         user_id: User ID
         status: Optional status filter (DRAFT, LOCKED, EXECUTED)
         symbol: Optional symbol filter (z.B. BTCEUR)
+        base_asset: Optional base asset filter (z.B. XRP) -- filtert Cross-Pair Pairings
 
     Returns:
         Liste von Pairing dicts
@@ -331,6 +426,9 @@ def list_pairings(
 
     if symbol:
         query = query.filter(PairingDB.symbol == symbol)
+
+    if base_asset:
+        query = query.filter(PairingDB.base_asset == base_asset)
 
     pairings_db = query.order_by(PairingDB.created_at.desc()).all()
 
