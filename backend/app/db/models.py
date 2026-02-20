@@ -168,6 +168,8 @@ class TradeLotDB(Base):
     qty_base_open = Column(Numeric(precision=20, scale=10), nullable=False)
 
     cost_quote = Column(Numeric(precision=20, scale=10), nullable=False)  # Kosten in Quote-Asset
+    cost_eur = Column(Numeric(precision=20, scale=10), nullable=True)  # EUR-equivalent Kosten (None = needs backfill)
+    quote_to_eur_rate = Column(Numeric(precision=20, scale=10), nullable=True)  # Konvertierungsrate zum Fill-Zeitpunkt
 
     status = Column(SQLEnum(LotStatusEnum), nullable=False, default=LotStatusEnum.OPEN)
     target_margin_pct = Column(Numeric(precision=10, scale=6), nullable=True)

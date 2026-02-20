@@ -162,6 +162,7 @@ def create_lot_from_buy_fill(
     user_id: str,
     fill_event_id: str,
     fee_conversion_rates: dict[str, Decimal] | None = None,
+    quote_to_eur_rate: Decimal | None = None,
 ) -> dict:
     """
     Erstellt TradeLot aus Buy-Fill Event
@@ -172,6 +173,9 @@ def create_lot_from_buy_fill(
         fill_event_id: Fill Event ID (LedgerEvent)
         fee_conversion_rates: Optional dict mit Konvertierungsraten zu Quote-Currency
                              z.B. {"BNB": Decimal("700.00")} fuer BNB/Quote-Preis
+        quote_to_eur_rate: Optional Quote-to-EUR Konvertierungsrate zum Fill-Zeitpunkt
+                          (z.B. BTC/EUR Preis fuer XRPBTC Fills). None fuer EUR-quoted Lots
+                          (auto-detected by domain logic) oder wenn Rate nicht verfuegbar.
 
     Returns:
         Erstelltes Lot als Dict
@@ -193,7 +197,7 @@ def create_lot_from_buy_fill(
     event_domain = _db_event_to_domain(event_db)
 
     # TradeLot erstellen (Domain-Logik)
-    lot_domain = create_trade_lot_from_buy_fill(event_domain, fee_conversion_rates)
+    lot_domain = create_trade_lot_from_buy_fill(event_domain, fee_conversion_rates, quote_to_eur_rate)
 
     # Safety-Check: Lot existiert bereits (z.B. nach Merge)?
     existing = db.query(TradeLotDB).filter(TradeLotDB.id == lot_domain.id).first()
@@ -215,6 +219,8 @@ def create_lot_from_buy_fill(
         qty_base_initial=lot_domain.qty_base_initial,
         qty_base_open=lot_domain.qty_base_open,
         cost_quote=lot_domain.cost_quote,
+        cost_eur=lot_domain.cost_eur,
+        quote_to_eur_rate=lot_domain.quote_to_eur_rate,
         status=LotStatusEnum[lot_domain.status.value],
         target_margin_pct=lot_domain.target_margin_pct,
     )
@@ -902,10 +908,17 @@ def _lot_db_to_dict(lot_db: TradeLotDB, db: Session = None, fill_event=None) -> 
         "qty_base_initial": str(lot_db.qty_base_initial),
         "qty_base_open": str(lot_db.qty_base_open),
         "cost_quote": str(lot_db.cost_quote),
+        "cost_eur": str(lot_db.cost_eur) if lot_db.cost_eur is not None else None,
+        "quote_to_eur_rate": str(lot_db.quote_to_eur_rate) if lot_db.quote_to_eur_rate is not None else None,
         "break_even": (
             str(lot_db.cost_quote / lot_db.qty_base_initial)
             if lot_db.qty_base_initial
             else "0"
+        ),
+        "break_even_eur": (
+            str(lot_db.cost_eur / lot_db.qty_base_initial)
+            if lot_db.cost_eur is not None and lot_db.qty_base_initial
+            else None
         ),
         "status": lot_db.status.value,
         "target_margin_pct": (
@@ -926,6 +939,8 @@ def _lot_db_to_domain(lot_db: TradeLotDB) -> DomainLot:
         qty_base_initial=lot_db.qty_base_initial,
         qty_base_open=lot_db.qty_base_open,
         cost_quote=lot_db.cost_quote,
+        cost_eur=lot_db.cost_eur,
+        quote_to_eur_rate=lot_db.quote_to_eur_rate,
         status=LotStatus[lot_db.status.value],
         target_margin_pct=lot_db.target_margin_pct,
         symbol=lot_db.symbol,

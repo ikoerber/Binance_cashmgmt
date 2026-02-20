@@ -22,6 +22,8 @@ from app.utils.fee_conversion import compute_fee_quote_value
 from app.db.models import LedgerEventDB, EventTypeEnum, EventSourceEnum, TradeSideEnum
 from app.symbol_registry import get_base_asset, get_quote_asset
 
+# TradeSideEnum needed for Phase 1 buy-lot loop side check (already imported above)
+
 
 def persist_ledger_event(
     db: Session,
@@ -120,6 +122,9 @@ class SyncService:
         # 3. Historische Fee-Konvertierungsraten pro Fill abrufen
         per_fill_rates = self._get_per_fill_fee_conversion_rates(new_fills, symbol)
 
+        # 3b. Historische Quote-to-EUR Raten fuer nicht-EUR-quotierte Buy-Fills
+        quote_to_eur_rates = self._get_quote_to_eur_rates(new_fills)
+
         # 4. Ledger Events persistieren (mit fee_quote_value)
         quote_asset = get_quote_asset(symbol)
         created_events = []
@@ -149,7 +154,8 @@ class SyncService:
         for event_db, fill_rates in created_events:
             if event_db.side == TradeSideEnum.BUY:
                 try:
-                    create_lot_from_buy_fill(db, user_id, event_db.id, fill_rates)
+                    quote_rate = quote_to_eur_rates.get(event_db.id)
+                    create_lot_from_buy_fill(db, user_id, event_db.id, fill_rates, quote_to_eur_rate=quote_rate)
                     new_lots_count += 1
                 except Exception as e:
                     errors.append(f"Error creating lot from buy fill {event_db.id}: {e}")
@@ -349,6 +355,75 @@ class SyncService:
 
             if cache_key in minute_cache:
                 per_fill_rates[fill.id] = {asset: minute_cache[cache_key]}
+
+        return per_fill_rates
+
+    def _get_quote_to_eur_rates(
+        self, fills: List[LedgerEvent]
+    ) -> Dict[str, Decimal]:
+        """
+        Holt historische Quote-to-EUR Konvertierungsraten fuer nicht-EUR-quotierte Buy-Fills.
+
+        Fuer jeden BUY-Fill mit nicht-EUR Quote-Asset wird der historische
+        Preis zum Fill-Zeitpunkt abgerufen (z.B. BTC/EUR fuer XRPBTC Fills).
+        Fills innerhalb derselben Minute werden zusammengefasst (gleicher Kline-Preis).
+
+        WICHTIG: Separat von _get_per_fill_fee_conversion_rates(), um Cache-Key-Kollisionen
+        zu vermeiden (Fee-Konvertierung und Quote-Konvertierung koennen verschiedene Paare sein).
+
+        Args:
+            fills: Liste von Fills
+
+        Returns:
+            Dict[fill_id, Decimal] - Per-fill quote-to-EUR rate
+        """
+        buy_fills_needing_conversion = [
+            f for f in fills
+            if f.side == TradeSide.BUY
+            and get_quote_asset(f.symbol or "BTCEUR") != "EUR"
+        ]
+
+        if not buy_fills_needing_conversion:
+            return {}
+
+        # Minuten-Cache: (rate_pair, minute_key) -> price
+        minute_cache: Dict[tuple, Decimal] = {}
+        per_fill_rates: Dict[str, Decimal] = {}
+
+        for fill in buy_fills_needing_conversion:
+            quote_asset = get_quote_asset(fill.symbol or "BTCEUR")
+            rate_pair = f"{quote_asset}EUR"
+            minute_key = fill.timestamp.strftime("%Y-%m-%d %H:%M")
+            cache_key = (rate_pair, minute_key)
+
+            if cache_key not in minute_cache:
+                try:
+                    price = self.binance_service.get_historical_price(rate_pair, fill.timestamp)
+                    minute_cache[cache_key] = price
+                    logger.info(
+                        "Historical %s rate at %s: %s (for quote-to-EUR conversion)",
+                        rate_pair, minute_key, price
+                    )
+                except Exception as e:
+                    logger.warning(
+                        "Could not fetch historical %s rate at %s: %s. Trying current price.",
+                        rate_pair, minute_key, e
+                    )
+                    try:
+                        price = self.binance_service.get_current_price(rate_pair)
+                        minute_cache[cache_key] = price
+                        logger.info("Fallback: current %s price: %s", rate_pair, price)
+                    except Exception as e2:
+                        logger.error(
+                            "Quote-to-EUR Konvertierung fehlgeschlagen fuer %s bei %s "
+                            "(historisch + aktuell). cost_eur wird None — "
+                            "Lot benoetigt Backfill. Fill: %s",
+                            rate_pair, minute_key, fill.id,
+                        )
+                        continue
+
+            if cache_key in minute_cache:
+                per_fill_rates[fill.id] = minute_cache[cache_key]
 
         return per_fill_rates
 
