@@ -49,7 +49,7 @@ Plans:
 
 Plans:
 - [x] 02-01-PLAN.md -- TDD: Domain layer EUR cost basis (TradeLot dataclass + lots.py cost computation + tests)
-- [ ] 02-02-PLAN.md -- Service integration + DB migration + backfill script (sync rate fetching, lot persistence, Alembic, backfill)
+- [x] 02-02-PLAN.md -- Service integration + DB migration + backfill script (sync rate fetching, lot persistence, Alembic, backfill)
 
 ### Phase 3: Cross-Pair Pairing
 **Goal**: Users can create pairings that combine XRP/EUR and XRP/BTC lots with accurate EUR-denominated P&L
@@ -61,10 +61,12 @@ Plans:
   3. Pairing simulation shows dual-route comparison: projected EUR proceeds via XRPEUR direct vs XRPBTC-then-BTC/EUR conversion
   4. Frontend pairing UI displays pair-of-origin badge (XRPEUR / XRPBTC) on each lot within a cross-pair pairing
   5. Pairing model stores `base_asset` for cross-pair pairings, distinguishing them from single-pair pairings
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 03-01: TBD
+- [ ] 03-01-PLAN.md -- TDD: Cross-pair pairing domain logic (EUR-normalized heuristic, dual-route comparison, model extensions)
+- [ ] 03-02-PLAN.md -- Service layer + DB migration + API extension (multi-symbol lot loading, base_asset persistence, dual-route simulation endpoint)
+- [ ] 03-03-PLAN.md -- Frontend cross-pair UI (cross-pair toggle, pair-of-origin badges, dual-route display in SimulationModal)
 
 ### Phase 4: Sell Routing
 **Goal**: System automatically executes pairing sells via the pair that maximizes EUR proceeds
@@ -90,6 +92,6 @@ Dependency graph: `(Phase 1 || Phase 2) -> Phase 3 -> Phase 4`
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Sell Allocation Symbol Isolation | 1/1 | Complete | 2026-02-20 |
-| 2. EUR Cost Basis | 1/2 | Complete    | 2026-02-20 |
-| 3. Cross-Pair Pairing | 0/? | Not started | - |
+| 2. EUR Cost Basis | 2/2 | Complete | 2026-02-20 |
+| 3. Cross-Pair Pairing | 0/3 | Planning complete | - |
 | 4. Sell Routing | 0/? | Not started | - |
