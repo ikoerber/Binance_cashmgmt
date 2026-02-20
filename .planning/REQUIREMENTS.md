@@ -13,10 +13,10 @@
 
 ### EUR Cost Basis
 
-- [ ] **COST-01**: Bei XRP/BTC Lot-Erstellung wird der BTC/EUR-Kurs zum Fill-Zeitpunkt via Klines API abgerufen
+- [x] **COST-01**: Bei XRP/BTC Lot-Erstellung wird der BTC/EUR-Kurs zum Fill-Zeitpunkt via Klines API abgerufen
 - [x] **COST-02**: `cost_eur` (EUR-Equivalent der Kosten) und `quote_to_eur_rate` (Konvertierungsrate) werden auf TradeLot persistiert
 - [x] **COST-03**: Fuer EUR-quoted Lots gilt `cost_eur = cost_quote` und `quote_to_eur_rate = 1.0`
-- [ ] **COST-04**: Alembic-Migration fuegt neue Spalten hinzu und backfillt bestehende Lots korrekt (EUR-quoted: rate=1.0, BTC-quoted: historische Rate oder Flag)
+- [x] **COST-04**: Alembic-Migration fuegt neue Spalten hinzu und backfillt bestehende Lots korrekt (EUR-quoted: rate=1.0, BTC-quoted: historische Rate oder Flag)
 - [x] **COST-05**: Break-even in EUR (`break_even_eur`) berechenbar aus `cost_eur / qty_base_initial`
 
 ### Cross-Pair Pairing
@@ -65,10 +65,10 @@
 | ALLOC-01 | Phase 1 | Complete |
 | ALLOC-02 | Phase 1 | Complete |
 | ALLOC-03 | Phase 1 | Complete |
-| COST-01 | Phase 2 | Pending |
+| COST-01 | Phase 2 | Complete |
 | COST-02 | Phase 2 | Complete |
 | COST-03 | Phase 2 | Complete |
-| COST-04 | Phase 2 | Pending |
+| COST-04 | Phase 2 | Complete |
 | COST-05 | Phase 2 | Complete |
 | PAIR-01 | Phase 3 | Pending |
 | PAIR-02 | Phase 3 | Pending |
