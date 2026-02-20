@@ -48,7 +48,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 02-01-PLAN.md -- TDD: Domain layer EUR cost basis (TradeLot dataclass + lots.py cost computation + tests)
+- [x] 02-01-PLAN.md -- TDD: Domain layer EUR cost basis (TradeLot dataclass + lots.py cost computation + tests)
 - [ ] 02-02-PLAN.md -- Service integration + DB migration + backfill script (sync rate fetching, lot persistence, Alembic, backfill)
 
 ### Phase 3: Cross-Pair Pairing
@@ -90,6 +90,6 @@ Dependency graph: `(Phase 1 || Phase 2) -> Phase 3 -> Phase 4`
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Sell Allocation Symbol Isolation | 1/1 | Complete | 2026-02-20 |
-| 2. EUR Cost Basis | 0/? | Not started | - |
+| 2. EUR Cost Basis | 1/2 | In progress | - |
 | 3. Cross-Pair Pairing | 0/? | Not started | - |
 | 4. Sell Routing | 0/? | Not started | - |
