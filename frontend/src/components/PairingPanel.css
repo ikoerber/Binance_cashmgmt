@@ -763,6 +763,97 @@
   background: #cbd5e1;
 }
 
+/* ─── Dual-Route Comparison ─── */
+.dual-route-section {
+  margin-top: 16px;
+  margin-bottom: 24px;
+  padding-top: 16px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.dual-route-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.route-card {
+  background: #f8fafc;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+}
+
+.route-card.route-recommended {
+  border-color: #6366f1;
+  background: #eef2ff;
+}
+
+.route-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.route-symbol {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--color-text-primary);
+}
+
+.route-badge {
+  font-size: 10px;
+  font-weight: 600;
+  background: #6366f1;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.route-conversion {
+  font-size: 11px;
+  color: #64748b;
+  margin-left: 70px;
+  margin-top: -2px;
+  margin-bottom: 2px;
+}
+
+.route-details {
+  font-size: 13px;
+  color: #475569;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.route-label {
+  display: inline-block;
+  min-width: 70px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.route-net {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.route-difference {
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: #16a34a;
+  padding: 8px;
+}
+
 /* ─── Cross-Pair Toggle ─── */
 .cross-pair-toggle {
   display: inline-flex;

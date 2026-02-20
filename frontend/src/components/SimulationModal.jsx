@@ -4,7 +4,7 @@
  * Zeigt Simulation-Details und erlaubt das Anpassen des Verkaufspreises.
  */
 import { useState } from 'react';
-import { formatNumber, formatQuote, formatBase } from '../utils/formatters';
+import { formatNumber, formatEUR, formatQuote, formatBase } from '../utils/formatters';
 import { useSymbol } from '../contexts/SymbolContext';
 import { getQuoteLabel, getBaseLabel } from '../utils/symbolRegistry';
 
@@ -85,6 +85,53 @@ const SimulationModal = ({ simulationData, onClose, onResimulate }) => {
             <span className="sim-value">{fmtQuote(simulationData.expected_realized_pnl_quote)}</span>
           </div>
         </div>
+
+        {simulationData.dual_route_comparison && (() => {
+          const drc = simulationData.dual_route_comparison;
+          return (
+            <div className="dual-route-section">
+              <h4>Verkaufsrouten-Vergleich</h4>
+              <div className="dual-route-cards">
+                <div className={`route-card ${drc.recommended_route === 'direct' ? 'route-recommended' : ''}`}>
+                  <div className="route-header">
+                    <span className="route-symbol">{drc.direct.symbol}</span>
+                    {drc.recommended_route === 'direct' && (
+                      <span className="route-badge">Empfohlen</span>
+                    )}
+                  </div>
+                  <div className="route-details">
+                    <div><span className="route-label">Verkaufspreis</span> {formatEUR(drc.direct.sell_price)}</div>
+                    <div><span className="route-label">Brutto</span> {formatEUR(drc.direct.gross_eur)}</div>
+                    <div><span className="route-label">Gebuehren</span> {formatEUR(drc.direct.fees_eur)} (1x Fee)</div>
+                  </div>
+                  <div className="route-net">
+                    <span className="route-label">Netto</span> {formatEUR(drc.direct.net_eur)}
+                  </div>
+                </div>
+                <div className={`route-card ${drc.recommended_route === 'indirect' ? 'route-recommended' : ''}`}>
+                  <div className="route-header">
+                    <span className="route-symbol">{drc.indirect.symbol}</span>
+                    {drc.recommended_route === 'indirect' && (
+                      <span className="route-badge">Empfohlen</span>
+                    )}
+                  </div>
+                  <div className="route-details">
+                    <div><span className="route-label">Verkaufspreis</span> {formatNumber(drc.indirect.sell_price, 8)} BTC</div>
+                    <div className="route-conversion">x {formatNumber(drc.indirect.conversion_rate, 2)} BTCEUR</div>
+                    <div><span className="route-label">Brutto</span> {formatEUR(drc.indirect.gross_eur)}</div>
+                    <div><span className="route-label">Gebuehren</span> {formatEUR(drc.indirect.fees_eur)} (2x Fee)</div>
+                  </div>
+                  <div className="route-net">
+                    <span className="route-label">Netto</span> {formatEUR(drc.indirect.net_eur)}
+                  </div>
+                </div>
+              </div>
+              <div className="route-difference">
+                Differenz: {formatEUR(drc.eur_difference)} zugunsten {drc.recommended_route === 'direct' ? drc.direct.symbol : drc.indirect.symbol}
+              </div>
+            </div>
+          );
+        })()}
 
         <h4>Betroffene Lots</h4>
         <table className="affected-lots-table">
