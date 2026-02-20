@@ -165,16 +165,18 @@ class TestSuggestPairingsCrossPair:
         # XRP price in EUR = 0.50
         market_price_eur = Decimal("0.50")
 
-        # Lot 1: XRPEUR, bought at 0.40 EUR -> +25% profit
-        lot1 = _make_lot("lot-1", "XRPEUR", "100", "40", cost_eur="40",
+        # Lot 1: XRPEUR, bought at 0.30 EUR -> cost_eur=30, value=50 -> +66.7% profit (big winner)
+        lot1 = _make_lot("lot-1", "XRPEUR", "100", "30", cost_eur="30",
                          created_at=datetime(2024, 1, 1))
-        # Lot 2: XRPEUR, bought at 0.60 EUR -> -16.7% loss
-        lot2 = _make_lot("lot-2", "XRPEUR", "100", "60", cost_eur="60",
+        # Lot 2: XRPEUR, bought at 0.55 EUR -> cost_eur=55, value=50 -> -9.1% loss
+        lot2 = _make_lot("lot-2", "XRPEUR", "100", "55", cost_eur="55",
                          created_at=datetime(2024, 1, 2))
-        # Lot 3: XRPBTC, bought at 0.000008 BTC, cost_eur=45 -> +11.1% profit
+        # Lot 3: XRPBTC, bought at 0.000008 BTC, cost_eur=45 -> value=50 -> +11.1% profit
         lot3 = _make_lot("lot-3", "XRPBTC", "100", "0.0008", cost_eur="45",
                          created_at=datetime(2024, 1, 3))
 
+        # Lot1 (winner, +66.7%) + Lot2 (loser, -9.1%):
+        #   cost=30+55=85, value=50+50=100, pnl=15/85=17.6% -> above 5%
         pairings = suggest_pairings(
             [lot1, lot2, lot3], market_price_eur,
             threshold_pct=Decimal("0.05"),
