@@ -34,10 +34,22 @@ from app.db.models import (
     UserSettingsDB,
 )
 from app.domain.lot_merge import validate_merge, compute_merge
-from app.symbol_registry import get_base_asset
+from app.symbol_registry import get_base_asset, get_symbols_for_base_asset
 
 logger = logging.getLogger(__name__)
 from app.services.portfolio_service import _db_event_to_domain
+
+
+def _get_base_symbols_for_sell_event(sell_event_db: LedgerEventDB) -> list[str]:
+    """Derives base-asset symbols from a sell event for lot filtering.
+
+    Uses the sell event's symbol to determine the base asset, then returns
+    all known symbols for that base asset. Falls back to BTCEUR for legacy
+    events without symbol.
+    """
+    sell_symbol = sell_event_db.symbol or "BTCEUR"
+    base_asset = get_base_asset(sell_symbol)
+    return get_symbols_for_base_asset(base_asset)
 
 
 def get_lots_for_user(
@@ -247,12 +259,17 @@ def process_sell_fill_fifo(
         raise ValueError(f"Sell event {sell_event_id} not found")
 
     sell_event_domain = _db_event_to_domain(sell_event_db)
+    base_symbols = _get_base_symbols_for_sell_event(sell_event_db)
 
     # Offene Lots holen (chronologisch sortiert für FIFO)
     # Row-Level Lock: verhindert Race Conditions bei konkurrierenden Sell-Fills
     lots_db = (
         db.query(TradeLotDB)
-        .filter(TradeLotDB.user_id == user_id, TradeLotDB.qty_base_open > 0)
+        .filter(
+            TradeLotDB.user_id == user_id,
+            TradeLotDB.qty_base_open > 0,
+            TradeLotDB.symbol.in_(base_symbols),
+        )
         .order_by(TradeLotDB.created_at.asc())
         .with_for_update()
         .all()
@@ -339,6 +356,7 @@ def process_sell_fill_lot_specific(
         raise ValueError(f"Sell event {sell_event_id} not found")
 
     sell_event_domain = _db_event_to_domain(sell_event_db)
+    base_symbols = _get_base_symbols_for_sell_event(sell_event_db)
 
     # Ziel-Lot holen
     # Row-Level Lock: verhindert Race Conditions bei konkurrierenden Sell-Fills
@@ -361,6 +379,7 @@ def process_sell_fill_lot_specific(
             TradeLotDB.user_id == user_id,
             TradeLotDB.qty_base_open > 0,
             TradeLotDB.id != target_lot_id,
+            TradeLotDB.symbol.in_(base_symbols),
         )
         .order_by(TradeLotDB.created_at.asc())
         .with_for_update()
@@ -447,6 +466,7 @@ def process_sell_fill_for_pairing(
         raise ValueError(f"Sell event {sell_event_id} not found")
 
     sell_event_domain = _db_event_to_domain(sell_event_db)
+    base_symbols = _get_base_symbols_for_sell_event(sell_event_db)
 
     # Pairing Items holen
     pairing_items = (
@@ -489,6 +509,7 @@ def process_sell_fill_for_pairing(
             TradeLotDB.user_id == user_id,
             TradeLotDB.qty_base_open > 0,
             ~TradeLotDB.id.in_(pairing_lot_ids),
+            TradeLotDB.symbol.in_(base_symbols),
         )
         .with_for_update()
         .all()
@@ -613,11 +634,16 @@ def process_sell_fill_with_strategy(
         raise ValueError(f"Sell event {sell_event_id} not found")
 
     sell_event_domain = _db_event_to_domain(sell_event_db)
+    base_symbols = _get_base_symbols_for_sell_event(sell_event_db)
 
     # Row-Level Lock: verhindert Race Conditions bei konkurrierenden Sell-Fills
     lots_db = (
         db.query(TradeLotDB)
-        .filter(TradeLotDB.user_id == user_id, TradeLotDB.qty_base_open > 0)
+        .filter(
+            TradeLotDB.user_id == user_id,
+            TradeLotDB.qty_base_open > 0,
+            TradeLotDB.symbol.in_(base_symbols),
+        )
         .with_for_update()
         .all()
     )
