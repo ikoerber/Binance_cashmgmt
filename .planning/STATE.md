@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-20)
 
 **Core value:** XRP-Lots unabhaengig vom Quote-Asset (EUR oder BTC) in einem Pairing buendeln und ueber das ertragreichere Pair verkaufen
-**Current focus:** Phase 3 (Cross-Pair Pairing) -- Plan 01 complete, Plan 02 next
+**Current focus:** Phase 3 (Cross-Pair Pairing) -- Plan 02 complete, Plan 03 next (frontend)
 
 ## Current Position
 
 Phase: 3 of 4 (Cross-Pair Pairing)
-Plan: 1 of 3 in current phase
-Status: 03-01 complete (domain logic), 03-02 next (service integration)
-Last activity: 2026-02-20 -- Completed 03-01-PLAN.md
+Plan: 2 of 3 in current phase
+Status: 03-02 complete (service + API), 03-03 next (frontend cross-pair UI)
+Last activity: 2026-02-20 -- Completed 03-02-PLAN.md
 
-Progress: [####------] 33% (Phase 3)
+Progress: [#######---] 67% (Phase 3)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 4
-- Average duration: 3.5min
-- Total execution time: 14min
+- Total plans completed: 5
+- Average duration: 3.8min
+- Total execution time: 19min
 
 **By Phase:**
 
@@ -29,10 +29,10 @@ Progress: [####------] 33% (Phase 3)
 |-------|-------|-------|----------|
 | 01 Sell Allocation | 1 | 3min | 3min |
 | 02 EUR Cost Basis | 2 | 7min | 3.5min |
-| 03 Cross-Pair Pairing | 1 | 4min | 4min |
+| 03 Cross-Pair Pairing | 2 | 9min | 4.5min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (3min), 02-01 (3min), 02-02 (4min), 03-01 (4min)
+- Last 5 plans: 01-01 (3min), 02-01 (3min), 02-02 (4min), 03-01 (4min), 03-02 (5min)
 - Trend: stable
 
 *Updated after each plan completion*
@@ -60,6 +60,10 @@ Recent decisions affecting current work:
 - [Phase 03-01]: Cross-pair base_asset derived from get_base_asset(lots[0].symbol) -- consistent with symbol_registry pattern
 - [Phase 03-01]: Dual-route indirect fees are compounded (two fee steps) not additive -- matches real Binance trading flow
 - [Phase 03-01]: PairingItem.cost_eur and lot_symbol are None in default mode -- clean single-pair vs cross-pair separation
+- [Phase 03-02]: Existing with_for_update() row-level locking preserved in create_pairing -- base_asset fields set AFTER locked query
+- [Phase 03-02]: xrpbtc_price and btceur_price transported as Decimal strings (not float) per Decimal-String-Transport invariant
+- [Phase 03-02]: cost_eur on PairingItemDB computed proportionally from lot's cost_eur based on qty_base/qty_base_initial ratio
+- [Phase 03-02]: Existing pairings get base_asset=NULL in migration -- no backfill needed
 
 ### Pending Todos
 
@@ -72,5 +76,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-20
-Stopped at: Completed 03-01-PLAN.md (Phase 3 plan 1 of 3, service integration next)
+Stopped at: Completed 03-02-PLAN.md (Phase 3 plan 2 of 3, frontend UI next)
 Resume file: None
