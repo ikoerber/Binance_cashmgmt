@@ -77,10 +77,11 @@ Plans:
   2. Sell order is placed on the selected pair via Binance API with correct symbol, price, and quantity
   3. Routing decision is logged with both prices, both computed EUR proceeds, and the delta between routes
   4. After execution, sell fills from the routed pair correctly allocate against all XRP lots in the pairing (regardless of original purchase pair) with EUR-normalized realized P&L
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 04-01: TBD
+- [ ] 04-01-PLAN.md -- TDD: Cross-pair P&L domain logic (EUR-normalized realized P&L, RoutingDecision dataclass, order params fixes)
+- [ ] 04-02-PLAN.md -- Service integration + DB migration + API + frontend (route selection in execution, routing persistence, EUR P&L allocation, routing display)
 
 ## Progress
 
@@ -94,4 +95,4 @@ Dependency graph: `(Phase 1 || Phase 2) -> Phase 3 -> Phase 4`
 | 1. Sell Allocation Symbol Isolation | 1/1 | Complete | 2026-02-20 |
 | 2. EUR Cost Basis | 2/2 | Complete | 2026-02-20 |
 | 3. Cross-Pair Pairing | 3/3 | Complete    | 2026-02-20 |
-| 4. Sell Routing | 0/? | Not started | - |
+| 4. Sell Routing | 0/2 | Not started | - |
