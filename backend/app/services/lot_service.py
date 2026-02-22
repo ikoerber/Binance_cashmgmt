@@ -911,6 +911,16 @@ def sync_and_refresh_lots(
         sync_report.setdefault("errors", []).append(
             f"Fiat sync: {fiat_report['error']}"
         )
+        sync_report["fills_failed"] = sync_report.get("fills_failed", 0) + 1
+        sync_report.setdefault("fill_details", []).append(
+            {
+                "source_id": "fiat_sync",
+                "fill_id": "fiat_sync",
+                "side": "N/A",
+                "outcome": "FAILED",
+                "error": fiat_report["error"],
+            }
+        )
 
     # Alle Lots nach Sync abrufen (neueste zuerst)
     lots = get_lots_for_user(db, user_id)
