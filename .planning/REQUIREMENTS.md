@@ -13,9 +13,9 @@
 
 ### Sync Reliability
 
-- [ ] **SYNC-01**: Sync-Fehler werden explizit im Response zurueckgegeben (keine stillen Skips, fehlerhafte Fills sichtbar)
-- [ ] **SYNC-02**: Transiente Fehler (Timeout, Rate-Limit) werden automatisch mit Backoff wiederholt (max N Retries)
-- [ ] **SYNC-03**: Sync-Fortschritt wird tracierbar (welche Fills verarbeitet, welche fehlgeschlagen, wo Wiederaufnahme moeglich)
+- [x] **SYNC-01**: Sync-Fehler werden explizit im Response zurueckgegeben (keine stillen Skips, fehlerhafte Fills sichtbar)
+- [x] **SYNC-02**: Transiente Fehler (Timeout, Rate-Limit) werden automatisch mit Backoff wiederholt (max N Retries)
+- [x] **SYNC-03**: Sync-Fortschritt wird tracierbar (welche Fills verarbeitet, welche fehlgeschlagen, wo Wiederaufnahme moeglich)
 
 ### Reconciliation
 
@@ -54,9 +54,9 @@
 | API-01 | Phase 5 | Complete |
 | API-02 | Phase 5 | Complete |
 | API-03 | Phase 5 | Complete |
-| SYNC-01 | Phase 6 | Pending |
-| SYNC-02 | Phase 6 | Pending |
-| SYNC-03 | Phase 6 | Pending |
+| SYNC-01 | Phase 6 | Complete |
+| SYNC-02 | Phase 6 | Complete |
+| SYNC-03 | Phase 6 | Complete |
 | RECON-01 | Phase 7 | Pending |
 | RECON-02 | Phase 7 | Pending |
 | RECON-03 | Phase 7 | Pending |
