@@ -9,7 +9,6 @@ Testet:
 - Backward-Compatibility: _is_retryable() Wrapper
 """
 
-import time
 from unittest.mock import MagicMock, patch
 
 import pytest
