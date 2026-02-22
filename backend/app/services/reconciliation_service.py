@@ -4,6 +4,7 @@ Reconciliation Service - Synct Binance mit lokaler DB
 Kritisch für Production: Detektiert Diskrepanzen zwischen Binance und lokaler DB.
 Persists reconciliation runs, creates alerts, provides history API.
 """
+import json
 import logging
 import uuid
 from decimal import Decimal
@@ -452,7 +453,38 @@ class ReconciliationService:
                 )
                 db.add(alert_db)
 
+                # Structured JSON log for external monitoring (ELK, Datadog, etc.)
+                logger.info(
+                    "ALERT_EVENT %s",
+                    json.dumps({
+                        "event": "alert_created",
+                        "alert_id": alert_db.id,
+                        "user_id": user_id,
+                        "alert_type": alert["alert_type"],
+                        "severity": alert["severity"],
+                        "title": alert["title"],
+                        "details": alert.get("details_json"),
+                        "reconciliation_run_id": run_id,
+                        "timestamp": alert_db.created_at.isoformat() if alert_db.created_at else None,
+                    }, default=str)
+                )
+
             db.flush()
+
+            # Structured JSON log for reconciliation run completion
+            logger.info(
+                "RECONCILIATION_RUN %s",
+                json.dumps({
+                    "event": "reconciliation_completed",
+                    "run_id": run_id,
+                    "user_id": user_id,
+                    "trigger": trigger,
+                    "status": status,
+                    "has_discrepancies": has_discrepancies,
+                    "alert_count": len(alerts),
+                    "timestamp": run_db.created_at.isoformat() if run_db.created_at else None,
+                }, default=str)
+            )
 
             return {
                 "run_id": run_id,
