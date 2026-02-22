@@ -335,6 +335,23 @@
   font-weight: 600;
 }
 
+.routing-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  background: #e0e7ff;
+  color: #4338ca;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  margin-left: 8px;
+  cursor: help;
+}
+
+.routing-savings {
+  color: #16a34a;
+  font-weight: 500;
+}
+
 /* ─── Manual Tab ─── */
 .manual-preview {
   display: grid;

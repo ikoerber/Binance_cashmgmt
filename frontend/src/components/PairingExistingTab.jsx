@@ -81,7 +81,17 @@ const PairingExistingTab = ({ onHighlightLots, showMessage }) => {
       setSimulationsByPairingId({});
       setActivePairingId(null);
       const lotCount = data?.lot_count || 0;
-      showMessage('success', `Pairing ausgefuehrt: 1 Order (${lotCount} Lots aggregiert) auf Binance platziert`);
+      const routingInfo = data?.routing_decision;
+      if (routingInfo) {
+        const otherRoute = routingInfo.selected_route === 'XRPEUR' ? 'XRPBTC' : 'XRPEUR';
+        const savings = parseFloat(routingInfo.eur_difference);
+        const msg = savings > 0.01
+          ? `Pairing ausgefuehrt: Order auf ${routingInfo.selected_route} (spart ${savings.toFixed(2)} EUR vs. ${otherRoute})`
+          : `Pairing ausgefuehrt: Order auf ${routingInfo.selected_route}`;
+        showMessage('success', msg);
+      } else {
+        showMessage('success', `Pairing ausgefuehrt: 1 Order (${lotCount} Lots aggregiert) auf Binance platziert`);
+      }
     },
     onError: (error) => {
       showMessage('error', error.response?.data?.detail || error.message);
@@ -299,7 +309,17 @@ const PairingExistingTab = ({ onHighlightLots, showMessage }) => {
                   </>
                 )}
                 {p.status === 'EXECUTED' && (
-                  <span className="executed-label">Ausgeführt</span>
+                  <>
+                    <span className="executed-label">Ausgeführt</span>
+                    {p.routing_decision && (
+                      <span className="routing-badge" title={`Routing: ${p.routing_decision.selected_route} | Direkt: ${parseFloat(p.routing_decision.direct_net_eur).toFixed(2)} EUR | Indirekt: ${parseFloat(p.routing_decision.indirect_net_eur).toFixed(2)} EUR`}>
+                        Route: {p.routing_decision.selected_route}
+                        {parseFloat(p.routing_decision.eur_difference) > 0.01 && (
+                          <span className="routing-savings"> (+{parseFloat(p.routing_decision.eur_difference).toFixed(2)} EUR)</span>
+                        )}
+                      </span>
+                    )}
+                  </>
                 )}
               </div>
             </div>
