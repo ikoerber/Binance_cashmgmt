@@ -96,6 +96,12 @@ class User(Base):
     pairings = relationship(
         "PairingDB", back_populates="user", cascade="all, delete-orphan"
     )
+    reconciliation_runs = relationship(
+        "ReconciliationRunDB", back_populates="user", cascade="all, delete-orphan"
+    )
+    alert_events = relationship(
+        "AlertEventDB", back_populates="user", cascade="all, delete-orphan"
+    )
 
 
 class APICredential(Base):
@@ -537,8 +543,96 @@ class UserSettingsDB(Base):
     ob_target_rr = Column(Numeric(precision=10, scale=4), nullable=True)
     ob_impulse_window = Column(Numeric(precision=5, scale=0), nullable=True)
 
+    # Reconciliation Thresholds
+    recon_tolerance_base = Column(
+        Numeric(precision=20, scale=8), nullable=True
+    )  # Default handled in service: Decimal("0.0001")
+    recon_tolerance_quote = Column(
+        Numeric(precision=20, scale=2), nullable=True
+    )  # Default handled in service: Decimal("1.00")
+
     created_at = Column(DateTime, nullable=False, default=_utcnow)
     updated_at = Column(DateTime, nullable=False, default=_utcnow, onupdate=_utcnow)
 
     # Relationships
     user = relationship("User")
+
+
+class ReconciliationRunDB(Base):
+    """
+    Reconciliation Run - Persistiertes Reconciliation-Ergebnis
+
+    Speichert Trigger, Status, vollstaendigen Report und Diskrepanz-Flag.
+    """
+
+    __tablename__ = "reconciliation_runs"
+
+    id = Column(String, primary_key=True)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+
+    symbol = Column(String, nullable=False)  # z.B. "BTCEUR"
+    trigger = Column(
+        String, nullable=False
+    )  # "manual", "post_sync", "post_full_sync"
+    status = Column(String, nullable=False)  # "completed", "partial", "failed"
+
+    report_json = Column(JSON, nullable=False)  # Full reconciliation report dict
+    has_discrepancies = Column(Boolean, nullable=False, default=False)
+
+    created_at = Column(DateTime, nullable=False, default=_utcnow)
+
+    # Relationships
+    user = relationship("User", back_populates="reconciliation_runs")
+    alert_events = relationship(
+        "AlertEventDB",
+        back_populates="reconciliation_run",
+        cascade="all, delete-orphan",
+    )
+
+    # Indexes
+    __table_args__ = (
+        Index("idx_recon_runs_user_created", "user_id", "created_at"),
+    )
+
+
+class AlertEventDB(Base):
+    """
+    Alert Event - Persistierter Alert fuer Diskrepanzen und Fehler
+
+    Wird aus Reconciliation-Ergebnissen generiert wenn Thresholds ueberschritten werden.
+    """
+
+    __tablename__ = "alert_events"
+
+    id = Column(String, primary_key=True)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    reconciliation_run_id = Column(
+        String, ForeignKey("reconciliation_runs.id"), nullable=True
+    )  # Alerts can exist without a run in future
+
+    alert_type = Column(
+        String, nullable=False
+    )  # "BALANCE_DISCREPANCY", "ORDER_DISCREPANCY", "SYNC_ERROR", "BALANCE_CHECK_ERROR"
+    severity = Column(String, nullable=False)  # "info", "warning", "critical"
+    title = Column(String, nullable=False)  # Short human-readable title
+
+    details_json = Column(
+        JSON, nullable=True
+    )  # Structured details: asset, expected, actual, diff, threshold
+
+    acknowledged = Column(Boolean, nullable=False, default=False)
+    acknowledged_at = Column(DateTime, nullable=True)
+
+    created_at = Column(DateTime, nullable=False, default=_utcnow)
+
+    # Relationships
+    user = relationship("User", back_populates="alert_events")
+    reconciliation_run = relationship(
+        "ReconciliationRunDB", back_populates="alert_events"
+    )
+
+    # Indexes
+    __table_args__ = (
+        Index("idx_alerts_user_ack", "user_id", "acknowledged"),
+        Index("idx_alerts_user_created", "user_id", "created_at"),
+    )
