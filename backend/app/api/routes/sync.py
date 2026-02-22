@@ -93,6 +93,12 @@ def sync_all_fills(
         total_new_fills = 0
         total_new_lots = 0
         total_allocations = 0
+        total_fills_processed = 0
+        total_fills_failed = 0
+        total_fills_skipped_fifo = 0
+        last_synced_source_id = None
+        all_fill_details = []
+        all_errors = []
 
         for _ in range(10):  # Max 10 Batches = 10,000 Trades
             result = sync_service.sync_fills(db, user_id, symbol, start_dt)
@@ -100,6 +106,21 @@ def sync_all_fills(
             total_new_fills += result["new_fills"]
             total_new_lots += result["new_lots"]
             total_allocations += result["allocations"]
+            total_fills_processed += result.get("fills_processed", 0)
+            total_fills_failed += result.get("fills_failed", 0)
+            total_fills_skipped_fifo += result.get("fills_skipped_fifo", 0)
+            all_fill_details.extend(result.get("fill_details", []))
+            all_errors.extend(result.get("errors", []))
+
+            batch_watermark = result.get("last_synced_source_id")
+            if batch_watermark is not None:
+                if last_synced_source_id is None:
+                    last_synced_source_id = batch_watermark
+                else:
+                    last_synced_source_id = max(
+                        last_synced_source_id, batch_watermark,
+                        key=lambda sid: int(sid)
+                    )
 
             if result.get("status") == "fifo_error":
                 return {
@@ -108,7 +129,13 @@ def sync_all_fills(
                     "new_fills": total_new_fills,
                     "new_lots": total_new_lots,
                     "allocations": total_allocations,
-                    "errors": result.get("errors", []),
+                    "fills_processed": total_fills_processed,
+                    "fills_failed": total_fills_failed,
+                    "fills_skipped_fifo": total_fills_skipped_fifo,
+                    "last_synced_source_id": last_synced_source_id,
+                    "fifo_aborted": True,
+                    "fill_details": all_fill_details,
+                    "errors": all_errors,
                 }
 
             if result["new_fills"] == 0:
@@ -116,12 +143,23 @@ def sync_all_fills(
 
             start_dt = start_dt - timedelta(days=30)
 
+        status = "success"
+        if total_fills_failed > 0:
+            status = "partial_success"
+
         return {
-            "status": "success",
+            "status": status,
             "message": f"Full sync completed: {total_new_fills} fills imported",
             "new_fills": total_new_fills,
             "new_lots": total_new_lots,
-            "allocations": total_allocations
+            "allocations": total_allocations,
+            "fills_processed": total_fills_processed,
+            "fills_failed": total_fills_failed,
+            "fills_skipped_fifo": total_fills_skipped_fifo,
+            "last_synced_source_id": last_synced_source_id,
+            "fifo_aborted": False,
+            "fill_details": all_fill_details,
+            "errors": all_errors,
         }
 
     except HTTPException:
