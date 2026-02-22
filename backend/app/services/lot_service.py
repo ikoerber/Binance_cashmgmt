@@ -922,6 +922,24 @@ def sync_and_refresh_lots(
             }
         )
 
+    # Auto-reconciliation after sync (RECON-01)
+    try:
+        from app.services.reconciliation_service import ReconciliationService
+
+        recon_service = ReconciliationService(binance_service)
+        recon_result = recon_service.run_and_persist(
+            db, user_id, symbol, trigger="post_sync"
+        )
+        sync_report["reconciliation"] = recon_result
+    except Exception:
+        logger.warning(
+            "Auto-reconciliation failed after sync for user=%s", user_id
+        )
+        sync_report["reconciliation"] = {
+            "status": "failed",
+            "error": "Auto-reconciliation fehlgeschlagen",
+        }
+
     # Alle Lots nach Sync abrufen (neueste zuerst)
     lots = get_lots_for_user(db, user_id)
 

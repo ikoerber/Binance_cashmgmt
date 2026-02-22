@@ -2,15 +2,27 @@
 Reconciliation Service - Synct Binance mit lokaler DB
 
 Kritisch für Production: Detektiert Diskrepanzen zwischen Binance und lokaler DB.
+Persists reconciliation runs, creates alerts, provides history API.
 """
 import logging
+import uuid
 from decimal import Decimal
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 from app.constants import BINANCE_ORDER_STATUS_MAP, map_binance_order_status
-from app.db.models import OrderDB, OrderStatusEnum, EventTypeEnum, LedgerEventDB
+from app.db.models import (
+    OrderDB,
+    OrderStatusEnum,
+    EventTypeEnum,
+    LedgerEventDB,
+    ReconciliationRunDB,
+    AlertEventDB,
+    UserSettingsDB,
+)
+from app.domain.reconciliation import evaluate_discrepancies
 from app.services.binance import BinanceService
 from app.services.order_tracking_service import OrderTrackingService
 from app.services.sync_service import SyncService
@@ -326,16 +338,287 @@ class ReconciliationService:
         """
         Runs full reconciliation (orders + balances + fills)
 
+        Uses run_and_persist() for orders+balances (persisted),
+        plus fills reconciliation separately (only manual full recon includes fills).
+
         Args:
             db: Database Session
             user_id: User ID
             symbol: Trading pair
 
         Returns:
-            Complete reconciliation report
+            Complete reconciliation report (backward-compatible shape)
         """
+        # Persist orders+balances via run_and_persist
+        recon_result = self.run_and_persist(db, user_id, symbol, trigger="manual")
+
+        # Fills reconciliation separately (only in manual full recon)
+        fills_report = self.reconcile_fills(db, user_id, symbol)
+
+        # Backward-compatible response shape
+        report = recon_result.get("report", {})
+        report["fills"] = fills_report
+
         return {
-            "orders": self.reconcile_orders(db, user_id, symbol),
-            "balances": self.reconcile_balances(db, user_id, symbol),
-            "fills": self.reconcile_fills(db, user_id, symbol)
+            "run_id": recon_result.get("run_id"),
+            "orders": report.get("orders", {}),
+            "balances": report.get("balances", {}),
+            "fills": fills_report,
         }
+
+    def run_and_persist(
+        self,
+        db: Session,
+        user_id: str,
+        symbol: str,
+        trigger: str,
+        tolerance_base: Optional[Decimal] = None,
+        tolerance_quote: Optional[Decimal] = None,
+    ) -> Dict[str, Any]:
+        """
+        Run reconciliation (balances + orders), persist as ReconciliationRunDB,
+        create AlertEventDB rows for discrepancies.
+
+        Auto-reconciliation should NEVER break the caller — all errors are caught
+        and returned as a minimal error report.
+
+        Args:
+            db: Database Session
+            user_id: User ID
+            symbol: Trading pair
+            trigger: "manual", "post_sync", "post_full_sync"
+            tolerance_base: Base asset tolerance (None = load from settings or default)
+            tolerance_quote: Quote asset tolerance (None = load from settings or default)
+
+        Returns:
+            Dict with run_id, trigger, status, has_discrepancies, alert_count, report
+        """
+        try:
+            # Load thresholds from settings if not provided
+            if tolerance_base is None or tolerance_quote is None:
+                settings_base, settings_quote = self._load_user_thresholds(db, user_id)
+                if tolerance_base is None:
+                    tolerance_base = settings_base
+                if tolerance_quote is None:
+                    tolerance_quote = settings_quote
+
+            # Run sub-reconciliations
+            balance_report = self.reconcile_balances(
+                db, user_id, symbol, tolerance_base, tolerance_quote
+            )
+            order_report = self.reconcile_orders(db, user_id, symbol)
+
+            # Combine into report
+            report = {
+                "balances": balance_report,
+                "orders": order_report,
+            }
+
+            # Evaluate discrepancies via domain function
+            alerts = evaluate_discrepancies(
+                balance_report, order_report, tolerance_base, tolerance_quote
+            )
+
+            # Determine status
+            has_errors = bool(
+                balance_report.get("errors") or order_report.get("errors")
+            )
+            status = "failed" if has_errors else "completed"
+            has_discrepancies = len(alerts) > 0
+
+            # Persist ReconciliationRunDB
+            run_id = str(uuid.uuid4())
+            run_db = ReconciliationRunDB(
+                id=run_id,
+                user_id=user_id,
+                symbol=symbol,
+                trigger=trigger,
+                status=status,
+                report_json=report,
+                has_discrepancies=has_discrepancies,
+            )
+            db.add(run_db)
+
+            # Persist AlertEventDB rows
+            for alert in alerts:
+                alert_db = AlertEventDB(
+                    id=str(uuid.uuid4()),
+                    user_id=user_id,
+                    reconciliation_run_id=run_id,
+                    alert_type=alert["alert_type"],
+                    severity=alert["severity"],
+                    title=alert["title"],
+                    details_json=alert.get("details_json"),
+                )
+                db.add(alert_db)
+
+            db.flush()
+
+            return {
+                "run_id": run_id,
+                "trigger": trigger,
+                "status": status,
+                "has_discrepancies": has_discrepancies,
+                "alert_count": len(alerts),
+                "report": report,
+            }
+
+        except Exception:
+            logger.exception(
+                "run_and_persist failed for user=%s, trigger=%s", user_id, trigger
+            )
+            return {
+                "run_id": None,
+                "trigger": trigger,
+                "status": "failed",
+                "has_discrepancies": False,
+                "alert_count": 0,
+                "report": {"error": "Reconciliation fehlgeschlagen"},
+            }
+
+    def get_reconciliation_history(
+        self,
+        db: Session,
+        user_id: str,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> Dict[str, Any]:
+        """
+        Query past reconciliation runs for a user.
+
+        Args:
+            db: Database Session
+            user_id: User ID
+            limit: Max results (default 20)
+            offset: Pagination offset
+
+        Returns:
+            Dict with 'runs' list and 'total' count
+        """
+        base_query = db.query(ReconciliationRunDB).filter(
+            ReconciliationRunDB.user_id == user_id
+        )
+
+        total = base_query.count()
+
+        runs_db = (
+            base_query.order_by(ReconciliationRunDB.created_at.desc())
+            .limit(limit)
+            .offset(offset)
+            .all()
+        )
+
+        runs = []
+        for run in runs_db:
+            alert_count = (
+                db.query(func.count(AlertEventDB.id))
+                .filter(AlertEventDB.reconciliation_run_id == run.id)
+                .scalar()
+            )
+            runs.append({
+                "id": run.id,
+                "symbol": run.symbol,
+                "trigger": run.trigger,
+                "status": run.status,
+                "has_discrepancies": run.has_discrepancies,
+                "alert_count": alert_count or 0,
+                "created_at": run.created_at.isoformat() if run.created_at else None,
+            })
+
+        return {"runs": runs, "total": total}
+
+    def get_reconciliation_run(
+        self, db: Session, user_id: str, run_id: str
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Get a single reconciliation run with full report and alerts.
+
+        IDOR-protected via user_id filter.
+
+        Args:
+            db: Database Session
+            user_id: User ID
+            run_id: Reconciliation run ID
+
+        Returns:
+            Dict with full run details or None if not found
+        """
+        run_db = (
+            db.query(ReconciliationRunDB)
+            .filter(
+                ReconciliationRunDB.id == run_id,
+                ReconciliationRunDB.user_id == user_id,
+            )
+            .first()
+        )
+
+        if not run_db:
+            return None
+
+        # Load associated alerts
+        alerts_db = (
+            db.query(AlertEventDB)
+            .filter(AlertEventDB.reconciliation_run_id == run_id)
+            .order_by(AlertEventDB.created_at.asc())
+            .all()
+        )
+
+        alerts = [
+            {
+                "id": a.id,
+                "alert_type": a.alert_type,
+                "severity": a.severity,
+                "title": a.title,
+                "details_json": a.details_json,
+                "acknowledged": a.acknowledged,
+                "created_at": a.created_at.isoformat() if a.created_at else None,
+            }
+            for a in alerts_db
+        ]
+
+        return {
+            "id": run_db.id,
+            "user_id": run_db.user_id,
+            "symbol": run_db.symbol,
+            "trigger": run_db.trigger,
+            "status": run_db.status,
+            "has_discrepancies": run_db.has_discrepancies,
+            "report_json": run_db.report_json,
+            "alert_count": len(alerts),
+            "alerts": alerts,
+            "created_at": run_db.created_at.isoformat() if run_db.created_at else None,
+        }
+
+    @staticmethod
+    def _load_user_thresholds(
+        db: Session, user_id: str
+    ) -> tuple[Decimal, Decimal]:
+        """
+        Load reconciliation tolerance thresholds from user settings.
+
+        Returns (tolerance_base, tolerance_quote) with defaults if not configured.
+        """
+        default_base = Decimal("0.0001")
+        default_quote = Decimal("1.00")
+
+        settings = (
+            db.query(UserSettingsDB)
+            .filter(UserSettingsDB.user_id == user_id)
+            .first()
+        )
+
+        if not settings:
+            return default_base, default_quote
+
+        tolerance_base = (
+            settings.recon_tolerance_base
+            if settings.recon_tolerance_base is not None
+            else default_base
+        )
+        tolerance_quote = (
+            settings.recon_tolerance_quote
+            if settings.recon_tolerance_quote is not None
+            else default_quote
+        )
+
+        return Decimal(str(tolerance_base)), Decimal(str(tolerance_quote))
