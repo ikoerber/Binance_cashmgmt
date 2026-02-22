@@ -18,11 +18,10 @@ logger = logging.getLogger(__name__)
 from app.services.binance import BinanceService
 from app.services.lot_service import create_lot_from_buy_fill, process_sell_fill
 from app.domain.models import LedgerEvent, TradeSide, EventType
+from app.domain.sync_result import SyncResult, FillResult, FillOutcome
 from app.utils.fee_conversion import compute_fee_quote_value
 from app.db.models import LedgerEventDB, EventTypeEnum, EventSourceEnum, TradeSideEnum
 from app.symbol_registry import get_base_asset, get_quote_asset
-
-# TradeSideEnum needed for Phase 1 buy-lot loop side check (already imported above)
 
 
 def persist_ledger_event(
@@ -95,6 +94,10 @@ class SyncService:
         4. Erstelle TradeLots für Buy-Fills
         5. Führe FIFO Allocation für Sell-Fills durch
 
+        Returns a backward-compatible dict with additional per-fill tracking
+        fields (fills_processed, fills_failed, fills_skipped_fifo,
+        last_synced_source_id, fifo_aborted, fill_details).
+
         Args:
             db: Database Session
             user_id: User ID
@@ -102,7 +105,7 @@ class SyncService:
             start_time: Optional - nur Fills nach diesem Zeitpunkt
 
         Returns:
-            Sync-Report Dict
+            Sync-Report Dict (via SyncResult.to_dict())
         """
         # 1. Fills von Binance holen
         fills = self.binance_service.fetch_trades(symbol, start_time)
@@ -111,13 +114,10 @@ class SyncService:
         new_fills = self._filter_new_fills(db, user_id, fills)
 
         if not new_fills:
-            return {
-                "status": "success",
-                "new_fills": 0,
-                "new_lots": 0,
-                "allocations": 0,
-                "message": "No new fills to sync"
-            }
+            return SyncResult(
+                fills_total=len(fills),
+                fills_new=0,
+            ).to_dict()
 
         # 3. Historische Fee-Konvertierungsraten pro Fill abrufen
         per_fill_rates = self._get_per_fill_fee_conversion_rates(new_fills, symbol)
@@ -127,7 +127,8 @@ class SyncService:
 
         # 4. Ledger Events persistieren (mit fee_quote_value)
         quote_asset = get_quote_asset(symbol)
-        created_events = []
+        # Track (event_db, fill_rates, original_fill) for per-fill result building
+        created_events: List[tuple] = []
         for fill in new_fills:
             fill_rates = per_fill_rates.get(fill.id, {})
             fee_quote_value = compute_fee_quote_value(
@@ -137,66 +138,106 @@ class SyncService:
                 base_asset=get_base_asset(symbol),
             )
             event_db = self._persist_ledger_event(db, user_id, fill, fee_quote_value=fee_quote_value)
-            created_events.append((event_db, fill_rates))
+            created_events.append((event_db, fill_rates, fill))
 
         db.flush()
 
-        # 5. TradeLots und Allocations erstellen
+        # 5. TradeLots und Allocations erstellen with per-fill tracking
         # WICHTIG: Erst ALLE Buy-Lots erstellen, dann Sells allokieren.
         # Grund: Sells können chronologisch vor Buys im gleichen Batch liegen
         # (z.B. Limit-Sell gefüllt um 03:00, Buy um 09:00), brauchen aber
         # die Lots aus diesen Buys für die FIFO Allocation.
         new_lots_count = 0
         allocations_count = 0
-        errors = []
+        fill_results: List[FillResult] = []
 
         # Phase 1: Alle Buy-Lots erstellen
-        for event_db, fill_rates in created_events:
+        for event_db, fill_rates, original_fill in created_events:
             if event_db.side == TradeSideEnum.BUY:
                 try:
                     quote_rate = quote_to_eur_rates.get(event_db.id)
                     create_lot_from_buy_fill(db, user_id, event_db.id, fill_rates, quote_to_eur_rate=quote_rate)
                     new_lots_count += 1
+                    fill_results.append(FillResult(
+                        source_id=original_fill.source_id,
+                        fill_id=event_db.id,
+                        side="BUY",
+                        outcome=FillOutcome.PROCESSED,
+                        timestamp=original_fill.timestamp,
+                    ))
                 except Exception as e:
-                    errors.append(f"Error creating lot from buy fill {event_db.id}: {e}")
+                    fill_results.append(FillResult(
+                        source_id=original_fill.source_id,
+                        fill_id=event_db.id,
+                        side="BUY",
+                        outcome=FillOutcome.FAILED,
+                        error=f"Error creating lot from buy fill {event_db.id}: {e}",
+                        timestamp=original_fill.timestamp,
+                    ))
 
         # Phase 2: Sell-Fills chronologisch allokieren (FIFO)
         # WICHTIG: Bei Fehler ABBRECHEN — weitermachen wuerde FIFO-Invariante verletzen,
         # da nachfolgende Sells auf falschen Lots allokiert wuerden.
         sell_events = sorted(
-            [(e, r) for e, r in created_events if e.side == TradeSideEnum.SELL],
-            key=lambda pair: pair[0].timestamp
+            [(e, r, f) for e, r, f in created_events if e.side == TradeSideEnum.SELL],
+            key=lambda triple: triple[0].timestamp
         )
         fifo_aborted = False
-        for event_db, fill_rates in sell_events:
+        for idx, (event_db, fill_rates, original_fill) in enumerate(sell_events):
             try:
                 result = process_sell_fill(db, user_id, event_db.id, fill_rates)
                 allocations_count += len(result["allocations"])
+                fill_results.append(FillResult(
+                    source_id=original_fill.source_id,
+                    fill_id=event_db.id,
+                    side="SELL",
+                    outcome=FillOutcome.PROCESSED,
+                    timestamp=original_fill.timestamp,
+                ))
             except Exception as e:
-                errors.append(f"Error processing sell fill {event_db.id}: {e}")
+                fill_results.append(FillResult(
+                    source_id=original_fill.source_id,
+                    fill_id=event_db.id,
+                    side="SELL",
+                    outcome=FillOutcome.FAILED,
+                    error=f"Error processing sell fill {event_db.id}: {e}",
+                    timestamp=original_fill.timestamp,
+                ))
                 logger.error(
                     "FIFO allocation aborted: sell fill %s failed for user=%s. "
                     "Remaining sells skipped to preserve FIFO invariant.",
                     event_db.id, user_id
                 )
                 fifo_aborted = True
+                # Mark remaining sells as SKIPPED_FIFO
+                for remaining_event_db, _, remaining_fill in sell_events[idx + 1:]:
+                    fill_results.append(FillResult(
+                        source_id=remaining_fill.source_id,
+                        fill_id=remaining_event_db.id,
+                        side="SELL",
+                        outcome=FillOutcome.SKIPPED_FIFO,
+                        timestamp=remaining_fill.timestamp,
+                    ))
                 break  # FIFO-Invariante schuetzen: nicht weitermachen
 
-        if fifo_aborted:
-            status = "fifo_error"
-        elif errors:
-            status = "partial_success"
-        else:
-            status = "success"
-        return {
-            "status": status,
-            "new_fills": len(new_fills),
-            "new_lots": new_lots_count,
-            "allocations": allocations_count,
-            "errors": errors,
-            "message": f"Synced {len(new_fills)} fills, created {new_lots_count} lots, {allocations_count} allocations"
-                       + (f", {len(errors)} errors" if errors else "")
-        }
+        # Build SyncResult with per-fill tracking
+        fills_processed = sum(1 for fr in fill_results if fr.outcome == FillOutcome.PROCESSED)
+        fills_failed = sum(1 for fr in fill_results if fr.outcome == FillOutcome.FAILED)
+        fills_skipped_fifo = sum(1 for fr in fill_results if fr.outcome == FillOutcome.SKIPPED_FIFO)
+
+        sync_result = SyncResult(
+            fills_total=len(fills),
+            fills_new=len(new_fills),
+            fills_processed=fills_processed,
+            fills_failed=fills_failed,
+            fills_skipped_fifo=fills_skipped_fifo,
+            new_lots=new_lots_count,
+            allocations=allocations_count,
+            fill_results=fill_results,
+            fifo_aborted=fifo_aborted,
+        )
+
+        return sync_result.to_dict()
 
     def sync_fiat(
         self,

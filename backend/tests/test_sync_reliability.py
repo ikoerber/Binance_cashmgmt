@@ -7,13 +7,11 @@ Tests the SyncResult domain model (pure) and sync_fills behavior (mocked):
 - SYNC-02 verification: Phase 5 retry wiring smoke test
 """
 
-import pytest
 from datetime import datetime
 from decimal import Decimal
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 
 from app.domain.sync_result import FillOutcome, FillResult, SyncResult
-
 
 # ============================================================
 # Helpers
@@ -49,9 +47,13 @@ def _make_sync_result(
     """Create a SyncResult for testing."""
     if fill_results is None:
         fill_results = []
-    fills_processed = sum(1 for fr in fill_results if fr.outcome == FillOutcome.PROCESSED)
+    fills_processed = sum(
+        1 for fr in fill_results if fr.outcome == FillOutcome.PROCESSED
+    )
     fills_failed = sum(1 for fr in fill_results if fr.outcome == FillOutcome.FAILED)
-    fills_skipped_fifo = sum(1 for fr in fill_results if fr.outcome == FillOutcome.SKIPPED_FIFO)
+    fills_skipped_fifo = sum(
+        1 for fr in fill_results if fr.outcome == FillOutcome.SKIPPED_FIFO
+    )
     return SyncResult(
         fills_total=fills_total,
         fills_new=fills_new,
@@ -106,7 +108,9 @@ class TestSyncReliability:
         """fifo_aborted=True -> status 'fifo_error'."""
         result = _make_sync_result(
             fill_results=[
-                _make_fill_result("1", side="SELL", outcome=FillOutcome.FAILED, error="FIFO fail"),
+                _make_fill_result(
+                    "1", side="SELL", outcome=FillOutcome.FAILED, error="FIFO fail"
+                ),
                 _make_fill_result("2", side="SELL", outcome=FillOutcome.SKIPPED_FIFO),
             ],
             fills_total=5,
@@ -277,19 +281,19 @@ class TestSyncFillsIntegration:
         # No existing fills in DB
         mock_db.query.return_value.filter.return_value.all.return_value = []
 
-        with patch("app.services.sync_service.persist_ledger_event") as mock_persist, \
-             patch("app.services.sync_service.create_lot_from_buy_fill") as mock_create_lot, \
-             patch("app.services.sync_service.compute_fee_quote_value", return_value=None):
+        with patch(
+            "app.services.sync_service.persist_ledger_event"
+        ) as mock_persist, patch(
+            "app.services.sync_service.create_lot_from_buy_fill"
+        ), patch(
+            "app.services.sync_service.compute_fee_quote_value", return_value=None
+        ):
             # Mock persist to return event_db with proper side
             from app.db.models import TradeSideEnum
-            for i, fill in enumerate(fills):
-                event_db = MagicMock()
-                event_db.id = fill.id
-                event_db.side = TradeSideEnum.BUY
-                event_db.timestamp = fill.timestamp
-                mock_persist.side_effect = lambda db, uid, ev, fee_quote_value=None, _fills=fills: (
-                    MagicMock(id=ev.id, side=TradeSideEnum.BUY, timestamp=ev.timestamp)
-                )
+
+            mock_persist.side_effect = lambda db, uid, ev, fee_quote_value=None: (
+                MagicMock(id=ev.id, side=TradeSideEnum.BUY, timestamp=ev.timestamp)
+            )
 
             result = service.sync_fills(mock_db, "user_1", "BTCEUR")
 
@@ -309,10 +313,15 @@ class TestSyncFillsIntegration:
         mock_binance.fetch_trades.return_value = fills
         mock_db.query.return_value.filter.return_value.all.return_value = []
 
-        with patch("app.services.sync_service.persist_ledger_event") as mock_persist, \
-             patch("app.services.sync_service.create_lot_from_buy_fill") as mock_create_lot, \
-             patch("app.services.sync_service.compute_fee_quote_value", return_value=None):
+        with patch(
+            "app.services.sync_service.persist_ledger_event"
+        ) as mock_persist, patch(
+            "app.services.sync_service.create_lot_from_buy_fill"
+        ) as mock_create_lot, patch(
+            "app.services.sync_service.compute_fee_quote_value", return_value=None
+        ):
             from app.db.models import TradeSideEnum
+
             mock_persist.side_effect = lambda db, uid, ev, fee_quote_value=None: (
                 MagicMock(id=ev.id, side=TradeSideEnum.BUY, timestamp=ev.timestamp)
             )
@@ -340,10 +349,15 @@ class TestSyncFillsIntegration:
         mock_binance.fetch_trades.return_value = fills
         mock_db.query.return_value.filter.return_value.all.return_value = []
 
-        with patch("app.services.sync_service.persist_ledger_event") as mock_persist, \
-             patch("app.services.sync_service.process_sell_fill") as mock_sell, \
-             patch("app.services.sync_service.compute_fee_quote_value", return_value=None):
+        with patch(
+            "app.services.sync_service.persist_ledger_event"
+        ) as mock_persist, patch(
+            "app.services.sync_service.process_sell_fill"
+        ) as mock_sell, patch(
+            "app.services.sync_service.compute_fee_quote_value", return_value=None
+        ):
             from app.db.models import TradeSideEnum
+
             mock_persist.side_effect = lambda db, uid, ev, fee_quote_value=None: (
                 MagicMock(id=ev.id, side=TradeSideEnum.SELL, timestamp=ev.timestamp)
             )
@@ -369,10 +383,15 @@ class TestSyncFillsIntegration:
         mock_binance.fetch_trades.return_value = fills
         mock_db.query.return_value.filter.return_value.all.return_value = []
 
-        with patch("app.services.sync_service.persist_ledger_event") as mock_persist, \
-             patch("app.services.sync_service.create_lot_from_buy_fill"), \
-             patch("app.services.sync_service.compute_fee_quote_value", return_value=None):
+        with patch(
+            "app.services.sync_service.persist_ledger_event"
+        ) as mock_persist, patch(
+            "app.services.sync_service.create_lot_from_buy_fill"
+        ), patch(
+            "app.services.sync_service.compute_fee_quote_value", return_value=None
+        ):
             from app.db.models import TradeSideEnum
+
             mock_persist.side_effect = lambda db, uid, ev, fee_quote_value=None: (
                 MagicMock(id=ev.id, side=TradeSideEnum.BUY, timestamp=ev.timestamp)
             )
@@ -390,10 +409,15 @@ class TestSyncFillsIntegration:
         mock_binance.fetch_trades.return_value = fills
         mock_db.query.return_value.filter.return_value.all.return_value = []
 
-        with patch("app.services.sync_service.persist_ledger_event") as mock_persist, \
-             patch("app.services.sync_service.create_lot_from_buy_fill"), \
-             patch("app.services.sync_service.compute_fee_quote_value", return_value=None):
+        with patch(
+            "app.services.sync_service.persist_ledger_event"
+        ) as mock_persist, patch(
+            "app.services.sync_service.create_lot_from_buy_fill"
+        ), patch(
+            "app.services.sync_service.compute_fee_quote_value", return_value=None
+        ):
             from app.db.models import TradeSideEnum
+
             mock_persist.side_effect = lambda db, uid, ev, fee_quote_value=None: (
                 MagicMock(id=ev.id, side=TradeSideEnum.BUY, timestamp=ev.timestamp)
             )
@@ -401,7 +425,14 @@ class TestSyncFillsIntegration:
             result = service.sync_fills(mock_db, "user_1", "BTCEUR")
 
         # All backward-compat keys present
-        for key in ["status", "new_fills", "new_lots", "allocations", "errors", "message"]:
+        for key in [
+            "status",
+            "new_fills",
+            "new_lots",
+            "allocations",
+            "errors",
+            "message",
+        ]:
             assert key in result, f"Missing backward-compat key: {key}"
 
 
@@ -422,7 +453,6 @@ class TestSyncRetryWiring:
         import requests
 
         from app.services.binance import BinanceService
-        from app.services.sync_service import SyncService
 
         # Create a real BinanceService with mocked client
         mock_client = MagicMock()
