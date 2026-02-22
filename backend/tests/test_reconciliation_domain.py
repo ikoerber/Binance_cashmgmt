@@ -96,9 +96,9 @@ class TestEvaluateDiscrepancies:
             },
             "quote": {
                 "asset": "EUR",
-                "binance": "5010.00",
+                "binance": "5015.00",
                 "calculated": "5000.00",
-                "diff": "10.00",
+                "diff": "15.00",
                 "within_tolerance": False,
             },
             "errors": [],
@@ -115,7 +115,7 @@ class TestEvaluateDiscrepancies:
         assert len(result) == 1
         alert = result[0]
         assert alert["alert_type"] == "BALANCE_DISCREPANCY"
-        assert alert["severity"] == "critical"  # 10.00 > 1.00 * 10
+        assert alert["severity"] == "critical"  # 15.00 > 1.00 * 10
         assert "EUR" in alert["title"]
         assert alert["details_json"]["asset"] == "EUR"
 
