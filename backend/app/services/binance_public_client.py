@@ -47,7 +47,15 @@ class BinancePublicClient:
     - Kein API-Key, kein Testnet-Switch (oeffentliche Daten sind identisch)
     - Retry mit Exponential Backoff bei 429/5xx
     - Zentralisiert URL, Timeout und Error-Handling
+    - Timeout konfigurierbar (Default: TIMEOUT Modul-Konstante)
     """
+
+    def __init__(self, timeout: int = TIMEOUT):
+        """
+        Args:
+            timeout: Request Timeout in Sekunden (Default: 10)
+        """
+        self.timeout = timeout
 
     @retry_on_transient_error()
     def get_ticker_price(self, symbol: str) -> Decimal:
@@ -65,7 +73,7 @@ class BinancePublicClient:
         resp = requests.get(
             f"{BASE_URL}/api/v3/ticker/price",
             params={"symbol": symbol},
-            timeout=TIMEOUT,
+            timeout=self.timeout,
         )
         resp.raise_for_status()
         return Decimal(resp.json()["price"])
@@ -103,7 +111,7 @@ class BinancePublicClient:
         resp = requests.get(
             f"{BASE_URL}/api/v3/klines",
             params=params,
-            timeout=TIMEOUT,
+            timeout=self.timeout,
         )
         resp.raise_for_status()
         return resp.json()
@@ -115,11 +123,15 @@ _instance: Optional[BinancePublicClient] = None
 _instance_lock = threading.Lock()
 
 
-def get_binance_public_client() -> BinancePublicClient:
-    """Liefert Singleton-Instanz des BinancePublicClient."""
+def get_binance_public_client(timeout: Optional[int] = None) -> BinancePublicClient:
+    """Liefert Singleton-Instanz des BinancePublicClient.
+
+    Args:
+        timeout: Optional timeout override (nur bei Erstinitialisierung wirksam)
+    """
     global _instance
     if _instance is None:
         with _instance_lock:
             if _instance is None:
-                _instance = BinancePublicClient()
+                _instance = BinancePublicClient(timeout=timeout or TIMEOUT)
     return _instance

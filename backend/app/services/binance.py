@@ -28,7 +28,7 @@ class BinanceService:
     - Exponential Backoff fuer 429/5xx via @retry_on_transient_error
     """
 
-    def __init__(self, api_key: str, api_secret: str, testnet: bool = False):
+    def __init__(self, api_key: str, api_secret: str, testnet: bool = False, timeout: int = 10):
         """
         Initialisiert Binance Client
 
@@ -36,11 +36,14 @@ class BinanceService:
             api_key: Binance API Key
             api_secret: Binance API Secret
             testnet: True für Testnet, False für Production
+            timeout: Request Timeout in Sekunden (Default: 10)
         """
+        self.timeout = timeout
+        req_params = {"timeout": timeout}
         if testnet:
-            self.client = Client(api_key, api_secret, testnet=True)
+            self.client = Client(api_key, api_secret, testnet=True, requests_params=req_params)
         else:
-            self.client = Client(api_key, api_secret)
+            self.client = Client(api_key, api_secret, requests_params=req_params)
 
     def fetch_trades(
         self,
@@ -214,6 +217,35 @@ class BinanceService:
             source_id=trade_id,
             raw_payload=trade,
         )
+
+    # ===== Wrapper-Methoden fuer direkten Client-Zugriff =====
+    # Consumer-Services (order_service, order_tracking_service, reconciliation_service,
+    # portfolio_service) nutzen diese Methoden statt self.binance_service.client.*
+    # Damit profitieren alle Calls von Timeout + Retry.
+
+    def create_order(self, **kwargs) -> dict:
+        """Binance Order erstellen. KEIN Retry — Duplikat-Risiko."""
+        return self.client.create_order(**kwargs)
+
+    @retry_on_transient_error()
+    def get_order(self, symbol: str, **kwargs) -> dict:
+        """Order-Status abfragen (retryable)."""
+        return self.client.get_order(symbol=symbol, **kwargs)
+
+    @retry_on_transient_error()
+    def cancel_order(self, symbol: str, orderId: int) -> dict:
+        """Order stornieren (retryable)."""
+        return self.client.cancel_order(symbol=symbol, orderId=orderId)
+
+    @retry_on_transient_error()
+    def get_open_orders(self, symbol: str) -> list:
+        """Offene Orders abfragen (retryable)."""
+        return self.client.get_open_orders(symbol=symbol)
+
+    @retry_on_transient_error()
+    def get_account(self) -> dict:
+        """Account-Info abfragen (retryable)."""
+        return self.client.get_account()
 
     @retry_on_transient_error()
     def fetch_account_balance(self) -> dict:
