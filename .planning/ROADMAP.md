@@ -74,20 +74,25 @@ Plans:
 - [ ] 07-01-PLAN.md — DB models (ReconciliationRunDB, AlertEventDB) + Alembic migration + TDD evaluate_discrepancies domain logic
 - [ ] 07-02-PLAN.md — Service integration (auto-reconciliation after sync, persistence, alert creation) + API (history endpoint, settings extension)
 
-### Phase 8: Alert System
-**Goal**: User sieht Sync-Fehler und Diskrepanzen sofort im Frontend und kann sie bestaetigen
+### Phase 8: Alert System + Frontend Observability
+**Goal**: User sieht Sync-Fehler, Diskrepanzen und Reconciliation-Historie im Frontend — Alerts persistent und bestaetigt/dismissbar, Backend-Daten vollstaendig konsumiert
 **Depends on**: Phase 7
 **Requirements**: ALERT-01, ALERT-02, ALERT-03
+**Gap Closure**: Closes audit gaps — ALERT-01/02/03 (unsatisfied), integration (sync response → Frontend, history API → Frontend), flows (sync fill errors in UI, reconciliation history view), tech debt (Settings threshold UI)
 **Success Criteria** (what must be TRUE):
   1. Sync-Fehler und Diskrepanzen erscheinen als Banner oder Toast im Frontend — der User muss nicht manuell auf die Reconciliation-Seite navigieren
   2. Alert-Events werden als strukturierte Log-Eintraege geschrieben (JSON-Format mit Typ, Severity, Zeitstempel, Details) fuer externes Monitoring
   3. Alerts sind persistent (bleiben sichtbar ueber Page-Refreshes) und koennen vom User bestaetigt/dismissed werden
   4. Dismissed Alerts verschwinden aus der UI, bleiben aber im Log erhalten
+  5. Sync-Response fill_details (fills_processed, fills_failed, fills_skipped_fifo) werden im Frontend nach einem Sync sichtbar angezeigt
+  6. Reconciliation-Historie ist ueber GET /api/reconciliation/{user_id}/history im Frontend abrufbar und darstellbar
+  7. Reconciliation-Threshold-Werte (recon_tolerance_base, recon_tolerance_quote) sind in der Settings-Seite konfigurierbar
 **Plans**: TBD
 
 Plans:
 - [ ] 08-01: TBD
 - [ ] 08-02: TBD
+- [ ] 08-03: TBD
 
 ## Progress
 
