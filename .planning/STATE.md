@@ -2,19 +2,16 @@
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-02-20)
+See: .planning/PROJECT.md (updated 2026-02-22)
 
 **Core value:** XRP-Lots unabhaengig vom Quote-Asset (EUR oder BTC) in einem Pairing buendeln und ueber das ertragreichere Pair verkaufen
-**Current focus:** Phase 4 complete -- all 4 phases done, all requirements met.
+**Current focus:** v1.0 shipped — planning next milestone
 
 ## Current Position
 
-Phase: 4 of 4 (Sell Routing)
-Plan: 2 of 2 in current phase (COMPLETE)
-Status: All plans complete. Project finished.
-Last activity: 2026-02-22 -- Completed 04-02-PLAN.md
-
-Progress: [##########] 100% (Phase 4)
+Milestone: v1.0 XRP Cross-Pair Pairing — SHIPPED 2026-02-22
+Status: Milestone complete. Next milestone not yet started.
+Last activity: 2026-02-22 — Milestone v1.0 archived
 
 ## Performance Metrics
 
@@ -32,10 +29,6 @@ Progress: [##########] 100% (Phase 4)
 | 03 Cross-Pair Pairing | 3 | 12min | 4min |
 | 04 Sell Routing | 2 | 9min | 4.5min |
 
-**Recent Trend:**
-- Last 5 plans: 03-01 (4min), 03-02 (5min), 03-03 (3min), 04-01 (4min), 04-02 (5min)
-- Trend: stable
-
 *Updated after each plan completion*
 
 ## Accumulated Context
@@ -43,39 +36,7 @@ Progress: [##########] 100% (Phase 4)
 ### Decisions
 
 Decisions are logged in PROJECT.md Key Decisions table.
-Recent decisions affecting current work:
-
-- [Roadmap]: Phases 1 and 2 are independent -- can be planned and executed in any order or in parallel
-- [Roadmap]: 4 phases derived from 4 natural requirement categories (ALLOC, COST, PAIR, ROUTE)
-- [Research]: Existing `get_historical_price()` pattern reused for BTC/EUR rate conversion (no new services)
-- [Phase 01]: Base-asset filtering at service layer (DB query level), not domain layer
-- [Phase 01]: get_symbols_for_base_asset() raises ValueError for unknown base-asset (consistent with get_base_asset())
-- [Phase 02-01]: cost_eur and quote_to_eur_rate use Optional[Decimal] with None default for backward compatibility and backfill support
-- [Phase 02-01]: EUR-quoted lots auto-detect via get_quote_asset() -- no caller action needed
-- [Phase 02-01]: break_even_eur returns None (not zero) when cost_eur is unknown or qty is zero
-- [Phase 02-02]: Separate _get_quote_to_eur_rates() from _get_per_fill_fee_conversion_rates() to avoid cache key collisions
-- [Phase 02-02]: Migration backfills EUR-quoted lots via SQL; BTC-quoted lots require standalone script with Binance API calls
-- [Phase 02-02]: csv_import_service.py intentionally unchanged -- backward compatible, backfill via script for non-EUR lots
-- [Phase 02-02]: WebSocket fill handler fetches quote_to_eur_rate inline for real-time non-EUR buy fills
-- [Phase 03-01]: suggest_pairings use_eur_cost defaults to False -- all existing callers produce identical results without changes
-- [Phase 03-01]: Cross-pair base_asset derived from get_base_asset(lots[0].symbol) -- consistent with symbol_registry pattern
-- [Phase 03-01]: Dual-route indirect fees are compounded (two fee steps) not additive -- matches real Binance trading flow
-- [Phase 03-01]: PairingItem.cost_eur and lot_symbol are None in default mode -- clean single-pair vs cross-pair separation
-- [Phase 03-02]: Existing with_for_update() row-level locking preserved in create_pairing -- base_asset fields set AFTER locked query
-- [Phase 03-02]: xrpbtc_price and btceur_price transported as Decimal strings (not float) per Decimal-String-Transport invariant
-- [Phase 03-02]: cost_eur on PairingItemDB computed proportionally from lot's cost_eur based on qty_base/qty_base_initial ratio
-- [Phase 03-02]: Existing pairings get base_asset=NULL in migration -- no backfill needed
-- [Phase 03-03]: Secondary prices (XRPBTC, BTCEUR) sourced from WebSocket prices map -- no additional REST calls
-- [Phase 03-03]: Graceful degradation: if secondary prices unavailable, simulation works without dual-route section
-- [Phase 03-03]: Cross-Pair toggle hidden entirely when base asset has only one symbol (e.g., BTC)
-- [Phase 04-01]: Satoshi encoding (price * 1e8) for XRPBTC client_order_id to prevent sub-1 price collisions
-- [Phase 04-01]: Symbol-aware precision from symbol_registry instead of hardcoded quantizers
-- [Phase 04-01]: btceur_rate parameter optional with fallback for backward compatibility
-- [Phase 04-01]: BTCEUR base_precision=8 now correctly applied (was hardcoded to 5 decimals before)
-- [Phase 04-02]: Routing decision persisted in order_service (not pairing_service) -- order_service has routing context from price fetching
-- [Phase 04-02]: routing_decision_json included in list_pairings for persistent display on EXECUTED pairings
-- [Phase 04-02]: EUR-equivalent max order value uses btceur_price from same routing decision snapshot
-- [Phase 04-02]: Client order ID format updated to symbol-aware format matching Plan 01 domain logic
+Full decision log archived in milestones/v1.0-phases/ SUMMARY.md files.
 
 ### Pending Todos
 
@@ -88,5 +49,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-22
-Stopped at: Completed 04-02-PLAN.md (Phase 4 complete, all phases done)
+Stopped at: Milestone v1.0 archived
 Resume file: None
