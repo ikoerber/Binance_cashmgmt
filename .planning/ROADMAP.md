@@ -80,7 +80,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 04-01-PLAN.md -- TDD: Cross-pair P&L domain logic (EUR-normalized realized P&L, RoutingDecision dataclass, order params fixes)
+- [x] 04-01-PLAN.md -- TDD: Cross-pair P&L domain logic (EUR-normalized realized P&L, RoutingDecision dataclass, order params fixes)
 - [ ] 04-02-PLAN.md -- Service integration + DB migration + API + frontend (route selection in execution, routing persistence, EUR P&L allocation, routing display)
 
 ## Progress
@@ -95,4 +95,4 @@ Dependency graph: `(Phase 1 || Phase 2) -> Phase 3 -> Phase 4`
 | 1. Sell Allocation Symbol Isolation | 1/1 | Complete | 2026-02-20 |
 | 2. EUR Cost Basis | 2/2 | Complete | 2026-02-20 |
 | 3. Cross-Pair Pairing | 3/3 | Complete    | 2026-02-20 |
-| 4. Sell Routing | 0/2 | Not started | - |
+| 4. Sell Routing | 1/2 | In progress | - |

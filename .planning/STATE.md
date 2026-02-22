@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-20)
 
 **Core value:** XRP-Lots unabhaengig vom Quote-Asset (EUR oder BTC) in einem Pairing buendeln und ueber das ertragreichere Pair verkaufen
-**Current focus:** Phase 3 complete -- all 3 plans done. Phase 4 (Sell Routing) next.
+**Current focus:** Phase 4 in progress -- Plan 1 of 2 done (domain logic). Plan 2 (service integration) next.
 
 ## Current Position
 
-Phase: 3 of 4 (Cross-Pair Pairing)
-Plan: 3 of 3 in current phase
-Status: Phase 3 complete (all plans done: domain, service+API, frontend)
-Last activity: 2026-02-20 -- Completed 03-03-PLAN.md
+Phase: 4 of 4 (Sell Routing)
+Plan: 1 of 2 in current phase
+Status: Plan 04-01 complete (domain logic: cross-pair P&L, RoutingDecision, order params)
+Last activity: 2026-02-22 -- Completed 04-01-PLAN.md
 
-Progress: [##########] 100% (Phase 3)
+Progress: [#####-----] 50% (Phase 4)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 6
+- Total plans completed: 7
 - Average duration: 3.7min
-- Total execution time: 22min
+- Total execution time: 26min
 
 **By Phase:**
 
@@ -30,9 +30,10 @@ Progress: [##########] 100% (Phase 3)
 | 01 Sell Allocation | 1 | 3min | 3min |
 | 02 EUR Cost Basis | 2 | 7min | 3.5min |
 | 03 Cross-Pair Pairing | 3 | 12min | 4min |
+| 04 Sell Routing | 1 | 4min | 4min |
 
 **Recent Trend:**
-- Last 5 plans: 02-01 (3min), 02-02 (4min), 03-01 (4min), 03-02 (5min), 03-03 (3min)
+- Last 5 plans: 02-02 (4min), 03-01 (4min), 03-02 (5min), 03-03 (3min), 04-01 (4min)
 - Trend: stable
 
 *Updated after each plan completion*
@@ -67,6 +68,10 @@ Recent decisions affecting current work:
 - [Phase 03-03]: Secondary prices (XRPBTC, BTCEUR) sourced from WebSocket prices map -- no additional REST calls
 - [Phase 03-03]: Graceful degradation: if secondary prices unavailable, simulation works without dual-route section
 - [Phase 03-03]: Cross-Pair toggle hidden entirely when base asset has only one symbol (e.g., BTC)
+- [Phase 04-01]: Satoshi encoding (price * 1e8) for XRPBTC client_order_id to prevent sub-1 price collisions
+- [Phase 04-01]: Symbol-aware precision from symbol_registry instead of hardcoded quantizers
+- [Phase 04-01]: btceur_rate parameter optional with fallback for backward compatibility
+- [Phase 04-01]: BTCEUR base_precision=8 now correctly applied (was hardcoded to 5 decimals before)
 
 ### Pending Todos
 
@@ -78,6 +83,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-20
-Stopped at: Completed 03-03-PLAN.md (Phase 3 complete, Phase 4 Sell Routing next)
+Last session: 2026-02-22
+Stopped at: Completed 04-01-PLAN.md (Phase 4 domain logic done, Plan 02 service integration next)
 Resume file: None
