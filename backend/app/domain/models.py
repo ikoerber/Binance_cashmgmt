@@ -274,6 +274,32 @@ class DualRouteComparison:
 
 
 @dataclass
+class RoutingDecision:
+    """Audit record of a sell routing decision at pairing execution time."""
+    selected_route: str           # "XRPEUR" or "XRPBTC"
+    xrpeur_price: Decimal
+    xrpbtc_price: Decimal
+    btceur_price: Decimal
+    direct_net_eur: Decimal       # Net EUR proceeds via direct route
+    indirect_net_eur: Decimal     # Net EUR proceeds via indirect route
+    eur_difference: Decimal       # |direct - indirect|
+    timestamp: datetime
+
+    def to_dict(self) -> dict:
+        """Serialize to JSON-safe dict with Decimal values as strings."""
+        return {
+            "selected_route": self.selected_route,
+            "xrpeur_price": str(self.xrpeur_price),
+            "xrpbtc_price": str(self.xrpbtc_price),
+            "btceur_price": str(self.btceur_price),
+            "direct_net_eur": str(self.direct_net_eur),
+            "indirect_net_eur": str(self.indirect_net_eur),
+            "eur_difference": str(self.eur_difference),
+            "timestamp": self.timestamp.isoformat(),
+        }
+
+
+@dataclass
 class DailyPerformance:
     """Tages-Performance — berechnet aus Ledger-Events (Vergleich Tagesbeginn vs. jetzt)."""
     date: datetime

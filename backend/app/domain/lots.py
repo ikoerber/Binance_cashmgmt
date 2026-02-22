@@ -173,6 +173,60 @@ def _compute_net_proceeds_per_base(
     return sell_proceeds_per_base - fee_per_unit
 
 
+def compute_cross_pair_realized_pnl_eur(
+    qty_allocated: Decimal,
+    net_proceeds_per_base: Decimal,
+    sell_quote_asset: str,
+    lot_cost_eur: Decimal,
+    lot_qty_base_initial: Decimal,
+    btceur_rate: Decimal | None = None,
+) -> Decimal:
+    """
+    Berechnet EUR-normalisierte realisierte P&L fuer Cross-Pair Sell Allocation.
+
+    Bei Cross-Pair Pairings kann das Sell-Event auf einem anderen Pair stattfinden
+    als dem, auf dem das Lot gekauft wurde. In diesem Fall muessen sowohl Erloes
+    als auch Kosten in EUR normalisiert werden.
+
+    Args:
+        qty_allocated: Allokierte Menge (Base-Asset)
+        net_proceeds_per_base: Netto-Erloes pro Base-Unit (in sell_quote_asset)
+        sell_quote_asset: Quote-Asset des Sell-Events ("EUR" oder "BTC")
+        lot_cost_eur: EUR-Kosten des gesamten Lots (lot.cost_eur)
+        lot_qty_base_initial: Initiale Base-Menge des Lots
+        btceur_rate: BTC/EUR-Kurs (Pflicht wenn sell_quote_asset != "EUR")
+
+    Returns:
+        Realisierte P&L in EUR
+
+    Raises:
+        ValueError: Wenn sell_quote_asset == "BTC" aber btceur_rate fehlt
+    """
+    if qty_allocated == 0:
+        return Decimal("0")
+
+    # EUR-Erloes pro Base-Unit berechnen
+    if sell_quote_asset == "EUR":
+        eur_proceeds_per_base = net_proceeds_per_base
+    elif sell_quote_asset == "BTC":
+        if btceur_rate is None:
+            raise ValueError(
+                "btceur_rate required for EUR-normalization when sell is on BTC-quoted pair"
+            )
+        eur_proceeds_per_base = net_proceeds_per_base * btceur_rate
+    else:
+        raise ValueError(f"Unsupported sell quote asset: {sell_quote_asset}")
+
+    # EUR-Kosten pro Base-Unit aus lot.cost_eur
+    cost_eur_per_base = lot_cost_eur / lot_qty_base_initial
+
+    # Realisierte P&L in EUR
+    proceeds_eur = eur_proceeds_per_base * qty_allocated
+    cost_eur = cost_eur_per_base * qty_allocated
+
+    return proceeds_eur - cost_eur
+
+
 def _allocate_qty_to_lots(
     sell_event: LedgerEvent,
     lots: List[TradeLot],

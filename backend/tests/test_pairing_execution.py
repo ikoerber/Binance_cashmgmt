@@ -282,22 +282,21 @@ def test_compute_pairing_order_params_basic():
     assert result["type"] == "TAKE_PROFIT_LIMIT"
     assert result["timeInForce"] == "GTC"
 
-    # Rounding: quantity auf 5 Dezimalstellen, price auf 2
-    assert result["quantity"] == "0.01235"  # gerundet
+    # Rounding: quantity auf 8 Dezimalstellen (BTCEUR base_precision=8), price auf 2
+    assert result["quantity"] == "0.01234567"  # volle BTC-Praezision
     assert result["price"] == result["stopPrice"]
 
     # Preis = 55000 * 1.002 = 55110.00
     assert result["price"] == "55110.00"
 
-    # ClientOrderId Format (aggregiert: user_pairing_id_price_version)
+    # ClientOrderId Format (symbol-aware: user_p_id_symbol_price_version)
     assert "user-1" in result["newClientOrderId"]
-    assert "pairing" in result["newClientOrderId"]
 
     # Lot-Zuordnung
     assert result["lot_ids"] == ["lot-1"]
     assert result["lot_count"] == 1
 
-    # Order Value = 0.01235 * 55110.00 = 680.61
+    # Order Value = 0.01234567 * 55110.00 = ~680.31
     order_val = Decimal(result["order_value_eur"])
     assert order_val < Decimal("1000")
     assert result["exceeds_max_order_value"] is False

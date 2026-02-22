@@ -5,7 +5,7 @@ Tests for cross-pair sell routing domain logic.
 - RoutingDecision dataclass: Audit record for routing decisions
 - compute_pairing_order_params(): Symbol-aware client_order_id and EUR max-value check
 """
-from datetime import datetime, timezone
+from datetime import datetime
 from decimal import Decimal
 
 import pytest
