@@ -40,7 +40,10 @@ XRP-Lots unabhaengig vom Quote-Asset (EUR oder BTC) in einem Pairing buendeln un
 
 <!-- Current scope. Building toward these. -->
 
-(None — next milestone not yet defined)
+- [ ] Binance REST API Resilience (Rate-Limit Backoff, Timeout-Handling, Fehlerklassifikation)
+- [ ] Sync Reliability (keine stillen Fehler, Retry mit Backoff, resumable Partial Sync)
+- [ ] Proaktive Reconciliation (Auto-Trigger nach Sync, Threshold-basierte Diskrepanz-Erkennung)
+- [ ] Alert-System (In-App Benachrichtigungen + strukturierte Logs fuer Sync-Fehler und Diskrepanzen)
 
 ### Out of Scope
 
@@ -50,7 +53,7 @@ XRP-Lots unabhaengig vom Quote-Asset (EUR oder BTC) in einem Pairing buendeln un
 - Aggregierte Portfolio-View pro Base-Asset — Frontend Overview macht das bereits, kein Backend-Endpoint noetig
 - Auto BTC→EUR Konvertierung nach XRPBTC Sell — Separate Trading-Entscheidung
 - Auto-Order Automation (Trigger-basiert) — Separater Milestone
-- Hardening (Monitoring, Alerting, Rate-Limit) — Separater Milestone
+- Hardening: Monitoring + WebSocket-Recovery — v1.1 fokussiert auf REST-Resilience und Sync, WebSocket-Hardening spaeter
 - Frontend-Tests (Vitest) — Separater Milestone
 - listPairings base_asset Frontend-Filter — v2 Enhancement (Badges anzeigen funktioniert ohne Filter)
 
@@ -91,5 +94,15 @@ Symbol Registry kennt 4 Pairs: BTCEUR, ETHEUR, XRPEUR, XRPBTC. XRP ist das einzi
 | Satoshi-Encoding fuer XRPBTC clientOrderId | Verhindert Kollisionen bei sub-1 Preisen (int(price) waere 0) | ✓ Good — int(price * 1e8) + Symbol-Abkuerzung |
 | Phase 4 platziert nur erstes Leg (XRPBTC Sell) | Auto BTC→EUR Konvertierung ist separate Trading-Entscheidung | ✓ Good — klare Abgrenzung, User kontrolliert BTC |
 
+## Current Milestone: v1.1 API Hardening
+
+**Goal:** Binance API Interaktionen resilient und beobachtbar machen — keine stillen Sync-Fehler, automatischer Retry mit Backoff, proaktive Reconciliation mit In-App Alerts.
+
+**Target features:**
+- Binance REST Resilience (429 Backoff, Timeouts, Error Classification)
+- Sync Reliability (explizite Fehler, Retry, resumable Partial Sync)
+- Proaktive Reconciliation (Auto-Trigger, Threshold-Alerts)
+- Alert-System (Frontend Banner + strukturierte Logs)
+
 ---
-*Last updated: 2026-02-22 after v1.0 milestone*
+*Last updated: 2026-02-22 after v1.1 milestone start*
