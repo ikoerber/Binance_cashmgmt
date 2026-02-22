@@ -7,9 +7,9 @@
 
 ### API Resilience
 
-- [ ] **API-01**: Binance REST Calls erkennen 429 Rate-Limit-Responses und warten automatisch (exponentieller Backoff)
+- [x] **API-01**: Binance REST Calls erkennen 429 Rate-Limit-Responses und warten automatisch (exponentieller Backoff)
 - [ ] **API-02**: Binance REST Calls haben konfigurierbares Timeout und schlagen bei Ueberschreitung fehl (statt endlos zu haengen)
-- [ ] **API-03**: Binance API Fehler werden strukturiert klassifiziert (transient vs. permanent) mit entsprechendem Retry-Verhalten
+- [x] **API-03**: Binance API Fehler werden strukturiert klassifiziert (transient vs. permanent) mit entsprechendem Retry-Verhalten
 
 ### Sync Reliability
 
@@ -51,9 +51,9 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| API-01 | Phase 5 | Pending |
+| API-01 | Phase 5 | Complete |
 | API-02 | Phase 5 | Pending |
-| API-03 | Phase 5 | Pending |
+| API-03 | Phase 5 | Complete |
 | SYNC-01 | Phase 6 | Pending |
 | SYNC-02 | Phase 6 | Pending |
 | SYNC-03 | Phase 6 | Pending |
