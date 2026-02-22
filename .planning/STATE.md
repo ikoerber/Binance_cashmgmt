@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-22)
 
 **Core value:** Binance API Interaktionen resilient und beobachtbar machen — keine stillen Sync-Fehler, automatischer Retry mit Backoff, proaktive Reconciliation mit Alerts
-**Current focus:** v1.1 API Hardening — Phase 6 complete, ready for Phase 7 (Proactive Reconciliation)
+**Current focus:** v1.1 API Hardening — Phase 7 in progress (Proactive Reconciliation)
 
 ## Current Position
 
 Phase: 7 of 8 (Proactive Reconciliation)
-Plan: 1 of ?
-Status: Not started
-Last activity: 2026-02-22 — Completed 06-02 (API Layer + Lot Service Sync Report Propagation)
+Plan: 2 of 2
+Status: In progress
+Last activity: 2026-02-22 — Completed 07-01 (DB models + evaluate_discrepancies domain logic)
 
-Progress: [█████░░░░░] 50% (v1.1, 4/8 plans)
+Progress: [██████░░░░] 62% (v1.1, 5/8 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 12 (8 v1.0 + 4 v1.1)
+- Total plans completed: 13 (8 v1.0 + 5 v1.1)
 - Average duration: 3.5min
-- Total execution time: 44min
+- Total execution time: 48min
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
@@ -29,6 +29,7 @@ Progress: [█████░░░░░] 50% (v1.1, 4/8 plans)
 | 05-02 | Configurable Timeout + Retryable Wrappers | 4min | 2 | 8 |
 | 06-01 | Per-Fill Sync Result Tracking | 4min | 1 (TDD) | 3 |
 | 06-02 | API Layer + Lot Service Sync Report Propagation | 2min | 2 | 2 |
+| 07-01 | DB models + evaluate_discrepancies domain logic | 4min | 2 (TDD) | 4 |
 
 *Updated after each plan completion*
 
@@ -49,6 +50,9 @@ Progress: [█████░░░░░] 50% (v1.1, 4/8 plans)
 - [06-02] Full-sync watermark uses numeric max comparison across batches (consistent with SyncResult)
 - [06-02] Fiat sync errors tracked as fill_details entries with source_id='fiat_sync' and outcome='FAILED'
 - [06-02] Full-sync status set to partial_success when fills_failed > 0 without fifo_error
+- [07-01] Idempotent migration pattern (_table_exists, _add_column_if_not_exists, _index_exists) for SQLite compatibility
+- [07-01] Severity threshold: > tolerance = warning, > 10x tolerance = critical (strict greater-than, not >=)
+- [07-01] Alert dict format: {alert_type, severity, title, details_json} for consistent AlertEventDB creation
 
 Full v1.0 decision log archived in milestones/v1.0-phases/ SUMMARY.md files.
 
@@ -63,5 +67,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-22
-Stopped at: Completed 06-02-PLAN.md (API Layer + Lot Service Sync Report Propagation)
+Stopped at: Completed 07-01-PLAN.md (DB models + evaluate_discrepancies domain logic)
 Resume file: None
