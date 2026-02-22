@@ -27,6 +27,7 @@ from app.api.routes import (
     sentiment,
     orderblock,
     combined,
+    alerts,
 )
 from app.api.routes import websocket as websocket_route
 from app.services.websocket_manager import get_stream_manager
@@ -101,6 +102,7 @@ app.include_router(macro.router, dependencies=api_auth)
 app.include_router(sentiment.router, dependencies=api_auth)
 app.include_router(orderblock.router, dependencies=api_auth)
 app.include_router(combined.router, dependencies=api_auth)
+app.include_router(alerts.router, dependencies=api_auth)
 
 # WebSocket Route (eigene Auth via Query-Parameter, kein APIKeyHeader)
 app.include_router(websocket_route.router)
