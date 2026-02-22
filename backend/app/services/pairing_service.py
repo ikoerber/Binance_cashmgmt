@@ -1,15 +1,33 @@
 """Pairing Service - DB Integration für Pairing-Management"""
+
 from decimal import Decimal
 from typing import List, Optional
 from datetime import datetime
 from sqlalchemy.orm import Session
 import uuid
 
-from app.domain.pairing import suggest_pairings, simulate_pairing, compute_dual_route_comparison
-from app.domain.models import TradeLot as DomainLot, Pairing as DomainPairing, PairingItem, PairingStatus, utcnow
+from app.domain.pairing import (
+    suggest_pairings,
+    simulate_pairing,
+    compute_dual_route_comparison,
+)
+from app.domain.models import (
+    TradeLot as DomainLot,
+    Pairing as DomainPairing,
+    PairingItem,
+    PairingStatus,
+    utcnow,
+)
 from app.symbol_registry import get_symbols_for_base_asset
 from app.domain.orders import compute_pairing_order_params
-from app.db.models import TradeLotDB, LotStatusEnum, PairingDB, PairingItemDB, PairingStatusEnum, UserSettingsDB
+from app.db.models import (
+    TradeLotDB,
+    LotStatusEnum,
+    PairingDB,
+    PairingItemDB,
+    PairingStatusEnum,
+    UserSettingsDB,
+)
 from app.services.lot_service import _lot_db_to_domain
 
 
@@ -60,7 +78,9 @@ def get_pairing_suggestions(
                 )
 
         # EUR-normalized pairing suggestions
-        pairings = suggest_pairings(lots_domain, market_price, threshold_pct, use_eur_cost=True)
+        pairings = suggest_pairings(
+            lots_domain, market_price, threshold_pct, use_eur_cost=True
+        )
     else:
         # Single-pair mode: existing behavior unchanged
         lots_db = (
@@ -118,10 +138,7 @@ def simulate_pairing_execution(
     # Hole offene Lots für Simulation (Portfolio-Kontext, gleiches Symbol)
     lots_db = (
         db.query(TradeLotDB)
-        .filter(
-            TradeLotDB.user_id == user_id,
-            TradeLotDB.qty_base_open > 0
-        )
+        .filter(TradeLotDB.user_id == user_id, TradeLotDB.qty_base_open > 0)
         .all()
     )
 
@@ -134,12 +151,17 @@ def simulate_pairing_execution(
         effective_sell_price = market_price * (Decimal("1") + fee_buffer_pct)
 
     # Simulation durchführen (mit effektivem Verkaufspreis fuer korrekte P&L)
-    simulation = simulate_pairing(pairing, market_price, lots_domain, fee_pct,
-                                   sell_price=effective_sell_price)
+    simulation = simulate_pairing(
+        pairing, market_price, lots_domain, fee_pct, sell_price=effective_sell_price
+    )
 
     # Aggregierte Binance-Order-Parameter berechnen (eine Order fuer alle Lots)
-    settings = db.query(UserSettingsDB).filter(UserSettingsDB.user_id == user_id).first()
-    max_value = Decimal(str(settings.max_order_value_eur)) if settings else Decimal("1000")
+    settings = (
+        db.query(UserSettingsDB).filter(UserSettingsDB.user_id == user_id).first()
+    )
+    max_value = (
+        Decimal(str(settings.max_order_value_eur)) if settings else Decimal("1000")
+    )
 
     aggregated_order = compute_pairing_order_params(
         pairing_id=pairing.id,
@@ -162,7 +184,9 @@ def simulate_pairing_execution(
         "expected_realized_pnl_quote": str(simulation.expected_realized_pnl_quote),
         "affected_lots": simulation.affected_lots,
         "remaining_portfolio_base": str(simulation.remaining_portfolio_base),
-        "remaining_portfolio_cost_quote": str(simulation.remaining_portfolio_cost_quote),
+        "remaining_portfolio_cost_quote": str(
+            simulation.remaining_portfolio_cost_quote
+        ),
         "estimated_fee_quote": str(simulation.estimated_fee_quote),
         "fee_pct": str(simulation.fee_pct),
         "fee_buffer_pct": str(fee_buffer_pct),
@@ -172,7 +196,11 @@ def simulate_pairing_execution(
     }
 
     # Dual-route comparison for cross-pair pairings
-    if xrpbtc_price is not None and btceur_price is not None and pairing.base_asset is not None:
+    if (
+        xrpbtc_price is not None
+        and btceur_price is not None
+        and pairing.base_asset is not None
+    ):
         drc = compute_dual_route_comparison(
             total_base=simulation.total_base_to_sell,
             xrpeur_price=market_price,
@@ -187,7 +215,11 @@ def simulate_pairing_execution(
                 "gross_proceeds_eur": str(drc.route_direct.gross_proceeds_eur),
                 "fees_eur": str(drc.route_direct.fees_eur),
                 "net_proceeds_eur": str(drc.route_direct.net_proceeds_eur),
-                "conversion_rate": str(drc.route_direct.conversion_rate) if drc.route_direct.conversion_rate is not None else None,
+                "conversion_rate": (
+                    str(drc.route_direct.conversion_rate)
+                    if drc.route_direct.conversion_rate is not None
+                    else None
+                ),
                 "fee_steps": drc.route_direct.fee_steps,
             },
             "route_indirect": {
@@ -196,7 +228,11 @@ def simulate_pairing_execution(
                 "gross_proceeds_eur": str(drc.route_indirect.gross_proceeds_eur),
                 "fees_eur": str(drc.route_indirect.fees_eur),
                 "net_proceeds_eur": str(drc.route_indirect.net_proceeds_eur),
-                "conversion_rate": str(drc.route_indirect.conversion_rate) if drc.route_indirect.conversion_rate is not None else None,
+                "conversion_rate": (
+                    str(drc.route_indirect.conversion_rate)
+                    if drc.route_indirect.conversion_rate is not None
+                    else None
+                ),
                 "fee_steps": drc.route_indirect.fee_steps,
             },
             "recommended_route": drc.recommended_route,
@@ -330,7 +366,7 @@ def create_pairing(
         base_asset=base_asset,
         threshold_pct=threshold_pct,
         status=PairingStatusEnum.DRAFT,
-        created_at=utcnow()
+        created_at=utcnow(),
     )
     db.add(pairing_db)
 
@@ -369,13 +405,13 @@ def create_pairing(
 
     # Konvertiere zu Domain und dann zu Dict
     domain_pairing = _pairing_db_to_domain(pairing_db)
-    return _pairing_to_dict(domain_pairing, Decimal("0"))  # market_price irrelevant für DRAFT
+    return _pairing_to_dict(
+        domain_pairing, Decimal("0")
+    )  # market_price irrelevant für DRAFT
 
 
 def get_pairing_by_id(
-    db: Session,
-    user_id: str,
-    pairing_id: str
+    db: Session, user_id: str, pairing_id: str
 ) -> Optional[DomainPairing]:
     """
     Lädt Pairing aus DB
@@ -388,10 +424,11 @@ def get_pairing_by_id(
     Returns:
         Domain Pairing or None
     """
-    pairing_db = db.query(PairingDB).filter(
-        PairingDB.id == pairing_id,
-        PairingDB.user_id == user_id
-    ).first()
+    pairing_db = (
+        db.query(PairingDB)
+        .filter(PairingDB.id == pairing_id, PairingDB.user_id == user_id)
+        .first()
+    )
 
     if not pairing_db:
         return None
@@ -436,16 +473,16 @@ def list_pairings(
     result = []
     for pairing_db in pairings_db:
         domain_pairing = _pairing_db_to_domain(pairing_db)
-        result.append(_pairing_to_dict(domain_pairing, Decimal("0")))
+        pairing_dict = _pairing_to_dict(domain_pairing, Decimal("0"))
+        # Include routing decision for EXECUTED cross-pair pairings
+        if pairing_db.routing_decision_json:
+            pairing_dict["routing_decision"] = pairing_db.routing_decision_json
+        result.append(pairing_dict)
 
     return result
 
 
-def lock_pairing(
-    db: Session,
-    user_id: str,
-    pairing_id: str
-) -> dict:
+def lock_pairing(db: Session, user_id: str, pairing_id: str) -> dict:
     """
     Sperrt Pairing für Execution (DRAFT → LOCKED)
 
@@ -460,10 +497,11 @@ def lock_pairing(
     Raises:
         ValueError: Wenn Pairing nicht DRAFT oder Lots nicht mehr verfügbar
     """
-    pairing_db = db.query(PairingDB).filter(
-        PairingDB.id == pairing_id,
-        PairingDB.user_id == user_id
-    ).first()
+    pairing_db = (
+        db.query(PairingDB)
+        .filter(PairingDB.id == pairing_id, PairingDB.user_id == user_id)
+        .first()
+    )
 
     if not pairing_db:
         raise ValueError(f"Pairing {pairing_id} not found")
@@ -484,7 +522,9 @@ def lock_pairing(
     for item in pairing_db.items:
         lot_db = lots_map.get(item.lot_id)
         if not lot_db or lot_db.qty_base_open < item.qty_base:
-            raise ValueError(f"Lot {item.lot_id} no longer has sufficient qty_base_open")
+            raise ValueError(
+                f"Lot {item.lot_id} no longer has sufficient qty_base_open"
+            )
 
     # Lock
     pairing_db.status = PairingStatusEnum.LOCKED
@@ -496,18 +536,15 @@ def lock_pairing(
     return _pairing_to_dict(domain_pairing, Decimal("0"))
 
 
-def unlock_pairing(
-    db: Session,
-    user_id: str,
-    pairing_id: str
-) -> dict:
+def unlock_pairing(db: Session, user_id: str, pairing_id: str) -> dict:
     """
     Entsperrt Pairing (LOCKED → DRAFT)
     """
-    pairing_db = db.query(PairingDB).filter(
-        PairingDB.id == pairing_id,
-        PairingDB.user_id == user_id
-    ).first()
+    pairing_db = (
+        db.query(PairingDB)
+        .filter(PairingDB.id == pairing_id, PairingDB.user_id == user_id)
+        .first()
+    )
 
     if not pairing_db:
         raise ValueError(f"Pairing {pairing_id} not found")
@@ -524,11 +561,7 @@ def unlock_pairing(
     return _pairing_to_dict(domain_pairing, Decimal("0"))
 
 
-def execute_pairing(
-    db: Session,
-    user_id: str,
-    pairing_id: str
-) -> dict:
+def execute_pairing(db: Session, user_id: str, pairing_id: str) -> dict:
     """
     Markiert Pairing als EXECUTED (LOCKED → EXECUTED)
 
@@ -545,10 +578,11 @@ def execute_pairing(
     Raises:
         ValueError: Wenn Pairing nicht LOCKED
     """
-    pairing_db = db.query(PairingDB).filter(
-        PairingDB.id == pairing_id,
-        PairingDB.user_id == user_id
-    ).first()
+    pairing_db = (
+        db.query(PairingDB)
+        .filter(PairingDB.id == pairing_id, PairingDB.user_id == user_id)
+        .first()
+    )
 
     if not pairing_db:
         raise ValueError(f"Pairing {pairing_id} not found")
@@ -566,11 +600,7 @@ def execute_pairing(
     return _pairing_to_dict(domain_pairing, Decimal("0"))
 
 
-def delete_pairing(
-    db: Session,
-    user_id: str,
-    pairing_id: str
-) -> None:
+def delete_pairing(db: Session, user_id: str, pairing_id: str) -> None:
     """
     Löscht ein Pairing (nur DRAFT Status)
 
@@ -582,16 +612,19 @@ def delete_pairing(
     Raises:
         ValueError: Wenn Pairing nicht DRAFT
     """
-    pairing_db = db.query(PairingDB).filter(
-        PairingDB.id == pairing_id,
-        PairingDB.user_id == user_id
-    ).first()
+    pairing_db = (
+        db.query(PairingDB)
+        .filter(PairingDB.id == pairing_id, PairingDB.user_id == user_id)
+        .first()
+    )
 
     if not pairing_db:
         raise ValueError(f"Pairing {pairing_id} not found")
 
     if pairing_db.status != PairingStatusEnum.DRAFT:
-        raise ValueError(f"Can only delete DRAFT pairings (current status: {pairing_db.status.value})")
+        raise ValueError(
+            f"Can only delete DRAFT pairings (current status: {pairing_db.status.value})"
+        )
 
     # Items werden via cascade delete automatisch gelöscht
     db.delete(pairing_db)

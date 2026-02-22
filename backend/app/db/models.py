@@ -1,4 +1,5 @@
 """SQLAlchemy Database Models"""
+
 from datetime import datetime, timezone
 from decimal import Decimal
 from sqlalchemy import (
@@ -72,6 +73,7 @@ class PairingStatusEnum(str, enum.Enum):
 # Models
 class User(Base):
     """Benutzer"""
+
     __tablename__ = "users"
 
     id = Column(String, primary_key=True)
@@ -79,15 +81,26 @@ class User(Base):
     created_at = Column(DateTime, nullable=False, default=_utcnow)
 
     # Relationships
-    api_credentials = relationship("APICredential", back_populates="user", cascade="all, delete-orphan")
-    ledger_events = relationship("LedgerEventDB", back_populates="user", cascade="all, delete-orphan")
-    trade_lots = relationship("TradeLotDB", back_populates="user", cascade="all, delete-orphan")
-    orders = relationship("OrderDB", back_populates="user", cascade="all, delete-orphan")
-    pairings = relationship("PairingDB", back_populates="user", cascade="all, delete-orphan")
+    api_credentials = relationship(
+        "APICredential", back_populates="user", cascade="all, delete-orphan"
+    )
+    ledger_events = relationship(
+        "LedgerEventDB", back_populates="user", cascade="all, delete-orphan"
+    )
+    trade_lots = relationship(
+        "TradeLotDB", back_populates="user", cascade="all, delete-orphan"
+    )
+    orders = relationship(
+        "OrderDB", back_populates="user", cascade="all, delete-orphan"
+    )
+    pairings = relationship(
+        "PairingDB", back_populates="user", cascade="all, delete-orphan"
+    )
 
 
 class APICredential(Base):
     """Binance API Credentials (verschlüsselt)"""
+
     __tablename__ = "api_credentials"
 
     id = Column(String, primary_key=True)
@@ -110,6 +123,7 @@ class LedgerEventDB(Base):
 
     Mapping von domain.models.LedgerEvent zu DB
     """
+
     __tablename__ = "ledger_events"
 
     id = Column(String, primary_key=True)
@@ -119,7 +133,9 @@ class LedgerEventDB(Base):
     timestamp = Column(DateTime, nullable=False, index=True)
 
     asset = Column(String, nullable=False)  # "BTC", "EUR", "BNB"
-    amount = Column(Numeric(precision=20, scale=10), nullable=False)  # Decimal mit Präzision
+    amount = Column(
+        Numeric(precision=20, scale=10), nullable=False
+    )  # Decimal mit Präzision
 
     # Optional fields
     symbol = Column(String, nullable=True)  # z.B. "BTCEUR"
@@ -128,7 +144,9 @@ class LedgerEventDB(Base):
 
     fee_asset = Column(String, nullable=True)
     fee_amount = Column(Numeric(precision=20, scale=10), nullable=True)
-    fee_quote_value = Column(Numeric(precision=20, scale=10), nullable=True)  # Vorberechneter Quote-Asset-Wert der Fee
+    fee_quote_value = Column(
+        Numeric(precision=20, scale=10), nullable=True
+    )  # Vorberechneter Quote-Asset-Wert der Fee
 
     source = Column(SQLEnum(EventSourceEnum), nullable=False)
     source_id = Column(String, nullable=True, index=True)  # Binance tradeId/orderId
@@ -154,6 +172,7 @@ class TradeLotDB(Base):
 
     1 Fill = 1 Lot
     """
+
     __tablename__ = "trade_lots"
 
     id = Column(String, primary_key=True)
@@ -161,15 +180,23 @@ class TradeLotDB(Base):
 
     symbol = Column(String, nullable=False, server_default="BTCEUR")
 
-    created_from_fill_id = Column(String, ForeignKey("ledger_events.id"), nullable=False)
+    created_from_fill_id = Column(
+        String, ForeignKey("ledger_events.id"), nullable=False
+    )
     created_at = Column(DateTime, nullable=False, default=_utcnow)
 
     qty_base_initial = Column(Numeric(precision=20, scale=10), nullable=False)
     qty_base_open = Column(Numeric(precision=20, scale=10), nullable=False)
 
-    cost_quote = Column(Numeric(precision=20, scale=10), nullable=False)  # Kosten in Quote-Asset
-    cost_eur = Column(Numeric(precision=20, scale=10), nullable=True)  # EUR-equivalent Kosten (None = needs backfill)
-    quote_to_eur_rate = Column(Numeric(precision=20, scale=10), nullable=True)  # Konvertierungsrate zum Fill-Zeitpunkt
+    cost_quote = Column(
+        Numeric(precision=20, scale=10), nullable=False
+    )  # Kosten in Quote-Asset
+    cost_eur = Column(
+        Numeric(precision=20, scale=10), nullable=True
+    )  # EUR-equivalent Kosten (None = needs backfill)
+    quote_to_eur_rate = Column(
+        Numeric(precision=20, scale=10), nullable=True
+    )  # Konvertierungsrate zum Fill-Zeitpunkt
 
     status = Column(SQLEnum(LotStatusEnum), nullable=False, default=LotStatusEnum.OPEN)
     target_margin_pct = Column(Numeric(precision=10, scale=6), nullable=True)
@@ -181,7 +208,9 @@ class TradeLotDB(Base):
 
     # Relationships
     user = relationship("User", back_populates="trade_lots")
-    sell_allocations = relationship("SellAllocationDB", back_populates="trade_lot", cascade="all, delete-orphan")
+    sell_allocations = relationship(
+        "SellAllocationDB", back_populates="trade_lot", cascade="all, delete-orphan"
+    )
 
     # Indexes
     __table_args__ = (
@@ -195,6 +224,7 @@ class SellAllocationDB(Base):
 
     Persistiert: Welcher Sell-Fill schließt welches Lot.
     """
+
     __tablename__ = "sell_allocations"
 
     id = Column(String, primary_key=True)
@@ -203,7 +233,12 @@ class SellAllocationDB(Base):
     trade_lot_id = Column(String, ForeignKey("trade_lots.id"), nullable=False)
 
     qty_allocated = Column(Numeric(precision=20, scale=10), nullable=False)
-    realized_pnl_quote = Column(Numeric(precision=20, scale=10), nullable=False)  # Realisierte P&L in Quote-Asset
+    realized_pnl_quote = Column(
+        Numeric(precision=20, scale=10), nullable=False
+    )  # Realisierte P&L in Quote-Asset
+    realized_pnl_eur = Column(
+        Numeric(precision=20, scale=10), nullable=True
+    )  # EUR-normalized P&L (for cross-pair allocations)
 
     created_at = Column(DateTime, nullable=False, default=_utcnow)
 
@@ -223,6 +258,7 @@ class OrderDB(Base):
 
     Trackt alle Orders (manuell & automatisch) mit vollständigem Lifecycle.
     """
+
     __tablename__ = "orders"
 
     id = Column(String, primary_key=True)
@@ -237,10 +273,16 @@ class OrderDB(Base):
     side = Column(SQLEnum(TradeSideEnum), nullable=False)  # BUY/SELL
     type = Column(String, nullable=False)  # "LIMIT", "MARKET", "STOP_LIMIT"
     quantity = Column(Numeric(precision=20, scale=10), nullable=False)
-    price = Column(Numeric(precision=20, scale=10), nullable=True)  # NULL for MARKET orders
-    stop_price = Column(Numeric(precision=20, scale=10), nullable=True)  # Trigger price for TAKE_PROFIT_LIMIT
+    price = Column(
+        Numeric(precision=20, scale=10), nullable=True
+    )  # NULL for MARKET orders
+    stop_price = Column(
+        Numeric(precision=20, scale=10), nullable=True
+    )  # Trigger price for TAKE_PROFIT_LIMIT
 
-    status = Column(SQLEnum(OrderStatusEnum), nullable=False, default=OrderStatusEnum.PENDING)
+    status = Column(
+        SQLEnum(OrderStatusEnum), nullable=False, default=OrderStatusEnum.PENDING
+    )
 
     # Linked Resources (optional)
     linked_lot_id = Column(String, ForeignKey("trade_lots.id"), nullable=True)
@@ -273,29 +315,39 @@ class PairingDB(Base):
 
     Gruppiert Gewinner- und Verlierer-Lots für Netto-P&L-Ziele.
     """
+
     __tablename__ = "pairings"
 
     id = Column(String, primary_key=True)
     user_id = Column(String, ForeignKey("users.id"), nullable=False)
 
     symbol = Column(String, nullable=False, server_default="BTCEUR")
-    base_asset = Column(String, nullable=True)  # Base-Asset fuer Cross-Pair (z.B. "XRP"), NULL fuer Single-Pair
+    base_asset = Column(
+        String, nullable=True
+    )  # Base-Asset fuer Cross-Pair (z.B. "XRP"), NULL fuer Single-Pair
 
-    threshold_pct = Column(Numeric(precision=10, scale=6), nullable=False)  # z.B. 0.05 für 5%
-    status = Column(SQLEnum(PairingStatusEnum), nullable=False, default=PairingStatusEnum.DRAFT)
+    threshold_pct = Column(
+        Numeric(precision=10, scale=6), nullable=False
+    )  # z.B. 0.05 für 5%
+    status = Column(
+        SQLEnum(PairingStatusEnum), nullable=False, default=PairingStatusEnum.DRAFT
+    )
 
     created_at = Column(DateTime, nullable=False, default=_utcnow)
     locked_at = Column(DateTime, nullable=True)
     executed_at = Column(DateTime, nullable=True)
+    routing_decision_json = Column(
+        JSON, nullable=True
+    )  # Routing audit: selected route, prices, EUR proceeds, delta
 
     # Relationships
     user = relationship("User", back_populates="pairings")
-    items = relationship("PairingItemDB", back_populates="pairing", cascade="all, delete-orphan")
+    items = relationship(
+        "PairingItemDB", back_populates="pairing", cascade="all, delete-orphan"
+    )
 
     # Indexes
-    __table_args__ = (
-        Index("idx_pairings_user_status", "user_id", "status"),
-    )
+    __table_args__ = (Index("idx_pairings_user_status", "user_id", "status"),)
 
 
 class PairingItemDB(Base):
@@ -304,6 +356,7 @@ class PairingItemDB(Base):
 
     N:M Beziehung zwischen Pairings und TradeLots.
     """
+
     __tablename__ = "pairing_items"
 
     id = Column(String, primary_key=True)
@@ -311,9 +364,15 @@ class PairingItemDB(Base):
     lot_id = Column(String, ForeignKey("trade_lots.id"), nullable=False)
 
     qty_base = Column(Numeric(precision=20, scale=10), nullable=False)
-    cost_quote = Column(Numeric(precision=20, scale=10), nullable=False)  # Kosten in Quote-Asset
-    cost_eur = Column(Numeric(precision=20, scale=10), nullable=True)  # EUR-normalisierte Kosten (fuer Cross-Pair)
-    lot_symbol = Column(String, nullable=True)  # Pair-of-origin (z.B. "XRPEUR" oder "XRPBTC")
+    cost_quote = Column(
+        Numeric(precision=20, scale=10), nullable=False
+    )  # Kosten in Quote-Asset
+    cost_eur = Column(
+        Numeric(precision=20, scale=10), nullable=True
+    )  # EUR-normalisierte Kosten (fuer Cross-Pair)
+    lot_symbol = Column(
+        String, nullable=True
+    )  # Pair-of-origin (z.B. "XRPEUR" oder "XRPBTC")
 
     # Relationships
     pairing = relationship("PairingDB", back_populates="items")
@@ -339,6 +398,7 @@ class OBStateEnum(str, enum.Enum):
 
 class OBConvictionEnum(str, enum.Enum):
     """Deprecated: Conviction wird jetzt als String gespeichert (4-stufig)."""
+
     LOW = "LOW"
     STANDARD = "STANDARD"
     HIGH = "HIGH"
@@ -351,6 +411,7 @@ class OrderblockZoneDB(Base):
 
     Persistiert Detection-Ergebnisse inkl. State-Transitionen.
     """
+
     __tablename__ = "orderblock_zones"
 
     id = Column(String, primary_key=True)
@@ -414,6 +475,7 @@ class BacktestRunDB(Base):
 
     Speichert Konfiguration, Metriken und einzelne Trades als JSON.
     """
+
     __tablename__ = "backtest_runs"
 
     id = Column(String, primary_key=True)
@@ -437,7 +499,9 @@ class BacktestRunDB(Base):
 
     high_conviction_count = Column(Numeric(precision=10, scale=0), nullable=True)
     high_conviction_hit_rate = Column(Numeric(precision=10, scale=4), nullable=True)
-    expired_trades = Column(Numeric(precision=10, scale=0), nullable=True, server_default="0")
+    expired_trades = Column(
+        Numeric(precision=10, scale=0), nullable=True, server_default="0"
+    )
     max_holding_candles = Column(Numeric(precision=10, scale=0), nullable=True)
 
     config_json = Column(JSON, nullable=False)
@@ -446,9 +510,7 @@ class BacktestRunDB(Base):
 
     created_at = Column(DateTime, nullable=False, default=_utcnow)
 
-    __table_args__ = (
-        Index("idx_backtest_user_symbol", "user_id", "symbol"),
-    )
+    __table_args__ = (Index("idx_backtest_user_symbol", "user_id", "symbol"),)
 
 
 class UserSettingsDB(Base):
@@ -457,12 +519,15 @@ class UserSettingsDB(Base):
 
     Erweiterbar fuer zukuenftige Settings (z.B. target_margin_pct, fee_buffer_pct).
     """
+
     __tablename__ = "user_settings"
 
     id = Column(String, primary_key=True)
     user_id = Column(String, ForeignKey("users.id"), unique=True, nullable=False)
 
-    max_order_value_eur = Column(Numeric(precision=20, scale=2), nullable=False, server_default="1000")
+    max_order_value_eur = Column(
+        Numeric(precision=20, scale=2), nullable=False, server_default="1000"
+    )
     macro_signal_interval = Column(String, nullable=False, server_default="15")
     sell_allocation_strategy = Column(String, nullable=False, server_default="FIFO")
 

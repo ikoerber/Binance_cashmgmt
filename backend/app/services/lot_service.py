@@ -14,6 +14,7 @@ from app.domain.lots import (
     allocate_sell_with_strategy,
     allocate_sell_to_lot,
     calculate_lot_target_price,
+    compute_cross_pair_realized_pnl_eur,
     _compute_net_proceeds_per_base,
     _allocate_qty_to_lots,
     _sort_lots_by_strategy,
@@ -34,7 +35,11 @@ from app.db.models import (
     UserSettingsDB,
 )
 from app.domain.lot_merge import validate_merge, compute_merge
-from app.symbol_registry import get_base_asset, get_symbols_for_base_asset
+from app.symbol_registry import (
+    get_base_asset,
+    get_symbols_for_base_asset,
+    get_quote_asset,
+)
 
 logger = logging.getLogger(__name__)
 from app.services.portfolio_service import _db_event_to_domain
@@ -108,7 +113,9 @@ def get_lots_for_user(
     fill_map = {e.id: e for e in fill_events}
 
     return [
-        _lot_db_to_dict(lot_db, db, fill_event=fill_map.get(lot_db.created_from_fill_id))
+        _lot_db_to_dict(
+            lot_db, db, fill_event=fill_map.get(lot_db.created_from_fill_id)
+        )
         for lot_db in lots_db
     ]
 
@@ -197,7 +204,9 @@ def create_lot_from_buy_fill(
     event_domain = _db_event_to_domain(event_db)
 
     # TradeLot erstellen (Domain-Logik)
-    lot_domain = create_trade_lot_from_buy_fill(event_domain, fee_conversion_rates, quote_to_eur_rate)
+    lot_domain = create_trade_lot_from_buy_fill(
+        event_domain, fee_conversion_rates, quote_to_eur_rate
+    )
 
     # Safety-Check: Lot existiert bereits (z.B. nach Merge)?
     existing = db.query(TradeLotDB).filter(TradeLotDB.id == lot_domain.id).first()
@@ -540,11 +549,36 @@ def process_sell_fill_for_pairing(
     )
 
     from app.symbol_registry import get_min_base_precision
+
     min_prec = get_min_base_precision(sell_event_domain.symbol or "BTCEUR")
     if remaining > min_prec:
         raise ValueError(
             f"Not enough open lots to allocate sell. Remaining: {remaining}"
         )
+
+    # Cross-pair P&L override: compute EUR-normalized realized_pnl for cross-pair allocations
+    pairing_db = db.query(PairingDB).filter(PairingDB.id == pairing_id).first()
+    is_cross_pair = pairing_db and pairing_db.base_asset is not None
+
+    if is_cross_pair and pairing_db.routing_decision_json:
+        sell_quote = get_quote_asset(sell_event_domain.symbol or "XRPEUR")
+        btceur_rate_str = pairing_db.routing_decision_json.get("btceur_price")
+        btceur_rate = Decimal(btceur_rate_str) if btceur_rate_str else None
+
+        # Build lot lookup for cost_eur and qty_base_initial
+        lot_map = {lot.id: lot for lot in pairing_lots_db}
+
+        for alloc in allocations_domain:
+            lot_db_ref = lot_map.get(alloc.trade_lot_id)
+            if lot_db_ref and lot_db_ref.cost_eur is not None:
+                alloc.realized_pnl_quote = compute_cross_pair_realized_pnl_eur(
+                    qty_allocated=alloc.qty_allocated,
+                    net_proceeds_per_base=net_proceeds_per_base,
+                    sell_quote_asset=sell_quote,
+                    lot_cost_eur=lot_db_ref.cost_eur,
+                    lot_qty_base_initial=lot_db_ref.qty_base_initial,
+                    btceur_rate=btceur_rate,
+                )
 
     # In DB persistieren
     updated_lot_dicts = []
@@ -565,6 +599,9 @@ def process_sell_fill_for_pairing(
             realized_pnl_quote=allocation.realized_pnl_quote,
             created_at=allocation.created_at,
         )
+        # Persist EUR P&L for cross-pair allocations
+        if is_cross_pair and pairing_db.routing_decision_json:
+            alloc_db.realized_pnl_eur = allocation.realized_pnl_quote
         db.add(alloc_db)
         allocation_dicts.append(
             {
@@ -573,17 +610,23 @@ def process_sell_fill_for_pairing(
                 "trade_lot_id": allocation.trade_lot_id,
                 "qty_allocated": str(allocation.qty_allocated),
                 "realized_pnl_quote": str(allocation.realized_pnl_quote),
+                "realized_pnl_eur": (
+                    str(allocation.realized_pnl_quote)
+                    if (is_cross_pair and pairing_db.routing_decision_json)
+                    else None
+                ),
             }
         )
 
     db.flush()
 
     logger.info(
-        "Pairing %s: allocated sell %s to %d lots (%d from pairing)",
+        "Pairing %s: allocated sell %s to %d lots (%d from pairing, cross_pair=%s)",
         pairing_id,
         sell_event_id,
         len(allocation_dicts),
         len(pairing_lots_domain),
+        is_cross_pair,
     )
 
     return {
@@ -909,7 +952,11 @@ def _lot_db_to_dict(lot_db: TradeLotDB, db: Session = None, fill_event=None) -> 
         "qty_base_open": str(lot_db.qty_base_open),
         "cost_quote": str(lot_db.cost_quote),
         "cost_eur": str(lot_db.cost_eur) if lot_db.cost_eur is not None else None,
-        "quote_to_eur_rate": str(lot_db.quote_to_eur_rate) if lot_db.quote_to_eur_rate is not None else None,
+        "quote_to_eur_rate": (
+            str(lot_db.quote_to_eur_rate)
+            if lot_db.quote_to_eur_rate is not None
+            else None
+        ),
         "break_even": (
             str(lot_db.cost_quote / lot_db.qty_base_initial)
             if lot_db.qty_base_initial
@@ -1048,7 +1095,9 @@ def get_mergeable_groups(db: Session, user_id: str) -> List[dict]:
                         )
                         for lot in eligible
                     ],
-                    "total_qty_base": str(sum(lot.qty_base_initial for lot in eligible)),
+                    "total_qty_base": str(
+                        sum(lot.qty_base_initial for lot in eligible)
+                    ),
                     "total_cost_quote": str(sum(lot.cost_quote for lot in eligible)),
                 }
             )

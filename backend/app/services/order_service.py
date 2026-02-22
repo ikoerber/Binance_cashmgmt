@@ -3,6 +3,7 @@ Order Service - Automatische Order-Erstellung
 
 Erstellt Limit-Sell-Orders auf Binance basierend auf Zielpreisen.
 """
+
 import logging
 import re
 from decimal import Decimal
@@ -14,11 +15,16 @@ logger = logging.getLogger(__name__)
 from app.constants import BINANCE_ORDER_STATUS_MAP
 from app.services.binance import BinanceService
 from app.services.order_tracking_service import OrderTrackingService
-from app.services.pairing_service import get_pairing_by_id, lock_pairing, execute_pairing
-from app.db.models import TradeLotDB, UserSettingsDB, OrderDB
+from app.services.pairing_service import (
+    get_pairing_by_id,
+    lock_pairing,
+    execute_pairing,
+)
+from app.db.models import TradeLotDB, UserSettingsDB, OrderDB, PairingDB
 from app.domain.lots import calculate_lot_target_price
-from app.symbol_registry import get_base_precision, get_price_precision
-
+from app.domain.pairing import compute_dual_route_comparison
+from app.domain.models import RoutingDecision, utcnow
+from app.symbol_registry import get_base_precision, get_price_precision, get_quote_asset
 
 # Re-Export aus Domain fuer Backward-Kompatibilitaet
 from app.domain.orders import compute_pairing_order_params  # noqa: F401
@@ -41,7 +47,7 @@ class OrderService:
         user_id: str,
         lot_id: str,
         target_margin_pct: Decimal = Decimal("0.05"),
-        fee_buffer_pct: Decimal = Decimal("0.002")
+        fee_buffer_pct: Decimal = Decimal("0.002"),
     ) -> Dict[str, Any]:
         """
         Erstellt Limit-Sell-Order für TradeLot mit vollständigem Tracking
@@ -62,10 +68,7 @@ class OrderService:
         # Lot aus DB holen
         lot_db = (
             db.query(TradeLotDB)
-            .filter(
-                TradeLotDB.id == lot_id,
-                TradeLotDB.user_id == user_id
-            )
+            .filter(TradeLotDB.id == lot_id, TradeLotDB.user_id == user_id)
             .first()
         )
 
@@ -85,9 +88,13 @@ class OrderService:
         break_even = lot_db.cost_quote / lot_db.qty_base_initial
 
         # Lot-spezifische Margin oder global
-        margin = lot_db.target_margin_pct if lot_db.target_margin_pct else target_margin_pct
+        margin = (
+            lot_db.target_margin_pct if lot_db.target_margin_pct else target_margin_pct
+        )
 
-        target_price = break_even * (Decimal("1") + margin) * (Decimal("1") + fee_buffer_pct)
+        target_price = (
+            break_even * (Decimal("1") + margin) * (Decimal("1") + fee_buffer_pct)
+        )
 
         # Binance Order Parameter validieren
         qty_base = lot_db.qty_base_open
@@ -104,14 +111,20 @@ class OrderService:
         # Format: {userId}_{lotId}_{targetPrice}_{qty}_{version}
         # Binance erlaubt nur: a-zA-Z0-9-_
         version = "v1"
-        safe_user_id = re.sub(r'[^a-zA-Z0-9_-]', '', user_id)
-        safe_lot_id = re.sub(r'[^a-zA-Z0-9_-]', '', lot_id)
-        client_order_id = f"{safe_user_id}_{safe_lot_id}_{int(target_price)}_{int(qty_base_rounded * Decimal('100000'))}_{version}"[:36]  # Max 36 chars
+        safe_user_id = re.sub(r"[^a-zA-Z0-9_-]", "", user_id)
+        safe_lot_id = re.sub(r"[^a-zA-Z0-9_-]", "", lot_id)
+        client_order_id = f"{safe_user_id}_{safe_lot_id}_{int(target_price)}_{int(qty_base_rounded * Decimal('100000'))}_{version}"[
+            :36
+        ]  # Max 36 chars
 
         # 1. Max Order Value pruefen
         order_value = qty_base_rounded * target_price_rounded
-        settings = db.query(UserSettingsDB).filter(UserSettingsDB.user_id == user_id).first()
-        max_value = Decimal(str(settings.max_order_value_eur)) if settings else Decimal("1000")
+        settings = (
+            db.query(UserSettingsDB).filter(UserSettingsDB.user_id == user_id).first()
+        )
+        max_value = (
+            Decimal(str(settings.max_order_value_eur)) if settings else Decimal("1000")
+        )
         if order_value > max_value:
             raise ValueError(
                 f"Order-Wert {order_value:.2f} EUR ueberschreitet Maximum von {max_value:.2f} EUR"
@@ -123,7 +136,7 @@ class OrderService:
             return {
                 "status": "duplicate",
                 "message": "Order with this client_order_id already exists",
-                "order": existing
+                "order": existing,
             }
 
         # 3. Create PENDING order record
@@ -137,7 +150,7 @@ class OrderService:
             quantity=qty_base_rounded,
             price=target_price_rounded,
             stop_price=target_price_rounded,
-            linked_lot_id=lot_id
+            linked_lot_id=lot_id,
         )
 
         # 3. Call Binance API
@@ -150,7 +163,7 @@ class OrderService:
                 quantity=str(qty_base_rounded),
                 price=str(target_price_rounded),
                 stopPrice=str(target_price_rounded),
-                newClientOrderId=client_order_id
+                newClientOrderId=client_order_id,
             )
 
             # 4. Update to SUBMITTED/OPEN
@@ -159,7 +172,7 @@ class OrderService:
                 order_id=order_id,
                 status="OPEN",
                 binance_order_id=str(binance_response["orderId"]),
-                raw_response=binance_response
+                raw_response=binance_response,
             )
 
             return {
@@ -173,7 +186,9 @@ class OrderService:
         except Exception as e:
             # 5. Verifikation: Existiert die Order trotzdem auf Binance?
             try:
-                verified = self._verify_order_on_binance(db, order_id, client_order_id, symbol=symbol)
+                verified = self._verify_order_on_binance(
+                    db, order_id, client_order_id, symbol=symbol
+                )
             except Exception:
                 verified = None
 
@@ -193,7 +208,7 @@ class OrderService:
                     db,
                     order_id=order_id,
                     status="REJECTED",
-                    error_message=f"Binance API error: {type(e).__name__}"
+                    error_message=f"Binance API error: {type(e).__name__}",
                 )
             except Exception:
                 logger.exception("Failed to mark order %s as REJECTED", order_id)
@@ -243,10 +258,13 @@ class OrderService:
             raise ValueError(f"Pairing {pairing_id} not found")
 
         # 2. Lock pairing if still DRAFT (skip if already LOCKED)
-        from app.db.models import PairingDB, PairingStatusEnum as _PSE
-        pairing_db = db.query(PairingDB).filter(
-            PairingDB.id == pairing_id, PairingDB.user_id == user_id
-        ).first()
+        from app.db.models import PairingStatusEnum as _PSE
+
+        pairing_db = (
+            db.query(PairingDB)
+            .filter(PairingDB.id == pairing_id, PairingDB.user_id == user_id)
+            .first()
+        )
         if not pairing_db:
             raise ValueError(f"Pairing {pairing_id} not found in DB")
         if pairing_db.status == _PSE.DRAFT:
@@ -266,6 +284,51 @@ class OrderService:
             if not lot_db:
                 raise ValueError(f"Lot {item.lot_id} not found")
 
+        # 3a. Route Selection for cross-pair pairings
+        routing_decision = None
+
+        if pairing_db.base_asset is not None:
+            # Cross-pair: fetch live prices for both routes
+            xrpeur_price = self.binance_service.get_current_price("XRPEUR")
+            xrpbtc_price = self.binance_service.get_current_price("XRPBTC")
+            btceur_price = self.binance_service.get_current_price("BTCEUR")
+
+            total_qty = sum(item.qty_base for item in pairing_domain.items)
+
+            # Compute dual-route comparison (pure domain function)
+            drc = compute_dual_route_comparison(
+                total_base=total_qty,
+                xrpeur_price=xrpeur_price,
+                xrpbtc_price=xrpbtc_price,
+                btceur_price=btceur_price,
+                fee_pct=Decimal("0.001"),
+            )
+
+            # Select winning route
+            selected_symbol = drc.recommended_route  # "XRPEUR" or "XRPBTC"
+            if selected_symbol == "XRPEUR":
+                effective_market_price = xrpeur_price
+            else:
+                effective_market_price = xrpbtc_price
+
+            # Override symbol for order placement
+            symbol = selected_symbol
+
+            # Build routing decision for audit logging
+            routing_decision = RoutingDecision(
+                selected_route=selected_symbol,
+                xrpeur_price=xrpeur_price,
+                xrpbtc_price=xrpbtc_price,
+                btceur_price=btceur_price,
+                direct_net_eur=drc.route_direct.net_proceeds_eur,
+                indirect_net_eur=drc.route_indirect.net_proceeds_eur,
+                eur_difference=drc.eur_difference,
+                timestamp=utcnow(),
+            )
+
+            # Override market_price for target calculation
+            market_price = effective_market_price
+
         # 4. Berechne aggregierte Order-Parameter
         price_prec = get_price_precision(symbol)
         base_prec = get_base_precision(symbol)
@@ -281,19 +344,40 @@ class OrderService:
         total_qty = sum(item.qty_base for item in pairing_domain.items)
         total_qty_rounded = total_qty.quantize(base_quant)
 
-        # Max Order Value pruefen
+        # Max Order Value pruefen (EUR-equivalent for non-EUR quote orders)
         order_value = total_qty_rounded * target_price_rounded
-        settings = db.query(UserSettingsDB).filter(UserSettingsDB.user_id == user_id).first()
-        max_value = Decimal(str(settings.max_order_value_eur)) if settings else Decimal("1000")
-        if order_value > max_value:
+        quote_asset = get_quote_asset(symbol)
+        if quote_asset != "EUR" and routing_decision is not None:
+            order_value_eur = order_value * routing_decision.btceur_price
+        else:
+            order_value_eur = order_value
+
+        settings = (
+            db.query(UserSettingsDB).filter(UserSettingsDB.user_id == user_id).first()
+        )
+        max_value = (
+            Decimal(str(settings.max_order_value_eur)) if settings else Decimal("1000")
+        )
+        if order_value_eur > max_value:
             raise ValueError(
-                f"Order-Wert {order_value:.2f} EUR ueberschreitet Maximum von {max_value:.2f} EUR"
+                f"Order-Wert {order_value_eur:.2f} EUR ueberschreitet Maximum von {max_value:.2f} EUR"
             )
 
         # 5. Client Order ID (idempotent, pro Pairing)
+        # Symbol-aware: include symbol to prevent cross-symbol collisions
+        # Satoshi encoding for sub-1 prices (e.g. XRPBTC)
         version = "v1"
-        safe_pairing_id = re.sub(r'[^a-zA-Z0-9_-]', '', pairing_id)[:12]
-        client_order_id = f"{user_id}_pairing_{safe_pairing_id}_{int(target_price_rounded)}_{version}"[:36]
+        safe_pairing_id = re.sub(r"[^a-zA-Z0-9_-]", "", pairing_id)[:12]
+
+        if target_price_rounded >= Decimal("1"):
+            price_enc = str(int(target_price_rounded))
+        else:
+            price_enc = str(int(target_price_rounded * Decimal("100000000")))
+
+        sym_short = symbol[:6]
+        client_order_id = (
+            f"{user_id}_p_{safe_pairing_id}_{sym_short}_{price_enc}_{version}"[:36]
+        )
 
         # Check idempotency
         existing = self.order_tracking.check_idempotency(db, client_order_id)
@@ -303,7 +387,7 @@ class OrderService:
                 "pairing_id": pairing_id,
                 "order": existing,
                 "count": 1,
-                "note": "Order already exists (idempotent)"
+                "note": "Order already exists (idempotent)",
             }
 
         # 6. Create PENDING order record
@@ -317,7 +401,7 @@ class OrderService:
             quantity=total_qty_rounded,
             price=target_price_rounded,
             stop_price=target_price_rounded,
-            linked_pairing_id=pairing_id
+            linked_pairing_id=pairing_id,
         )
 
         # 7. Call Binance API
@@ -330,7 +414,7 @@ class OrderService:
                 quantity=str(total_qty_rounded),
                 price=str(target_price_rounded),
                 stopPrice=str(target_price_rounded),
-                newClientOrderId=client_order_id
+                newClientOrderId=client_order_id,
             )
 
             # Update to OPEN
@@ -339,12 +423,14 @@ class OrderService:
                 order_id=order_id,
                 status="OPEN",
                 binance_order_id=str(binance_response["orderId"]),
-                raw_response=binance_response
+                raw_response=binance_response,
             )
 
         except Exception as e:
             # Verifikation: Existiert die Order trotzdem auf Binance?
-            verified = self._verify_order_on_binance(db, order_id, client_order_id, symbol=symbol)
+            verified = self._verify_order_on_binance(
+                db, order_id, client_order_id, symbol=symbol
+            )
             if verified:
                 order = verified
             else:
@@ -353,9 +439,11 @@ class OrderService:
                     db,
                     order_id=order_id,
                     status="REJECTED",
-                    error_message=f"Binance API error: {type(e).__name__}"
+                    error_message=f"Binance API error: {type(e).__name__}",
                 )
-                logger.error("Pairing order creation failed for pairing %s: %s", pairing_id, e)
+                logger.error(
+                    "Pairing order creation failed for pairing %s: %s", pairing_id, e
+                )
                 raise ValueError("Order-Erstellung auf Binance fehlgeschlagen")
 
         # 8. Mark pairing as EXECUTED
@@ -364,7 +452,12 @@ class OrderService:
         except Exception as e:
             logger.warning("Order placed but pairing status update failed: %s", e)
 
-        return {
+        # 9. Persist routing decision on PairingDB
+        if routing_decision is not None:
+            pairing_db.routing_decision_json = routing_decision.to_dict()
+            db.flush()
+
+        result = {
             "status": "success",
             "pairing_id": pairing_id,
             "order": order,
@@ -372,13 +465,12 @@ class OrderService:
             "total_qty_base": str(total_qty_rounded),
             "lot_count": len(pairing_domain.items),
         }
+        if routing_decision is not None:
+            result["routing_decision"] = routing_decision.to_dict()
+        return result
 
     def _verify_order_on_binance(
-        self,
-        db: Session,
-        order_id: str,
-        client_order_id: str,
-        symbol: str = "BTCEUR"
+        self, db: Session, order_id: str, client_order_id: str, symbol: str = "BTCEUR"
     ) -> Dict[str, Any] | None:
         """
         Prueft ob eine Order trotz Exception auf Binance existiert.
@@ -398,8 +490,7 @@ class OrderService:
         """
         try:
             binance_order = self.binance_service.client.get_order(
-                symbol=symbol,
-                origClientOrderId=client_order_id
+                symbol=symbol, origClientOrderId=client_order_id
             )
 
             binance_status = binance_order.get("status", "")
@@ -411,7 +502,8 @@ class OrderService:
             # Order existiert auf Binance - DB korrigieren
             logger.warning(
                 "Order %s existiert auf Binance (Status: %s) trotz lokalem Fehler - korrigiere DB",
-                client_order_id, binance_status
+                client_order_id,
+                binance_status,
             )
 
             order = self.order_tracking.update_order_status(
@@ -419,7 +511,7 @@ class OrderService:
                 order_id=order_id,
                 status=internal_status,
                 binance_order_id=str(binance_order["orderId"]),
-                raw_response=binance_order
+                raw_response=binance_order,
             )
             return order
 
@@ -429,12 +521,7 @@ class OrderService:
             )
             return None
 
-    def cancel_order(
-        self,
-        db: Session,
-        symbol: str,
-        order_id: int
-    ) -> Dict[str, Any]:
+    def cancel_order(self, db: Session, symbol: str, order_id: int) -> Dict[str, Any]:
         """
         Cancelt eine Order auf Binance und aktualisiert lokale DB
 
@@ -448,36 +535,31 @@ class OrderService:
         """
         try:
             result = self.binance_service.client.cancel_order(
-                symbol=symbol,
-                orderId=order_id
+                symbol=symbol, orderId=order_id
             )
 
             # Lokale DB aktualisieren
-            order_db = db.query(OrderDB).filter(
-                OrderDB.binance_order_id == str(order_id)
-            ).first()
+            order_db = (
+                db.query(OrderDB)
+                .filter(OrderDB.binance_order_id == str(order_id))
+                .first()
+            )
 
             if order_db:
                 self.order_tracking.update_order_status(
-                    db,
-                    order_id=order_db.id,
-                    status="CANCELLED",
-                    raw_response=result
+                    db, order_id=order_db.id, status="CANCELLED", raw_response=result
                 )
 
             return {
                 "status": "cancelled",
                 "order_id": result["orderId"],
-                "symbol": result["symbol"]
+                "symbol": result["symbol"],
             }
         except Exception as e:
             logger.error("Failed to cancel order %s: %s", order_id, e)
             raise ValueError("Order-Stornierung auf Binance fehlgeschlagen")
 
-    def get_open_orders(
-        self,
-        symbol: str = "BTCEUR"
-    ) -> list:
+    def get_open_orders(self, symbol: str = "BTCEUR") -> list:
         """
         Holt alle offenen Orders
 
