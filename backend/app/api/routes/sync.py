@@ -10,6 +10,7 @@ from app.db.database import get_db
 logger = logging.getLogger(__name__)
 from app.services.binance import BinanceService
 from app.services.sync_service import SyncService
+from app.services.reconciliation_service import ReconciliationService
 from app.services.csv_import_service import import_trading_bots_csv
 from app.api.dependencies import get_binance_service
 from app.symbol_registry import is_known_symbol, KNOWN_PAIRS
@@ -54,11 +55,27 @@ def sync_fills(
         if start_time:
             start_dt = datetime.fromisoformat(start_time)
 
-        return sync_service.sync_fills(db, user_id, symbol, start_dt)
+        result = sync_service.sync_fills(db, user_id, symbol, start_dt)
+
+        # Auto-reconciliation after successful sync (RECON-01)
+        if result.get("status") != "fifo_error":
+            try:
+                recon_service = ReconciliationService(binance_service)
+                recon_result = recon_service.run_and_persist(
+                    db, user_id, symbol, trigger="post_sync"
+                )
+                result["reconciliation"] = recon_result
+            except Exception:
+                logger.warning(
+                    "Auto-reconciliation after sync failed for user=%s", user_id
+                )
+                result["reconciliation"] = None
+
+        return result
 
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         logger.exception("Sync endpoint failed for user=%s", user_id)
         raise HTTPException(status_code=500, detail="Interner Serverfehler")
 
@@ -147,7 +164,7 @@ def sync_all_fills(
         if total_fills_failed > 0:
             status = "partial_success"
 
-        return {
+        result = {
             "status": status,
             "message": f"Full sync completed: {total_new_fills} fills imported",
             "new_fills": total_new_fills,
@@ -162,9 +179,24 @@ def sync_all_fills(
             "errors": all_errors,
         }
 
+        # Auto-reconciliation after successful full sync (RECON-01)
+        try:
+            recon_service = ReconciliationService(binance_service)
+            recon_result = recon_service.run_and_persist(
+                db, user_id, symbol, trigger="post_full_sync"
+            )
+            result["reconciliation"] = recon_result
+        except Exception:
+            logger.warning(
+                "Auto-reconciliation after full sync failed for user=%s", user_id
+            )
+            result["reconciliation"] = None
+
+        return result
+
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         logger.exception("Sync endpoint failed for user=%s", user_id)
         raise HTTPException(status_code=500, detail="Interner Serverfehler")
 

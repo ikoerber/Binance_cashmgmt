@@ -41,6 +41,7 @@ def run_full_reconciliation(
     - Order Status von Binance
     - Balance-Vergleich (Binance vs. Ledger)
     - Neue Fills (mit FIFO Allocation)
+    - Persists run as ReconciliationRunDB with trigger='manual'
 
     Args:
         user_id: User ID
@@ -49,7 +50,7 @@ def run_full_reconciliation(
         reconciliation_service: Reconciliation Service (injected)
 
     Returns:
-        Reconciliation report mit Diskrepanzen
+        Reconciliation report mit Diskrepanzen + run_id
     """
     try:
         _validate_symbol(symbol)
@@ -58,10 +59,83 @@ def run_full_reconciliation(
             "status": "completed",
             "user_id": user_id,
             "symbol": symbol,
-            "report": report
+            "run_id": report.get("run_id"),
+            "report": {
+                "orders": report.get("orders", {}),
+                "balances": report.get("balances", {}),
+                "fills": report.get("fills", {}),
+            },
         }
-    except Exception as e:
+    except Exception:
         logger.exception("Reconciliation endpoint failed for user=%s", user_id)
+        raise HTTPException(status_code=500, detail="Interner Serverfehler")
+
+
+@router.get("/{user_id}/history")
+def get_reconciliation_history(
+    user_id: str,
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+    reconciliation_service: ReconciliationService = Depends(get_reconciliation_service),
+):
+    """
+    Gibt vergangene Reconciliation-Runs zurueck (paginiert).
+
+    Args:
+        user_id: User ID
+        limit: Max Ergebnisse (1-100, Default: 20)
+        offset: Pagination Offset
+        db: Database Session (injected)
+        reconciliation_service: Reconciliation Service (injected)
+
+    Returns:
+        Liste von Run-Summaries mit Gesamtzahl
+    """
+    try:
+        return reconciliation_service.get_reconciliation_history(
+            db, user_id, limit, offset
+        )
+    except Exception:
+        logger.exception("Reconciliation history failed for user=%s", user_id)
+        raise HTTPException(status_code=500, detail="Interner Serverfehler")
+
+
+@router.get("/{user_id}/history/{run_id}")
+def get_reconciliation_run_detail(
+    user_id: str,
+    run_id: str,
+    db: Session = Depends(get_db),
+    reconciliation_service: ReconciliationService = Depends(get_reconciliation_service),
+):
+    """
+    Gibt Details eines einzelnen Reconciliation-Runs zurueck.
+
+    Inkl. vollem report_json und zugehoerigen Alert-Events.
+    IDOR-geschuetzt via user_id.
+
+    Args:
+        user_id: User ID
+        run_id: Reconciliation Run ID
+        db: Database Session (injected)
+        reconciliation_service: Reconciliation Service (injected)
+
+    Returns:
+        Run-Detail oder 404
+    """
+    try:
+        result = reconciliation_service.get_reconciliation_run(db, user_id, run_id)
+        if result is None:
+            raise HTTPException(
+                status_code=404, detail="Reconciliation-Run nicht gefunden"
+            )
+        return result
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception(
+            "Reconciliation run detail failed for user=%s, run=%s", user_id, run_id
+        )
         raise HTTPException(status_code=500, detail="Interner Serverfehler")
 
 

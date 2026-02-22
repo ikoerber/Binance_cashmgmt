@@ -26,6 +26,9 @@ class SettingsUpdate(BaseModel):
     ob_atr_multiplier: Optional[str] = Field(default="2.0")
     ob_target_rr: Optional[str] = Field(default="2.0")
     ob_impulse_window: Optional[int] = Field(default=5, ge=2, le=20)
+    # Reconciliation Thresholds
+    recon_tolerance_base: Optional[str] = Field(default=None)
+    recon_tolerance_quote: Optional[str] = Field(default=None)
 
 
 VALID_STRATEGIES = {"FIFO", "LIFO", "HIGHEST_COST"}
@@ -42,6 +45,8 @@ def _settings_to_dict(settings: UserSettingsDB) -> dict:
         "ob_atr_multiplier": str(settings.ob_atr_multiplier) if settings.ob_atr_multiplier is not None else "2.0",
         "ob_target_rr": str(settings.ob_target_rr) if settings.ob_target_rr is not None else "2.0",
         "ob_impulse_window": int(settings.ob_impulse_window) if settings.ob_impulse_window is not None else 5,
+        "recon_tolerance_base": str(settings.recon_tolerance_base) if settings.recon_tolerance_base is not None else "0.0001",
+        "recon_tolerance_quote": str(settings.recon_tolerance_quote) if settings.recon_tolerance_quote is not None else "1.00",
     }
 
 
@@ -53,6 +58,8 @@ DEFAULTS = {
     "ob_atr_multiplier": "2.0",
     "ob_target_rr": "2.0",
     "ob_impulse_window": 5,
+    "recon_tolerance_base": "0.0001",
+    "recon_tolerance_quote": "1.00",
 }
 
 
@@ -137,6 +144,29 @@ def update_settings(
             detail=f"ob_interval muss einer von {sorted(VALID_OB_INTERVALS)} sein"
         )
 
+    # Reconciliation Threshold Validation
+    recon_base = None
+    if body.recon_tolerance_base is not None:
+        try:
+            recon_base = Decimal(body.recon_tolerance_base)
+        except Exception:
+            raise HTTPException(status_code=400, detail="recon_tolerance_base muss eine gueltige Zahl sein")
+        if recon_base.is_nan() or recon_base.is_infinite():
+            raise HTTPException(status_code=400, detail="recon_tolerance_base darf nicht NaN oder Infinity sein")
+        if recon_base < Decimal("0"):
+            raise HTTPException(status_code=400, detail="recon_tolerance_base muss >= 0 sein")
+
+    recon_quote = None
+    if body.recon_tolerance_quote is not None:
+        try:
+            recon_quote = Decimal(body.recon_tolerance_quote)
+        except Exception:
+            raise HTTPException(status_code=400, detail="recon_tolerance_quote muss eine gueltige Zahl sein")
+        if recon_quote.is_nan() or recon_quote.is_infinite():
+            raise HTTPException(status_code=400, detail="recon_tolerance_quote darf nicht NaN oder Infinity sein")
+        if recon_quote < Decimal("0"):
+            raise HTTPException(status_code=400, detail="recon_tolerance_quote muss >= 0 sein")
+
     try:
         # Row-Level Lock: verhindert Lost Updates bei konkurrierenden Requests
         settings = db.query(UserSettingsDB).filter(
@@ -151,6 +181,10 @@ def update_settings(
             settings.ob_atr_multiplier = ob_atr_mult
             settings.ob_target_rr = ob_rr
             settings.ob_impulse_window = body.ob_impulse_window
+            if recon_base is not None:
+                settings.recon_tolerance_base = recon_base
+            if recon_quote is not None:
+                settings.recon_tolerance_quote = recon_quote
             settings.updated_at = utcnow()
         else:
             settings = UserSettingsDB(
@@ -163,6 +197,8 @@ def update_settings(
                 ob_atr_multiplier=ob_atr_mult,
                 ob_target_rr=ob_rr,
                 ob_impulse_window=body.ob_impulse_window,
+                recon_tolerance_base=recon_base,
+                recon_tolerance_quote=recon_quote,
                 created_at=utcnow(),
                 updated_at=utcnow(),
             )
