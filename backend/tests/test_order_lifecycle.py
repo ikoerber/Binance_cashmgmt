@@ -369,7 +369,7 @@ def test_cancel_order_updates_db(db_session, test_user, test_lot):
 
     # 2. Mock BinanceService und cancel_order aufrufen
     mock_binance = MagicMock()
-    mock_binance.client.cancel_order.return_value = {
+    mock_binance.cancel_order.return_value = {
         "orderId": int(binance_order_id),
         "symbol": "BTCEUR",
         "status": "CANCELED",
@@ -379,7 +379,7 @@ def test_cancel_order_updates_db(db_session, test_user, test_lot):
     result = order_service.cancel_order(db_session, "BTCEUR", int(binance_order_id))
 
     # 3. Verify: Binance API aufgerufen
-    mock_binance.client.cancel_order.assert_called_once_with(
+    mock_binance.cancel_order.assert_called_once_with(
         symbol="BTCEUR", orderId=int(binance_order_id)
     )
 
@@ -394,8 +394,8 @@ def test_verify_order_on_binance_after_timeout(db_session, test_user, test_lot):
 
     # 1. Mock: create_order wirft Timeout, aber get_order findet Order auf Binance
     mock_binance = MagicMock()
-    mock_binance.client.create_order.side_effect = Exception("Read timed out")
-    mock_binance.client.get_order.return_value = {
+    mock_binance.create_order.side_effect = Exception("Read timed out")
+    mock_binance.get_order.return_value = {
         "orderId": 12345678,
         "status": "NEW",
         "symbol": "BTCEUR",
@@ -423,8 +423,8 @@ def test_verify_order_not_on_binance_marks_rejected(db_session, test_user, test_
     """Test: Order existiert NICHT auf Binance → wird korrekt als REJECTED markiert"""
     # 1. Mock: create_order UND get_order schlagen fehl
     mock_binance = MagicMock()
-    mock_binance.client.create_order.side_effect = Exception("Insufficient balance")
-    mock_binance.client.get_order.side_effect = Exception("Order does not exist")
+    mock_binance.create_order.side_effect = Exception("Insufficient balance")
+    mock_binance.get_order.side_effect = Exception("Order does not exist")
 
     order_service = OrderService(mock_binance)
 

@@ -65,7 +65,7 @@ class ReconciliationService:
 
         # 1. Fetch open orders from Binance
         try:
-            binance_orders = self.binance_service.client.get_open_orders(symbol=symbol)
+            binance_orders = self.binance_service.get_open_orders(symbol=symbol)
             binance_order_ids = {str(order["orderId"]) for order in binance_orders}
         except Exception:
             logger.exception("Failed to fetch Binance open orders for user=%s", user_id)
@@ -91,7 +91,7 @@ class ReconciliationService:
                 # Order not in open orders - might be filled/cancelled
                 try:
                     # Fetch full order details
-                    binance_order = self.binance_service.client.get_order(
+                    binance_order = self.binance_service.get_order(
                         symbol=symbol,
                         orderId=int(order_db.binance_order_id)
                     )
@@ -164,7 +164,7 @@ class ReconciliationService:
 
         # 1. Fetch Binance balances
         try:
-            account = self.binance_service.client.get_account()
+            account = self.binance_service.get_account()
             binance_balances = {balance["asset"]: Decimal(balance["free"]) + Decimal(balance["locked"])
                                for balance in account["balances"]}
 

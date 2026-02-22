@@ -45,7 +45,7 @@ def get_portfolio_state(
     # 1. BINANCE BALANCE (Single Source of Truth)
     if binance_service:
         try:
-            account = binance_service.client.get_account()
+            account = binance_service.get_account()
             binance_balances = {
                 balance["asset"]: Decimal(balance["free"]) + Decimal(balance["locked"])
                 for balance in account["balances"]
@@ -73,10 +73,17 @@ def get_portfolio_state(
     # Break-even nur für getrackte Lots
     tracked_break_even = tracked_cost_quote / tracked_base_qty if tracked_base_qty > 0 else None
 
-    # 3. REALIZED P&L aus Ledger
+    # 3. REALIZED P&L aus Ledger (symbol-gefiltert)
+    from sqlalchemy import or_
     events_db = (
         db.query(LedgerEventDB)
-        .filter(LedgerEventDB.user_id == user_id)
+        .filter(
+            LedgerEventDB.user_id == user_id,
+            or_(
+                LedgerEventDB.symbol == symbol,
+                LedgerEventDB.symbol.is_(None),
+            ),
+        )
         .order_by(LedgerEventDB.timestamp.asc())
         .all()
     )
@@ -94,6 +101,9 @@ def get_portfolio_state(
 
     # Unrealized P&L nur für getrackte Lots
     tracked_unrealized = (market_price * tracked_base_qty) - tracked_cost_quote if tracked_base_qty > 0 else Decimal("0")
+
+    # Per-Symbol Depot P&L: Realisierte + Unrealisierte P&L (konsistent, ohne globale Balances)
+    depot_pnl_quote = portfolio.realized_pnl_quote + tracked_unrealized
 
     return {
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -113,6 +123,7 @@ def get_portfolio_state(
         "external_net_quote": str(portfolio.external_net_quote),
         "target_price": str(target_price) if target_price else None,
         "target_margin_pct": str(target_margin_pct),
+        "depot_pnl_quote": str(depot_pnl_quote),
         "source": "binance" if base_qty_binance is not None else "ledger",
     }
 
@@ -124,9 +135,16 @@ def get_daily_performance(
     symbol: str = "BTCEUR",
 ) -> dict:
     """Holt Tages-Performance für einen User."""
+    from sqlalchemy import or_
     events_db = (
         db.query(LedgerEventDB)
-        .filter(LedgerEventDB.user_id == user_id)
+        .filter(
+            LedgerEventDB.user_id == user_id,
+            or_(
+                LedgerEventDB.symbol == symbol,
+                LedgerEventDB.symbol.is_(None),
+            ),
+        )
         .order_by(LedgerEventDB.timestamp.asc())
         .all()
     )

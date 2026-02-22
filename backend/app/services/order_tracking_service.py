@@ -200,7 +200,7 @@ class OrderTrackingService:
 
         # Fetch from Binance
         try:
-            binance_order = self.binance_service.client.get_order(
+            binance_order = self.binance_service.get_order(
                 symbol=order_db.symbol,
                 orderId=order_db.binance_order_id
             )
@@ -253,7 +253,7 @@ class OrderTrackingService:
 
         try:
             # 1. Alle aktuell offenen Orders von Binance holen (1 API Call)
-            binance_open = self.binance_service.client.get_open_orders(symbol=symbol)
+            binance_open = self.binance_service.get_open_orders(symbol=symbol)
             binance_open_ids = {str(order["orderId"]) for order in binance_open}
 
             # 2. Alle OPEN/PARTIALLY_FILLED Orders aus DB
@@ -270,7 +270,7 @@ class OrderTrackingService:
 
                 if order_db.binance_order_id not in binance_open_ids:
                     try:
-                        binance_order = self.binance_service.client.get_order(
+                        binance_order = self.binance_service.get_order(
                             symbol=symbol,
                             orderId=int(order_db.binance_order_id)
                         )
@@ -418,7 +418,7 @@ class OrderTrackingService:
 
         try:
             # Hole offene Orders von Binance
-            binance_orders = self.binance_service.client.get_open_orders(symbol=symbol)
+            binance_orders = self.binance_service.get_open_orders(symbol=symbol)
 
             for binance_order in binance_orders:
                 client_order_id = binance_order["clientOrderId"]

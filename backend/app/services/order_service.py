@@ -155,7 +155,7 @@ class OrderService:
 
         # 3. Call Binance API
         try:
-            binance_response = self.binance_service.client.create_order(
+            binance_response = self.binance_service.create_order(
                 symbol=symbol,
                 side="SELL",
                 type="TAKE_PROFIT_LIMIT",
@@ -406,7 +406,7 @@ class OrderService:
 
         # 7. Call Binance API
         try:
-            binance_response = self.binance_service.client.create_order(
+            binance_response = self.binance_service.create_order(
                 symbol=symbol,
                 side="SELL",
                 type="TAKE_PROFIT_LIMIT",
@@ -489,7 +489,7 @@ class OrderService:
             Order-Dict wenn auf Binance gefunden, sonst None
         """
         try:
-            binance_order = self.binance_service.client.get_order(
+            binance_order = self.binance_service.get_order(
                 symbol=symbol, origClientOrderId=client_order_id
             )
 
@@ -534,7 +534,7 @@ class OrderService:
             Cancel-Result
         """
         try:
-            result = self.binance_service.client.cancel_order(
+            result = self.binance_service.cancel_order(
                 symbol=symbol, orderId=order_id
             )
 
@@ -570,7 +570,7 @@ class OrderService:
             Liste offener Orders
         """
         try:
-            orders = self.binance_service.client.get_open_orders(symbol=symbol)
+            orders = self.binance_service.get_open_orders(symbol=symbol)
             return orders
         except Exception as e:
             logger.error("Failed to get open orders for symbol %s: %s", symbol, e)

@@ -58,7 +58,6 @@ def test_user(db_session):
 def mock_binance_service():
     """Mocked BinanceService"""
     service = Mock(spec=BinanceService)
-    service.client = Mock()
     return service
 
 
@@ -89,7 +88,7 @@ def test_reconcile_orders_no_changes(
     db_session.commit()
 
     # Mock Binance response - order still open
-    mock_binance_service.client.get_open_orders.return_value = [
+    mock_binance_service.get_open_orders.return_value = [
         {"orderId": 12345678, "status": "NEW"}
     ]
 
@@ -122,8 +121,8 @@ def test_reconcile_orders_status_update(
     db_session.commit()
 
     # Mock Binance response - order not in open orders (filled)
-    mock_binance_service.client.get_open_orders.return_value = []
-    mock_binance_service.client.get_order.return_value = {
+    mock_binance_service.get_open_orders.return_value = []
+    mock_binance_service.get_order.return_value = {
         "orderId": 12345678,
         "status": "FILLED",
         "executedQty": "0.01",
@@ -161,8 +160,8 @@ def test_reconcile_orders_discrepancy(
     db_session.commit()
 
     # Mock Binance response - order not found
-    mock_binance_service.client.get_open_orders.return_value = []
-    mock_binance_service.client.get_order.side_effect = Exception("Order not found")
+    mock_binance_service.get_open_orders.return_value = []
+    mock_binance_service.get_order.side_effect = Exception("Order not found")
 
     # Reconcile
     report = reconciliation_service.reconcile_orders(db_session, test_user.id, "BTCEUR")
@@ -208,7 +207,7 @@ def test_reconcile_balances_within_tolerance(
     db_session.commit()
 
     # Mock Binance balance - matching calculated: BTC=0.01, EUR=1500-500=1000
-    mock_binance_service.client.get_account.return_value = {
+    mock_binance_service.get_account.return_value = {
         "balances": [
             {"asset": "BTC", "free": "0.01", "locked": "0"},
             {"asset": "EUR", "free": "1000.00", "locked": "0"},
@@ -243,7 +242,7 @@ def test_reconcile_balances_outside_tolerance(
     db_session.commit()
 
     # Mock Binance balance - significantly different BTC
-    mock_binance_service.client.get_account.return_value = {
+    mock_binance_service.get_account.return_value = {
         "balances": [
             {"asset": "BTC", "free": "0.02", "locked": "0"},  # 0.01 difference
             {"asset": "EUR", "free": "0", "locked": "0"},
@@ -294,7 +293,7 @@ def test_reconcile_balances_with_fees(
     db_session.commit()
 
     # Mock Binance balance: BTC=0.01-0.0001=0.0099, EUR=1500-500=1000
-    mock_binance_service.client.get_account.return_value = {
+    mock_binance_service.get_account.return_value = {
         "balances": [
             {"asset": "BTC", "free": "0.0099", "locked": "0"},
             {"asset": "EUR", "free": "1000.00", "locked": "0"},
@@ -313,8 +312,8 @@ def test_full_reconciliation(
 ):
     """Test: Full Reconciliation ruft alle Sub-Reconciliations auf"""
     # Mock all Binance responses
-    mock_binance_service.client.get_open_orders.return_value = []
-    mock_binance_service.client.get_account.return_value = {
+    mock_binance_service.get_open_orders.return_value = []
+    mock_binance_service.get_account.return_value = {
         "balances": [
             {"asset": "BTC", "free": "0", "locked": "0"},
             {"asset": "EUR", "free": "0", "locked": "0"},
@@ -339,7 +338,7 @@ def test_reconcile_orders_error_handling(
 ):
     """Test: Error Handling bei Binance API Fehler"""
     # Mock Binance error
-    mock_binance_service.client.get_open_orders.side_effect = Exception("API Error")
+    mock_binance_service.get_open_orders.side_effect = Exception("API Error")
 
     # Reconcile
     report = reconciliation_service.reconcile_orders(db_session, test_user.id, "BTCEUR")
@@ -370,10 +369,10 @@ def test_reconcile_multiple_orders(
     db_session.commit()
 
     # Mock Binance - 1 still open, 2 filled
-    mock_binance_service.client.get_open_orders.return_value = [
+    mock_binance_service.get_open_orders.return_value = [
         {"orderId": 12345678, "status": "NEW"}
     ]
-    mock_binance_service.client.get_order.side_effect = [
+    mock_binance_service.get_order.side_effect = [
         {"orderId": 12345679, "status": "FILLED", "executedQty": "0.01"},
         {"orderId": 12345680, "status": "FILLED", "executedQty": "0.01"},
     ]
