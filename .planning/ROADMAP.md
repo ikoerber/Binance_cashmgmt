@@ -53,11 +53,11 @@ Plans:
   2. Ein transienter Fehler (Timeout, Rate-Limit) waehrend des Syncs wird automatisch mit Backoff wiederholt, ohne dass der User manuell neu triggern muss
   3. Nach einem abgebrochenen Sync kann der naechste Lauf dort fortsetzen, wo der letzte aufgehoert hat (kein vollstaendiger Re-Sync noetig)
   4. Der User kann im Sync-Response erkennen, wie viele Fills erfolgreich, fehlgeschlagen und uebersprungen wurden
-**Plans**: TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] 06-01: TBD
-- [ ] 06-02: TBD
+- [ ] 06-01-PLAN.md — Per-fill sync result tracking domain model + sync_fills refactor (TDD)
+- [ ] 06-02-PLAN.md — API layer + lot_service propagation of structured sync report
 
 ### Phase 7: Proactive Reconciliation
 **Goal**: Reconciliation laeuft automatisch nach Sync und erkennt Diskrepanzen proaktiv
@@ -101,6 +101,6 @@ Phases execute in numeric order: 5 → 6 → 7 → 8
 | 3. Cross-Pair Pairing | v1.0 | 3/3 | Complete | 2026-02-20 |
 | 4. Sell Routing | v1.0 | 2/2 | Complete | 2026-02-22 |
 | 5. API Resilience | v1.1 | 0/2 | Planned | - |
-| 6. Sync Reliability | v1.1 | 0/? | Not started | - |
+| 6. Sync Reliability | v1.1 | 0/2 | Planned | - |
 | 7. Proactive Reconciliation | v1.1 | 0/? | Not started | - |
 | 8. Alert System | v1.1 | 0/? | Not started | - |
