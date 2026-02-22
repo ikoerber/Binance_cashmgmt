@@ -9,19 +9,19 @@ See: .planning/PROJECT.md (updated 2026-02-22)
 
 ## Current Position
 
-Phase: 7 of 8 (Proactive Reconciliation)
-Plan: 2 of 2
-Status: In progress
-Last activity: 2026-02-22 — Completed 07-01 (DB models + evaluate_discrepancies domain logic)
+Phase: 7 of 8 (Proactive Reconciliation) -- COMPLETE
+Plan: 2 of 2 -- COMPLETE
+Status: Phase 7 complete, ready for Phase 8
+Last activity: 2026-02-22 — Completed 07-02 (Auto-reconciliation integration + history API)
 
-Progress: [██████░░░░] 62% (v1.1, 5/8 plans)
+Progress: [███████░░░] 75% (v1.1, 6/8 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 13 (8 v1.0 + 5 v1.1)
-- Average duration: 3.5min
-- Total execution time: 48min
+- Total plans completed: 14 (8 v1.0 + 6 v1.1)
+- Average duration: 3.4min
+- Total execution time: 51min
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
@@ -30,6 +30,7 @@ Progress: [██████░░░░] 62% (v1.1, 5/8 plans)
 | 06-01 | Per-Fill Sync Result Tracking | 4min | 1 (TDD) | 3 |
 | 06-02 | API Layer + Lot Service Sync Report Propagation | 2min | 2 | 2 |
 | 07-01 | DB models + evaluate_discrepancies domain logic | 4min | 2 (TDD) | 4 |
+| 07-02 | Auto-reconciliation integration + history API | 3min | 2 | 5 |
 
 *Updated after each plan completion*
 
@@ -53,6 +54,10 @@ Progress: [██████░░░░] 62% (v1.1, 5/8 plans)
 - [07-01] Idempotent migration pattern (_table_exists, _add_column_if_not_exists, _index_exists) for SQLite compatibility
 - [07-01] Severity threshold: > tolerance = warning, > 10x tolerance = critical (strict greater-than, not >=)
 - [07-01] Alert dict format: {alert_type, severity, title, details_json} for consistent AlertEventDB creation
+- [07-02] Auto-reconciliation runs balances + orders only (not fills) -- fills just completed by sync, re-running is redundant
+- [07-02] Auto-recon wrapped in try/except at all call sites -- sync must never fail because of reconciliation
+- [07-02] Thresholds loaded from UserSettingsDB via _load_user_thresholds() with defaults if not configured
+- [07-02] full_reconciliation() delegates to run_and_persist() for persistence, fills handled separately for backward compat
 
 Full v1.0 decision log archived in milestones/v1.0-phases/ SUMMARY.md files.
 
@@ -67,5 +72,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-22
-Stopped at: Completed 07-01-PLAN.md (DB models + evaluate_discrepancies domain logic)
+Stopped at: Completed 07-02-PLAN.md (Auto-reconciliation integration + history API)
 Resume file: None

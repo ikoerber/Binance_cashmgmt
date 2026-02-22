@@ -25,7 +25,7 @@ See: `.planning/milestones/v1.0-ROADMAP.md` for full details
 
 - [ ] **Phase 5: API Resilience** - Binance REST Client erkennt Rate-Limits, respektiert Timeouts und klassifiziert Fehler
 - [ ] **Phase 6: Sync Reliability** - Sync-Prozess gibt Fehler explizit zurueck, wiederholt transiente Fehler und trackt Fortschritt
-- [ ] **Phase 7: Proactive Reconciliation** - Reconciliation triggert automatisch nach Sync mit Threshold-Alerts und persistierter Historie
+- [x] **Phase 7: Proactive Reconciliation** - Reconciliation triggert automatisch nach Sync mit Threshold-Alerts und persistierter Historie
 - [ ] **Phase 8: Alert System** - Frontend zeigt persistente Alerts fuer Sync-Fehler und Diskrepanzen, Logs sind maschinenlesbar
 
 ## Phase Details
@@ -100,7 +100,7 @@ Phases execute in numeric order: 5 → 6 → 7 → 8
 | 2. EUR Cost Basis | v1.0 | 2/2 | Complete | 2026-02-20 |
 | 3. Cross-Pair Pairing | v1.0 | 3/3 | Complete | 2026-02-20 |
 | 4. Sell Routing | v1.0 | 2/2 | Complete | 2026-02-22 |
-| 5. API Resilience | v1.1 | 0/2 | Planned | - |
-| 6. Sync Reliability | v1.1 | 0/2 | Planned | - |
-| 7. Proactive Reconciliation | v1.1 | 0/2 | Planned | - |
+| 5. API Resilience | v1.1 | 2/2 | Complete | 2026-02-22 |
+| 6. Sync Reliability | v1.1 | 2/2 | Complete | 2026-02-22 |
+| 7. Proactive Reconciliation | v1.1 | 2/2 | Complete | 2026-02-22 |
 | 8. Alert System | v1.1 | 0/? | Not started | - |

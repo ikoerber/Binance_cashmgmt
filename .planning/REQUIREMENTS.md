@@ -19,7 +19,7 @@
 
 ### Reconciliation
 
-- [ ] **RECON-01**: Nach erfolgreichem Sync wird automatisch Reconciliation getriggert (Fills + Balances)
+- [x] **RECON-01**: Nach erfolgreichem Sync wird automatisch Reconciliation getriggert (Fills + Balances)
 - [x] **RECON-02**: Diskrepanzen ueber konfigurierbarem Threshold erzeugen Alert-Events
 - [x] **RECON-03**: Reconciliation-Ergebnis wird persistiert (Zeitstempel, Status, Diskrepanzen) fuer Historien-Ansicht
 
@@ -57,7 +57,7 @@
 | SYNC-01 | Phase 6 | Complete |
 | SYNC-02 | Phase 6 | Complete |
 | SYNC-03 | Phase 6 | Complete |
-| RECON-01 | Phase 7 | Pending |
+| RECON-01 | Phase 7 | Complete |
 | RECON-02 | Phase 7 | Complete |
 | RECON-03 | Phase 7 | Complete |
 | ALERT-01 | Phase 8 | Pending |
