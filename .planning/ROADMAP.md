@@ -87,12 +87,12 @@ Plans:
   5. Sync-Response fill_details (fills_processed, fills_failed, fills_skipped_fifo) werden im Frontend nach einem Sync sichtbar angezeigt
   6. Reconciliation-Historie ist ueber GET /api/reconciliation/{user_id}/history im Frontend abrufbar und darstellbar
   7. Reconciliation-Threshold-Werte (recon_tolerance_base, recon_tolerance_quote) sind in der Settings-Seite konfigurierbar
-**Plans**: TBD
+**Plans:** 3 plans
 
 Plans:
-- [ ] 08-01: TBD
-- [ ] 08-02: TBD
-- [ ] 08-03: TBD
+- [ ] 08-01-PLAN.md — Backend Alert API endpoints (GET list, PATCH acknowledge, POST bulk-acknowledge) + structured JSON logging on alert creation
+- [ ] 08-02-PLAN.md — Frontend AlertBanner component with persistent dismiss + sync fill details display in LotsTable
+- [ ] 08-03-PLAN.md — Reconciliation history section in Reconciliation.jsx + Settings threshold UI for recon tolerances
 
 ## Progress
 
@@ -108,4 +108,4 @@ Phases execute in numeric order: 5 → 6 → 7 → 8
 | 5. API Resilience | v1.1 | 2/2 | Complete | 2026-02-22 |
 | 6. Sync Reliability | v1.1 | 2/2 | Complete | 2026-02-22 |
 | 7. Proactive Reconciliation | v1.1 | Complete    | 2026-02-22 | 2026-02-22 |
-| 8. Alert System | v1.1 | 0/? | Not started | - |
+| 8. Alert System | v1.1 | 0/3 | Not started | - |
