@@ -68,11 +68,11 @@ Plans:
   2. Diskrepanzen die einen konfigurierbaren Threshold ueberschreiten erzeugen Alert-Events (sichtbar im naechsten Phase-8-Frontend)
   3. Jede Reconciliation wird mit Zeitstempel, Status und gefundenen Diskrepanzen persistiert und ist spaeter abrufbar
   4. Die manuelle Reconciliation-UI funktioniert weiterhin wie bisher (kein Breaking Change)
-**Plans**: TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] 07-01: TBD
-- [ ] 07-02: TBD
+- [ ] 07-01-PLAN.md — DB models (ReconciliationRunDB, AlertEventDB) + Alembic migration + TDD evaluate_discrepancies domain logic
+- [ ] 07-02-PLAN.md — Service integration (auto-reconciliation after sync, persistence, alert creation) + API (history endpoint, settings extension)
 
 ### Phase 8: Alert System
 **Goal**: User sieht Sync-Fehler und Diskrepanzen sofort im Frontend und kann sie bestaetigen
@@ -102,5 +102,5 @@ Phases execute in numeric order: 5 → 6 → 7 → 8
 | 4. Sell Routing | v1.0 | 2/2 | Complete | 2026-02-22 |
 | 5. API Resilience | v1.1 | 0/2 | Planned | - |
 | 6. Sync Reliability | v1.1 | 0/2 | Planned | - |
-| 7. Proactive Reconciliation | v1.1 | 0/? | Not started | - |
+| 7. Proactive Reconciliation | v1.1 | 0/2 | Planned | - |
 | 8. Alert System | v1.1 | 0/? | Not started | - |
