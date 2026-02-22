@@ -30,7 +30,7 @@
 ### Sell Routing
 
 - [x] **ROUTE-01**: Bei Pairing-Execution berechnet System EUR-Erloes fuer beide Routes (XRP/EUR direkt vs XRP/BTC x BTC/EUR)
-- [ ] **ROUTE-02**: Sell-Order wird automatisch auf das Pair mit hoeherem EUR-Erloes geroutet
+- [x] **ROUTE-02**: Sell-Order wird automatisch auf das Pair mit hoeherem EUR-Erloes geroutet
 - [x] **ROUTE-03**: Routing-Entscheidung wird geloggt (gewaehltes Pair, Preise, Erloes-Differenz)
 - [x] **ROUTE-04**: Cross-Pair Sell-Allocation: Sell-Fills von geroutetem Pair allokieren gegen alle XRP-Lots mit EUR-normalisierter P&L
 
@@ -76,7 +76,7 @@
 | PAIR-04 | Phase 3 | Complete |
 | PAIR-05 | Phase 3 | Complete |
 | ROUTE-01 | Phase 4 | Complete |
-| ROUTE-02 | Phase 4 | Pending |
+| ROUTE-02 | Phase 4 | Complete |
 | ROUTE-03 | Phase 4 | Complete |
 | ROUTE-04 | Phase 4 | Complete |
 
@@ -87,4 +87,4 @@
 
 ---
 *Requirements defined: 2026-02-20*
-*Last updated: 2026-02-20 after roadmap creation*
+*Last updated: 2026-02-22 after Phase 4 completion*
