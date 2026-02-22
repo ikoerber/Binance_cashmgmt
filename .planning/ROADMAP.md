@@ -38,11 +38,11 @@ See: `.planning/milestones/v1.0-ROADMAP.md` for full details
   1. Ein 429 Rate-Limit-Response von Binance fuehrt zu automatischem Warten mit exponentiellem Backoff — der Call wird erfolgreich wiederholt, nicht abgebrochen
   2. Ein Binance API Call der laenger als das konfigurierte Timeout dauert, schlaegt mit einem klaren Timeout-Fehler fehl (kein Haengen)
   3. Fehler werden als transient (retryable: Timeout, Rate-Limit, 5xx) oder permanent (nicht retryable: 4xx Auth, Invalid Parameter) klassifiziert — transiente Fehler werden automatisch wiederholt, permanente sofort propagiert
-**Plans**: TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] 05-01: TBD
-- [ ] 05-02: TBD
+- [ ] 05-01-PLAN.md — Structured error classification + enhanced retry with Retry-After support (TDD)
+- [ ] 05-02-PLAN.md — Configurable timeout + consolidate all direct client calls behind retryable wrappers
 
 ### Phase 6: Sync Reliability
 **Goal**: Sync-Prozess ist transparent, wiederholbar und gibt niemals stille Fehler
@@ -100,7 +100,7 @@ Phases execute in numeric order: 5 → 6 → 7 → 8
 | 2. EUR Cost Basis | v1.0 | 2/2 | Complete | 2026-02-20 |
 | 3. Cross-Pair Pairing | v1.0 | 3/3 | Complete | 2026-02-20 |
 | 4. Sell Routing | v1.0 | 2/2 | Complete | 2026-02-22 |
-| 5. API Resilience | v1.1 | 0/? | Not started | - |
+| 5. API Resilience | v1.1 | 0/2 | Planned | - |
 | 6. Sync Reliability | v1.1 | 0/? | Not started | - |
 | 7. Proactive Reconciliation | v1.1 | 0/? | Not started | - |
 | 8. Alert System | v1.1 | 0/? | Not started | - |
