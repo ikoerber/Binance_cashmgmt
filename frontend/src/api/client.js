@@ -90,33 +90,21 @@ export const syncLots = async (userId, symbol = 'BTCEUR', startTime = null) => {
 };
 
 // Pairing API
-export const getPairingSuggestions = async (userId, marketPrice, thresholdPct = 0.05, symbol = 'BTCEUR', baseAsset = null) => {
-  const params = { market_price: marketPrice, threshold_pct: thresholdPct };
-  if (baseAsset) {
-    params.base_asset = baseAsset;
-  } else {
-    params.symbol = symbol;
-  }
+export const getPairingSuggestions = async (userId, marketPrice, thresholdPct = 0.05, symbol = 'BTCEUR') => {
+  const params = { market_price: marketPrice, threshold_pct: thresholdPct, symbol };
   const response = await apiClient.get(`/api/pairing/${userId}/suggestions`, { params });
   return response.data;
 };
 
-export const simulatePairing = async (userId, pairingId, marketPrice, feePct = 0.001, feeBufferPct = 0.002, customSellPrice = null, xrpbtcPrice = null, btceurPrice = null) => {
+export const simulatePairing = async (userId, pairingId, marketPrice, feePct = 0.001, feeBufferPct = 0.002, customSellPrice = null) => {
   const params = { market_price: marketPrice, fee_pct: feePct, fee_buffer_pct: feeBufferPct };
   if (customSellPrice !== null) params.custom_sell_price = customSellPrice;
-  if (xrpbtcPrice !== null) params.xrpbtc_price = String(xrpbtcPrice);
-  if (btceurPrice !== null) params.btceur_price = String(btceurPrice);
   const response = await apiClient.get(`/api/pairing/${userId}/simulate/${pairingId}`, { params });
   return response.data;
 };
 
-export const createPairing = async (userId, items, thresholdPct, symbol = 'BTCEUR', baseAsset = null) => {
-  const body = { items, threshold_pct: thresholdPct };
-  if (baseAsset) {
-    body.base_asset = baseAsset;
-  } else {
-    body.symbol = symbol;
-  }
+export const createPairing = async (userId, items, thresholdPct, symbol = 'BTCEUR') => {
+  const body = { items, threshold_pct: thresholdPct, symbol };
   const response = await apiClient.post(`/api/pairing/${userId}/create`, body);
   return response.data;
 };
