@@ -13,8 +13,8 @@ Requirements for v2.0 Frontend Redesign + EUR-Fokus. Each maps to roadmap phases
 - [x] **REM-02**: Cross-Pair Routing-Logik entfernen (Sell-Routing Service, Dual-Route Simulation)
 - [x] **REM-03**: Satoshi-Encoding und BTC-Quote-spezifische clientOrderId-Logik entfernen
 - [x] **REM-04**: XRPBTC-spezifische Domain-Modelle entfernen (RouteDetails, DualRouteComparison, RoutingDecision)
-- [ ] **REM-05**: XRPBTC-spezifische Tests und Scripts bereinigen
-- [ ] **REM-06**: Frontend Cross-Pair UI-Elemente entfernen (Pair-Herkunft-Badges, Routing-Anzeige, Dual-Route Simulation)
+- [x] **REM-05**: XRPBTC-spezifische Tests und Scripts bereinigen
+- [x] **REM-06**: Frontend Cross-Pair UI-Elemente entfernen (Pair-Herkunft-Badges, Routing-Anzeige, Dual-Route Simulation)
 
 ### Dark Mode
 
@@ -73,8 +73,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | REM-02 | Phase 9 | Complete |
 | REM-03 | Phase 9 | Complete |
 | REM-04 | Phase 9 | Complete |
-| REM-05 | Phase 9 | Pending |
-| REM-06 | Phase 9 | Pending |
+| REM-05 | Phase 9 | Complete |
+| REM-06 | Phase 9 | Complete |
 | DARK-01 | Phase 10 | Pending |
 | DARK-02 | Phase 10 | Pending |
 | DARK-03 | Phase 11 | Pending |
