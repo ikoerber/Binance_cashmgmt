@@ -63,9 +63,14 @@ const LotsTable = () => {
       queryClient.invalidateQueries({ queryKey: ['lots'] });
       queryClient.invalidateQueries({ queryKey: ['portfolio'] });
       queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['alerts'] });
       const report = data.sync_report;
       const fiatCount = (report.fiat_deposits || 0) + (report.fiat_withdrawals || 0);
-      if (report.new_fills > 0 || fiatCount > 0) {
+      const fillsFailed = report.fills_failed || 0;
+      const fillsSkipped = report.fills_skipped_fifo || 0;
+      const hasErrors = fillsFailed > 0 || fillsSkipped > 0;
+
+      if (report.new_fills > 0 || fiatCount > 0 || hasErrors) {
         const parts = [];
         if (report.new_fills > 0) {
           parts.push(`${report.new_fills} neue Fills, ${report.new_lots} Lots, ${report.allocations} Allocations`);
@@ -76,7 +81,13 @@ const LotsTable = () => {
         if (report.fiat_withdrawals > 0) {
           parts.push(`${report.fiat_withdrawals} Fiat-Auszahlung${report.fiat_withdrawals !== 1 ? 'en' : ''}`);
         }
-        showMessage('success', parts.join(', '));
+        if (fillsFailed > 0) {
+          parts.push(`${fillsFailed} fehlgeschlagen`);
+        }
+        if (fillsSkipped > 0) {
+          parts.push(`${fillsSkipped} uebersprungen (FIFO-Abbruch)`);
+        }
+        showMessage(hasErrors ? 'warning' : 'success', parts.join(', '));
       } else {
         showMessage('info', 'Keine neuen Trades oder Fiat-Transaktionen auf Binance gefunden.');
       }
