@@ -1,12 +1,14 @@
-import { useState, useMemo } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import React, { useState, useMemo } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   runFullReconciliation,
   reconcileOrders,
   reconcileBalances,
   reconcileFills,
+  getReconciliationHistory,
+  getReconciliationRunDetail,
 } from '../api/client';
-import { formatNumber, formatQuote, formatBase } from '../utils/formatters';
+import { formatNumber, formatQuote, formatBase, formatDate, formatTime } from '../utils/formatters';
 import { getBaseLabel, getQuoteLabel } from '../utils/symbolRegistry';
 import { useSymbol } from '../contexts/SymbolContext';
 import { useUser } from '../contexts/UserContext';
@@ -145,18 +147,169 @@ const FillsSection = ({ report }) => {
   );
 };
 
+const TRIGGER_LABELS = {
+  manual: 'Manuell',
+  post_sync: 'Nach Sync',
+  post_full_sync: 'Nach Voll-Sync',
+};
+
+const TRIGGER_CLASSES = {
+  manual: 'slate',
+  post_sync: 'orange',
+  post_full_sync: 'orange',
+};
+
+const STATUS_CLASSES = {
+  completed: 'green',
+  partial: 'amber',
+  failed: 'red',
+};
+
+const STATUS_LABELS = {
+  completed: 'Abgeschlossen',
+  partial: 'Teilweise',
+  failed: 'Fehlgeschlagen',
+};
+
+const SEVERITY_CLASSES = {
+  critical: 'red',
+  warning: 'amber',
+  info: 'blue',
+};
+
+const ReconHistorySection = ({ userId, expandedRunId, setExpandedRunId }) => {
+  const { data: historyData } = useQuery({
+    queryKey: ['reconciliation-history', userId],
+    queryFn: () => getReconciliationHistory(userId, 10, 0),
+    staleTime: 60 * 1000,
+  });
+
+  const { data: runDetail } = useQuery({
+    queryKey: ['reconciliation-run', expandedRunId],
+    queryFn: () => getReconciliationRunDetail(userId, expandedRunId),
+    enabled: !!expandedRunId,
+  });
+
+  const runs = historyData?.runs ?? [];
+
+  if (runs.length === 0) {
+    return (
+      <div className="recon-section">
+        <div className="recon-section-header">
+          <h3>Reconciliation-Historie</h3>
+        </div>
+        <p className="recon-history-empty">Keine vergangenen Runs.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="recon-section">
+      <div className="recon-section-header">
+        <h3>Reconciliation-Historie</h3>
+        <span className="recon-status-badge ok">{runs.length} Runs</span>
+      </div>
+      <table className="recon-history-table">
+        <thead>
+          <tr>
+            <th>Zeitpunkt</th>
+            <th>Trigger</th>
+            <th>Status</th>
+            <th>Diskrepanzen</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {runs.map((run) => {
+            const isExpanded = expandedRunId === run.id;
+            const alertCount = run.alert_count ?? 0;
+            return (
+              <React.Fragment key={run.id}>
+                <tr
+                  className={`recon-history-row ${isExpanded ? 'expanded' : ''}`}
+                  onClick={() => setExpandedRunId(isExpanded ? null : run.id)}
+                >
+                  <td>
+                    {formatDate(run.created_at)} {formatTime(run.created_at)}
+                  </td>
+                  <td>
+                    <span className={`recon-trigger-badge ${TRIGGER_CLASSES[run.trigger] || 'slate'}`}>
+                      {TRIGGER_LABELS[run.trigger] || run.trigger}
+                    </span>
+                  </td>
+                  <td>
+                    <span className={`recon-status-badge-small ${STATUS_CLASSES[run.status] || 'slate'}`}>
+                      {STATUS_LABELS[run.status] || run.status}
+                    </span>
+                  </td>
+                  <td>
+                    {run.has_discrepancies ? (
+                      <span className="recon-discrepancy-count">{alertCount}</span>
+                    ) : (
+                      <span className="recon-check-ok">--</span>
+                    )}
+                  </td>
+                  <td className="recon-expand-toggle">
+                    {isExpanded ? '\u25B2' : '\u25BC'}
+                  </td>
+                </tr>
+                {isExpanded && (
+                  <tr className="recon-history-detail-row">
+                    <td colSpan={5}>
+                      <div className="recon-history-detail">
+                        {runDetail?.alerts?.length > 0 ? (
+                          runDetail.alerts.map((alert) => (
+                            <div
+                              key={alert.id}
+                              className={`recon-alert-item ${SEVERITY_CLASSES[alert.severity] || 'blue'}`}
+                            >
+                              <span className={`recon-alert-severity ${SEVERITY_CLASSES[alert.severity] || 'blue'}`}>
+                                {alert.severity?.toUpperCase()}
+                              </span>
+                              <span className="recon-alert-title">{alert.title}</span>
+                              {alert.details_json && (
+                                <span className="recon-alert-details">
+                                  {typeof alert.details_json === 'object'
+                                    ? Object.entries(alert.details_json)
+                                        .map(([k, v]) => `${k}: ${v}`)
+                                        .join(' | ')
+                                    : String(alert.details_json)}
+                                </span>
+                              )}
+                            </div>
+                          ))
+                        ) : (
+                          <div className="recon-alert-item blue">
+                            <span className="recon-alert-title">Keine Alerts fuer diesen Run.</span>
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </React.Fragment>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
 const Reconciliation = () => {
   const { userId } = useUser();
   const { symbol: activeSymbol } = useSymbol();
   const queryClient = useQueryClient();
   const { message, showMessage, dismissMessage } = useNotification();
   const [lastRunTime, setLastRunTime] = useState(null);
+  const [expandedRunId, setExpandedRunId] = useState(null);
 
   const onReconSuccess = () => {
     setLastRunTime(new Date());
     queryClient.invalidateQueries({ queryKey: ['lots'] });
     queryClient.invalidateQueries({ queryKey: ['portfolio'] });
     queryClient.invalidateQueries({ queryKey: ['orders'] });
+    queryClient.invalidateQueries({ queryKey: ['reconciliation-history'] });
   };
 
   const fullMutation = useMutation({
@@ -282,6 +435,12 @@ const Reconciliation = () => {
           </p>
         </div>
       )}
+
+      <ReconHistorySection
+        userId={userId}
+        expandedRunId={expandedRunId}
+        setExpandedRunId={setExpandedRunId}
+      />
 
       {lastRunTime && (
         <div className="recon-last-run">
