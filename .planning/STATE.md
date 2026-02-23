@@ -5,29 +5,39 @@
 See: .planning/PROJECT.md (updated 2026-02-23)
 
 **Core value:** Ledger-first, deterministisches, auditierbares Cashflow-Tracking und automatisiertes Trading-System
-**Current focus:** v2.0 Frontend Redesign + EUR-Fokus — Phase 9 ready to plan
+**Current focus:** v2.0 Frontend Redesign + EUR-Fokus — Phase 9 Plan 01 complete
 
 ## Current Position
 
 Milestone: v2.0 Frontend Redesign + EUR-Fokus
 Phase: 9 of 12 (XRPBTC Removal)
-Plan: —
-Status: Ready to plan
-Last activity: 2026-02-23 — Roadmap created for v2.0 (4 phases, 16 requirements mapped)
+Plan: 2 of 3
+Status: In progress
+Last activity: 2026-02-23 — Plan 01 complete (backend XRPBTC removal)
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [###░░░░░░░] 33%
 
 ## Performance Metrics
 
 **Velocity (previous milestones):**
-- Total plans completed: 17 (8 v1.0 + 9 v1.1)
-- Average duration: 3.1min
-- Total execution time: 58min
+- Total plans completed: 18 (8 v1.0 + 9 v1.1 + 1 v2.0)
+- Average duration: 3.5min
+- Total execution time: 69min
+
+| Phase | Plan | Duration | Tasks | Files |
+|-------|------|----------|-------|-------|
+| 09-xrpbtc-removal | 01 | 11min | 2 | 13 |
 
 ## Accumulated Context
 
 v1.1 decision log archived in milestones/v1.1-phases/ SUMMARY.md files.
 v1.0 decision log archived in milestones/v1.0-phases/ SUMMARY.md files.
+
+### Decisions (v2.0)
+
+- 09-01: Retained satoshi encoding for sub-1 EUR prices (XRPEUR ~0.50 EUR)
+- 09-01: Retained cost_eur on TradeLotDB (= cost_quote for EUR pairs, still useful)
+- 09-01: ORM columns removed from Python; physical DB columns remain until Alembic migration (Plan 03)
 
 ### Key Context for v2.0
 
@@ -48,5 +58,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-23
-Stopped at: Roadmap created for v2.0. Next: `/gsd:plan-phase 9`
+Stopped at: Completed 09-01-PLAN.md (backend XRPBTC removal). Next: 09-02-PLAN.md (frontend cleanup)
 Resume file: None
