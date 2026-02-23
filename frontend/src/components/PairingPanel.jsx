@@ -11,7 +11,6 @@ import {
   createPairing,
 } from '../api/client';
 import { formatNumber, formatQuote, formatBase } from '../utils/formatters';
-import { getBaseAsset, getSymbolsForBaseAsset, getPairLabel } from '../utils/symbolRegistry';
 import { useSymbol } from '../contexts/SymbolContext';
 import { useUser } from '../contexts/UserContext';
 import useNotification from '../hooks/useNotification';
@@ -31,11 +30,6 @@ const PairingPanel = ({
   const queryClient = useQueryClient();
   const { message: actionMessage, showMessage, dismissMessage } = useNotification();
 
-  // Cross-pair mode
-  const [crossPairMode, setCrossPairMode] = useState(false);
-  const baseAsset = getBaseAsset(activeSymbol);
-  const hasMultipleSymbols = baseAsset ? getSymbolsForBaseAsset(baseAsset).length > 1 : false;
-
   // Suggestion parameters
   const [thresholdPct, setThresholdPct] = useState(5);
 
@@ -44,17 +38,14 @@ const PairingPanel = ({
 
   // ─── Queries ───
 
-  const effectiveCrossPair = crossPairMode && hasMultipleSymbols;
-
   const {
     data: suggestionsData,
     isLoading: suggestionsLoading,
     refetch: refetchSuggestions,
   } = useQuery({
-    queryKey: ['pairingSuggestions', activeSymbol, userId, marketPrice, thresholdPct, effectiveCrossPair],
+    queryKey: ['pairingSuggestions', activeSymbol, userId, marketPrice, thresholdPct],
     queryFn: () => getPairingSuggestions(
-      userId, marketPrice, thresholdPct / 100, activeSymbol,
-      effectiveCrossPair ? baseAsset : null
+      userId, marketPrice, thresholdPct / 100, activeSymbol
     ),
     enabled: activeTab === 'suggestions' && !!marketPrice,
     refetchInterval: 60000,
@@ -63,7 +54,7 @@ const PairingPanel = ({
   // ─── Mutations ───
 
   const createMutation = useMutation({
-    mutationFn: ({ items, threshold, baseAssetParam }) => createPairing(userId, items, threshold, activeSymbol, baseAssetParam || null),
+    mutationFn: ({ items, threshold }) => createPairing(userId, items, threshold, activeSymbol),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pairings'] });
       showMessage('success', 'Pairing erstellt (DRAFT)');
@@ -86,7 +77,6 @@ const PairingPanel = ({
     createMutation.mutate({
       items,
       threshold: String(manualThreshold / 100),
-      baseAssetParam: effectiveCrossPair ? baseAsset : null,
     });
   };
 
@@ -98,7 +88,6 @@ const PairingPanel = ({
     createMutation.mutate({
       items,
       threshold: String(thresholdPct / 100),
-      baseAssetParam: suggestion.base_asset || null,
     });
   };
 
@@ -169,16 +158,6 @@ const PairingPanel = ({
                 max="100"
               />
             </div>
-            {hasMultipleSymbols && (
-              <label className="cross-pair-toggle">
-                <input
-                  type="checkbox"
-                  checked={crossPairMode}
-                  onChange={(e) => setCrossPairMode(e.target.checked)}
-                />
-                <span>Cross-Pair</span>
-              </label>
-            )}
             <button className="btn-refresh" onClick={() => refetchSuggestions()}>
               Neu laden
             </button>
@@ -231,11 +210,6 @@ const PairingPanel = ({
                       {s.items.map((item) => (
                         <span key={item.lot_id} className="lot-chip" title={item.lot_id}>
                           {item.lot_id.slice(0, 8)}...
-                          {item.lot_symbol && (
-                            <span className={`pair-origin-badge ${item.lot_symbol.includes('BTC') ? 'pair-btc' : 'pair-eur'}`}>
-                              {getPairLabel(item.lot_symbol)}
-                            </span>
-                          )}
                         </span>
                       ))}
                     </div>

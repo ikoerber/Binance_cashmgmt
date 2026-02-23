@@ -36,8 +36,10 @@ const Dashboard = () => {
   const fmtQuote = (num) => formatQuote(num, activeSymbol);
 
   const externalNet = parseFloat(portfolio.external_net_quote);
-  const depotValue = parseFloat(portfolio.market_value_quote) + parseFloat(portfolio.quote_available);
-  const depotPnl = depotValue - externalNet;
+  // Per-Symbol Depot P&L aus Backend (realisiert + unrealisiert)
+  const depotPnl = portfolio.depot_pnl_quote != null
+    ? parseFloat(portfolio.depot_pnl_quote)
+    : parseFloat(portfolio.market_value_tracked_quote) + parseFloat(portfolio.quote_available) - externalNet;
   const depotPnlPct = externalNet !== 0 ? (depotPnl / externalNet) * 100 : 0;
 
   return (

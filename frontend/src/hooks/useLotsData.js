@@ -160,8 +160,9 @@ export default function useLotsData() {
     return map;
   }, [mergeGroupsData]);
 
-  const depotPnl = portfolio
-    ? (parseFloat(portfolio.market_value_quote) + parseFloat(portfolio.quote_available)) - parseFloat(portfolio.external_net_quote)
+  // Per-Symbol Depot P&L (realisiert + unrealisiert)
+  const depotPnl = portfolio?.depot_pnl_quote != null
+    ? parseFloat(portfolio.depot_pnl_quote)
     : null;
 
   return {

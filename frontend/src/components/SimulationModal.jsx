@@ -4,7 +4,7 @@
  * Zeigt Simulation-Details und erlaubt das Anpassen des Verkaufspreises.
  */
 import { useState } from 'react';
-import { formatNumber, formatEUR, formatQuote, formatBase } from '../utils/formatters';
+import { formatNumber, formatQuote, formatBase } from '../utils/formatters';
 import { useSymbol } from '../contexts/SymbolContext';
 import { getQuoteLabel, getBaseLabel } from '../utils/symbolRegistry';
 
@@ -86,53 +86,6 @@ const SimulationModal = ({ simulationData, onClose, onResimulate }) => {
           </div>
         </div>
 
-        {simulationData.dual_route_comparison && (() => {
-          const drc = simulationData.dual_route_comparison;
-          return (
-            <div className="dual-route-section">
-              <h4>Verkaufsrouten-Vergleich</h4>
-              <div className="dual-route-cards">
-                <div className={`route-card ${drc.recommended_route === drc.route_direct.symbol ? 'route-recommended' : ''}`}>
-                  <div className="route-header">
-                    <span className="route-symbol">{drc.route_direct.symbol}</span>
-                    {drc.recommended_route === drc.route_direct.symbol && (
-                      <span className="route-badge">Empfohlen</span>
-                    )}
-                  </div>
-                  <div className="route-details">
-                    <div><span className="route-label">Verkaufspreis</span> {formatEUR(drc.route_direct.sell_price)}</div>
-                    <div><span className="route-label">Brutto</span> {formatEUR(drc.route_direct.gross_proceeds_eur)}</div>
-                    <div><span className="route-label">Gebuehren</span> {formatEUR(drc.route_direct.fees_eur)} (1x Fee)</div>
-                  </div>
-                  <div className="route-net">
-                    <span className="route-label">Netto</span> {formatEUR(drc.route_direct.net_proceeds_eur)}
-                  </div>
-                </div>
-                <div className={`route-card ${drc.recommended_route === drc.route_indirect.symbol ? 'route-recommended' : ''}`}>
-                  <div className="route-header">
-                    <span className="route-symbol">{drc.route_indirect.symbol}</span>
-                    {drc.recommended_route === drc.route_indirect.symbol && (
-                      <span className="route-badge">Empfohlen</span>
-                    )}
-                  </div>
-                  <div className="route-details">
-                    <div><span className="route-label">Verkaufspreis</span> {formatNumber(drc.route_indirect.sell_price, 8)} BTC</div>
-                    <div className="route-conversion">x {formatNumber(drc.route_indirect.conversion_rate, 2)} BTCEUR</div>
-                    <div><span className="route-label">Brutto</span> {formatEUR(drc.route_indirect.gross_proceeds_eur)}</div>
-                    <div><span className="route-label">Gebuehren</span> {formatEUR(drc.route_indirect.fees_eur)} (2x Fee)</div>
-                  </div>
-                  <div className="route-net">
-                    <span className="route-label">Netto</span> {formatEUR(drc.route_indirect.net_proceeds_eur)}
-                  </div>
-                </div>
-              </div>
-              <div className="route-difference">
-                Differenz: {formatEUR(drc.eur_difference)} zugunsten {drc.recommended_route}
-              </div>
-            </div>
-          );
-        })()}
-
         <h4>Betroffene Lots</h4>
         <table className="affected-lots-table">
           <thead>
@@ -158,6 +111,10 @@ const SimulationModal = ({ simulationData, onClose, onResimulate }) => {
             ))}
           </tbody>
         </table>
+        <p className="sim-hint">
+          Der angezeigte Status tritt erst ein, wenn die Sell-Order auf Binance ausgefuehrt (filled) wird.
+          Bis dahin bleibt der aktuelle Lot-Status unveraendert.
+        </p>
 
         <div className="simulation-remaining">
           <span>Verbleibendes Portfolio: {fmtBase(simulationData.remaining_portfolio_base)}</span>

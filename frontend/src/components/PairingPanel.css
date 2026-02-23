@@ -335,22 +335,6 @@
   font-weight: 600;
 }
 
-.routing-badge {
-  display: inline-block;
-  padding: 2px 8px;
-  background: #e0e7ff;
-  color: #4338ca;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 600;
-  margin-left: 8px;
-  cursor: help;
-}
-
-.routing-savings {
-  color: #16a34a;
-  font-weight: 500;
-}
 
 /* ─── Manual Tab ─── */
 .manual-preview {
@@ -610,6 +594,17 @@
   color: #334155;
 }
 
+/* Simulation Hint */
+.sim-hint {
+  margin: 0 0 20px 0;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: #64748b;
+  background: #f1f5f9;
+  border-left: 3px solid #94a3b8;
+  border-radius: 0 6px 6px 0;
+}
+
 /* Remaining Portfolio */
 .simulation-remaining {
   display: flex;
@@ -778,157 +773,6 @@
 
 .btn-reset-price:hover {
   background: #cbd5e1;
-}
-
-/* ─── Dual-Route Comparison ─── */
-.dual-route-section {
-  margin-top: 16px;
-  margin-bottom: 24px;
-  padding-top: 16px;
-  border-top: 1px solid #e2e8f0;
-}
-
-.dual-route-cards {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.route-card {
-  background: #f8fafc;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  padding: 14px 16px;
-}
-
-.route-card.route-recommended {
-  border-color: #6366f1;
-  background: #eef2ff;
-}
-
-.route-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 10px;
-}
-
-.route-symbol {
-  font-weight: 700;
-  font-size: 14px;
-  color: var(--color-text-primary);
-}
-
-.route-badge {
-  font-size: 10px;
-  font-weight: 600;
-  background: #6366f1;
-  color: white;
-  padding: 2px 6px;
-  border-radius: 4px;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-}
-
-.route-conversion {
-  font-size: 11px;
-  color: #64748b;
-  margin-left: 70px;
-  margin-top: -2px;
-  margin-bottom: 2px;
-}
-
-.route-details {
-  font-size: 13px;
-  color: #475569;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.route-label {
-  display: inline-block;
-  min-width: 70px;
-  color: #64748b;
-  font-size: 12px;
-}
-
-.route-net {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--color-text-primary);
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px solid #e2e8f0;
-}
-
-.route-difference {
-  text-align: center;
-  font-size: 13px;
-  font-weight: 600;
-  color: #16a34a;
-  padding: 8px;
-}
-
-/* ─── Cross-Pair Toggle ─── */
-.cross-pair-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 500;
-  color: #475569;
-  cursor: pointer;
-  transition: all 0.2s;
-  min-height: 38px;
-}
-
-.cross-pair-toggle input[type="checkbox"] {
-  accent-color: #6366f1;
-  width: 16px;
-  height: 16px;
-  cursor: pointer;
-}
-
-.cross-pair-toggle:has(input:checked) {
-  background: #eef2ff;
-  color: #4338ca;
-}
-
-/* ─── Pair-of-Origin Badge ─── */
-.pair-origin-badge {
-  display: inline-block;
-  margin-left: 4px;
-  padding: 1px 5px;
-  border-radius: 3px;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.3px;
-  vertical-align: middle;
-}
-
-.pair-origin-badge.pair-eur {
-  background: #dbeafe;
-  color: #1d4ed8;
-}
-
-.pair-origin-badge.pair-btc {
-  background: #fef3c7;
-  color: #92400e;
-}
-
-/* ─── Cross-Pair Label on Card Header ─── */
-.cross-pair-label {
-  display: inline-block;
-  padding: 1px 6px;
-  background: #e0e7ff;
-  color: #4338ca;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 500;
 }
 
 /* ─── Responsive ─── */

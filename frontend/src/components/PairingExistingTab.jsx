@@ -15,16 +15,13 @@ import {
   deletePairing,
 } from '../api/client';
 import { formatNumber, formatQuote, formatBase } from '../utils/formatters';
-import { getPairLabel } from '../utils/symbolRegistry';
 import { useSymbol } from '../contexts/SymbolContext';
 import { useUser } from '../contexts/UserContext';
-import { useWebSocket } from '../contexts/WebSocketContext';
 import SimulationModal from './SimulationModal';
 
 const PairingExistingTab = ({ onHighlightLots, showMessage }) => {
   const { userId } = useUser();
   const { symbol: activeSymbol, marketPrice } = useSymbol();
-  const { prices } = useWebSocket();
   const queryClient = useQueryClient();
 
   const [existingStatusFilter, setExistingStatusFilter] = useState(null);
@@ -81,17 +78,7 @@ const PairingExistingTab = ({ onHighlightLots, showMessage }) => {
       setSimulationsByPairingId({});
       setActivePairingId(null);
       const lotCount = data?.lot_count || 0;
-      const routingInfo = data?.routing_decision;
-      if (routingInfo) {
-        const otherRoute = routingInfo.selected_route === 'XRPEUR' ? 'XRPBTC' : 'XRPEUR';
-        const savings = parseFloat(routingInfo.eur_difference);
-        const msg = savings > 0.01
-          ? `Pairing ausgefuehrt: Order auf ${routingInfo.selected_route} (spart ${savings.toFixed(2)} EUR vs. ${otherRoute})`
-          : `Pairing ausgefuehrt: Order auf ${routingInfo.selected_route}`;
-        showMessage('success', msg);
-      } else {
-        showMessage('success', `Pairing ausgefuehrt: 1 Order (${lotCount} Lots aggregiert) auf Binance platziert`);
-      }
+      showMessage('success', `Pairing ausgefuehrt: 1 Order (${lotCount} Lots aggregiert) auf Binance platziert`);
     },
     onError: (error) => {
       showMessage('error', error.response?.data?.detail || error.message);
@@ -113,21 +100,10 @@ const PairingExistingTab = ({ onHighlightLots, showMessage }) => {
 
   // ─── Handlers ───
 
-  const handleSimulate = async (pairingId, sellPrice = null, pairing = null) => {
+  const handleSimulate = async (pairingId, sellPrice = null) => {
     setSimulatingPairingId(pairingId);
     try {
-      // For cross-pair pairings, pass secondary prices from WebSocket
-      let xrpbtcPrice = null;
-      let btceurPrice = null;
-      if (pairing?.base_asset) {
-        const wsXrpbtc = prices['XRPBTC'];
-        const wsBtceur = prices['BTCEUR'];
-        if (wsXrpbtc != null && wsBtceur != null) {
-          xrpbtcPrice = wsXrpbtc;
-          btceurPrice = wsBtceur;
-        }
-      }
-      const result = await simulatePairing(userId, pairingId, marketPrice, 0.001, 0.002, sellPrice, xrpbtcPrice, btceurPrice);
+      const result = await simulatePairing(userId, pairingId, marketPrice, 0.001, 0.002, sellPrice);
       setSimulationsByPairingId(prev => ({
         ...prev,
         [pairingId]: { data: { ...result, pairing_id: pairingId }, sellPrice },
@@ -143,10 +119,7 @@ const PairingExistingTab = ({ onHighlightLots, showMessage }) => {
 
   const handleResimulate = async (newPrice) => {
     if (!activePairingId) return;
-    // Find the pairing object to pass cross-pair context
-    const allPairings = existingData?.pairings || [];
-    const activePairing = allPairings.find(p => p.id === activePairingId) || null;
-    await handleSimulate(activePairingId, newPrice, activePairing);
+    await handleSimulate(activePairingId, newPrice);
   };
 
   const handleExecute = (pairingId) => {
@@ -217,9 +190,6 @@ const PairingExistingTab = ({ onHighlightLots, showMessage }) => {
                     {p.status}
                   </span>
                   {p.items.length} Lots
-                  {p.base_asset && (
-                    <span className="cross-pair-label">{p.base_asset} Cross-Pair</span>
-                  )}
                 </span>
                 <span className="pairing-pnl">
                   {formatNumber(parseFloat(p.threshold_pct) * 100)}%
@@ -245,11 +215,6 @@ const PairingExistingTab = ({ onHighlightLots, showMessage }) => {
                 {p.items.map((item) => (
                   <span key={item.lot_id} className="lot-chip" title={item.lot_id}>
                     {item.lot_id.slice(0, 8)}...
-                    {item.lot_symbol && (
-                      <span className={`pair-origin-badge ${item.lot_symbol.includes('BTC') ? 'pair-btc' : 'pair-eur'}`}>
-                        {getPairLabel(item.lot_symbol)}
-                      </span>
-                    )}
                   </span>
                 ))}
               </div>
@@ -258,7 +223,7 @@ const PairingExistingTab = ({ onHighlightLots, showMessage }) => {
                   <>
                     <button
                       className="btn-simulate"
-                      onClick={() => handleSimulate(p.id, simulationsByPairingId[p.id]?.sellPrice || null, p)}
+                      onClick={() => handleSimulate(p.id, simulationsByPairingId[p.id]?.sellPrice || null)}
                       disabled={simulatingPairingId === p.id}
                     >
                       {simulatingPairingId === p.id ? 'Simuliere...' : 'Simulation'}
@@ -287,7 +252,7 @@ const PairingExistingTab = ({ onHighlightLots, showMessage }) => {
                   <>
                     <button
                       className="btn-simulate"
-                      onClick={() => handleSimulate(p.id, simulationsByPairingId[p.id]?.sellPrice || null, p)}
+                      onClick={() => handleSimulate(p.id, simulationsByPairingId[p.id]?.sellPrice || null)}
                       disabled={simulatingPairingId === p.id}
                     >
                       {simulatingPairingId === p.id ? 'Simuliere...' : 'Simulation ansehen'}
@@ -309,17 +274,7 @@ const PairingExistingTab = ({ onHighlightLots, showMessage }) => {
                   </>
                 )}
                 {p.status === 'EXECUTED' && (
-                  <>
-                    <span className="executed-label">Ausgeführt</span>
-                    {p.routing_decision && (
-                      <span className="routing-badge" title={`Routing: ${p.routing_decision.selected_route} | Direkt: ${parseFloat(p.routing_decision.direct_net_eur).toFixed(2)} EUR | Indirekt: ${parseFloat(p.routing_decision.indirect_net_eur).toFixed(2)} EUR`}>
-                        Route: {p.routing_decision.selected_route}
-                        {parseFloat(p.routing_decision.eur_difference) > 0.01 && (
-                          <span className="routing-savings"> (+{parseFloat(p.routing_decision.eur_difference).toFixed(2)} EUR)</span>
-                        )}
-                      </span>
-                    )}
-                  </>
+                  <span className="executed-label">Ausgeführt</span>
                 )}
               </div>
             </div>

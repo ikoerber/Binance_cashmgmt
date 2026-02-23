@@ -10,7 +10,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { getPortfolio } from '../api/client';
 import { useUser } from '../contexts/UserContext';
 import { useWebSocket } from '../contexts/WebSocketContext';
-import { getAllSymbols, getPairLabel, getBaseLabel } from '../utils/symbolRegistry';
+import { getAllSymbols, getPairLabel, getBaseLabel, getBaseAsset, getQuoteAsset } from '../utils/symbolRegistry';
 import { formatEUR, formatBase, formatNumber } from '../utils/formatters';
 import './Overview.css';
 
@@ -47,11 +47,10 @@ const Overview = () => {
     if (!portfolio) return { sym, livePrice, loaded: false };
 
     const baseQty = parseFloat(portfolio.base_qty || 0);
-    const eurAvailable = parseFloat(portfolio.eur_available || 0);
-    const marketValue = parseFloat(portfolio.market_value_eur || 0);
-    const externalNet = parseFloat(portfolio.external_net_eur || 0);
-    const depotValue = marketValue + eurAvailable;
-    const depotPnl = depotValue - externalNet;
+    const marketValue = parseFloat(portfolio.market_value_quote || 0);
+    const externalNet = parseFloat(portfolio.external_net_quote || 0);
+    // Per-Symbol Depot P&L aus Backend (realisiert + unrealisiert)
+    const depotPnl = portfolio.depot_pnl_quote != null ? parseFloat(portfolio.depot_pnl_quote) : 0;
     const depotPnlPct = externalNet !== 0 ? (depotPnl / externalNet) * 100 : 0;
 
     return {
@@ -59,29 +58,55 @@ const Overview = () => {
       livePrice,
       loaded: true,
       baseQty,
-      eurAvailable,
       marketValue,
       externalNet,
-      depotValue,
       depotPnl,
       depotPnlPct,
     };
   });
 
-  // Aggregation
+  // Aggregation: Per-Symbol depot_pnl_quote summieren
   const loadedSummaries = symbolSummaries.filter(s => s.loaded);
-  const totalDepotValue = loadedSummaries.reduce((sum, s) => sum + s.depotValue, 0);
-  const totalExternalNet = loadedSummaries.reduce((sum, s) => sum + s.externalNet, 0);
-  const totalDepotPnl = totalDepotValue - totalExternalNet;
+  const btcEurPrice = prices['BTCEUR'] || 0;
+  const toEur = (s, val) => getQuoteAsset(s.sym) !== 'EUR' && btcEurPrice ? val * btcEurPrice : val;
+  // Gesamt-Marktwert: Binance-Balancen dedupliziert nach Base-Asset
+  const binanceValueByBase = {};
+  for (const s of loadedSummaries) {
+    const base = getBaseAsset(s.sym);
+    if (!(base in binanceValueByBase) || getQuoteAsset(s.sym) === 'EUR') {
+      binanceValueByBase[base] = { value: toEur(s, s.marketValue), label: base };
+    }
+  }
+  const totalMarketValue = Object.values(binanceValueByBase).reduce((sum, e) => sum + e.value, 0);
+  const totalDepotPnl = loadedSummaries.reduce((sum, s) => sum + toEur(s, s.depotPnl), 0);
+  // Eingezahlt: Deduplizieren nach Quote-Asset (EUR SEPA-Einzahlung ist fuer BTCEUR, ETHEUR, XRPEUR identisch)
+  const externalByQuote = {};
+  for (const s of loadedSummaries) {
+    const quote = getQuoteAsset(s.sym);
+    if (!(quote in externalByQuote)) externalByQuote[quote] = s.externalNet;
+  }
+  const totalExternalNet = Object.values(externalByQuote).reduce((sum, v) => sum + v, 0);
   const totalDepotPnlPct = totalExternalNet !== 0 ? (totalDepotPnl / totalExternalNet) * 100 : 0;
+  // EUR Cash: Globale Binance-Balance (identisch fuer alle EUR-Paare, einmal auslesen)
+  const eurCash = (() => {
+    for (const q of portfolioQueries) {
+      if (q.data?.quote_available != null && getQuoteAsset(q.data.symbol) === 'EUR') {
+        return parseFloat(q.data.quote_available);
+      }
+    }
+    return null;
+  })();
 
-  // Pie Chart Data
-  const pieData = loadedSummaries
-    .filter(s => s.marketValue > 0)
-    .map(s => ({
-      name: getPairLabel(s.sym),
-      value: s.marketValue,
-    }));
+  // Gesamt-Depotwert: Crypto-Marktwerte + EUR Cash
+  const totalPortfolioValue = totalMarketValue + (eurCash || 0);
+
+  // Pie Chart Data: Binance-Balancen dedupliziert nach Base-Asset (inkl. EUR Cash)
+  const pieData = [
+    ...Object.values(binanceValueByBase)
+      .filter(e => e.value > 0)
+      .map(e => ({ name: e.label, value: e.value })),
+    ...(eurCash > 0 ? [{ name: 'EUR Cash', value: eurCash }] : []),
+  ];
 
   return (
     <div className="overview-container">
@@ -94,12 +119,18 @@ const Overview = () => {
         <div className="overview-total">
           <div className="overview-total-card">
             <h3>Gesamt-Depotwert</h3>
-            <div className="overview-total-value">{formatEUR(totalDepotValue)}</div>
+            <div className="overview-total-value">{formatEUR(totalPortfolioValue)}</div>
           </div>
           <div className="overview-total-card">
             <h3>Eingezahlt</h3>
             <div className="overview-total-value">{formatEUR(totalExternalNet)}</div>
           </div>
+          {eurCash != null && (
+            <div className="overview-total-card">
+              <h3>EUR verfügbar</h3>
+              <div className="overview-total-value">{formatEUR(eurCash)}</div>
+            </div>
+          )}
           <div className={`overview-total-card ${totalDepotPnl >= 0 ? 'positive' : 'negative'}`}>
             <h3>Gesamt-Performance</h3>
             <div className="overview-total-value">
@@ -151,7 +182,11 @@ const Overview = () => {
                   <div className="overview-symbol-header">
                     <span className="overview-symbol-label">{getPairLabel(s.sym)}</span>
                     <span className="overview-symbol-price">
-                      {s.livePrice ? s.livePrice.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' \u20ac' : '\u2014'}
+                      {s.livePrice
+                        ? getQuoteAsset(s.sym) === 'EUR'
+                          ? s.livePrice.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' \u20ac'
+                          : s.livePrice.toFixed(8) + ' BTC'
+                        : '\u2014'}
                     </span>
                   </div>
                   {s.loaded ? (
@@ -162,11 +197,22 @@ const Overview = () => {
                       </div>
                       <div className="overview-symbol-row">
                         <span>Marktwert</span>
-                        <span>{formatEUR(s.marketValue)}</span>
+                        <span>
+                          {formatEUR(getQuoteAsset(s.sym) !== 'EUR' && prices['BTCEUR']
+                            ? s.marketValue * prices['BTCEUR']
+                            : s.marketValue)}
+                          {getQuoteAsset(s.sym) !== 'EUR' && <span className="overview-symbol-sub"> ({formatNumber(s.marketValue)} BTC)</span>}
+                        </span>
                       </div>
                       <div className={`overview-symbol-row ${s.depotPnl >= 0 ? 'positive' : 'negative'}`}>
                         <span>P&L</span>
-                        <span>{s.depotPnl >= 0 ? '+' : ''}{formatEUR(s.depotPnl)} ({s.depotPnlPct >= 0 ? '+' : ''}{formatNumber(s.depotPnlPct)}%)</span>
+                        <span>
+                          {s.depotPnl >= 0 ? '+' : ''}
+                          {formatEUR(getQuoteAsset(s.sym) !== 'EUR' && prices['BTCEUR']
+                            ? s.depotPnl * prices['BTCEUR']
+                            : s.depotPnl)}
+                          {' '}({s.depotPnlPct >= 0 ? '+' : ''}{formatNumber(s.depotPnlPct)}%)
+                        </span>
                       </div>
                       <div className="overview-symbol-links">
                         <button onClick={(e) => { e.stopPropagation(); navigate(`/s/${s.sym}/lots`); }}>Lots</button>
