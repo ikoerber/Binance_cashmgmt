@@ -1,12 +1,23 @@
-# XRP Cross-Pair Pairing
+# BTC/EUR Cashflow-Management
 
 ## What This Is
 
-Erweiterung der BTC/EUR Cashflow-Management App um Cross-Pair Pairing fuer XRP. XRP/EUR und XRP/BTC Lots werden in einem Pairing gebuendelt, das System waehlt automatisch das Pair mit hoechstem EUR-Erloes und berechnet deterministisch EUR-normalisierte P&L ueber historische BTC/EUR-Kursumrechnung. Symbol-Isolation in der Sell-Allocation verhindert Cross-Asset-Kontamination.
+BTC/EUR Cashflow-Management & Automation App fuer Binance Spot Trading. Ledger-basiertes, deterministisches, auditierbares Cashflow-Tracking und automatisiertes Trading-System. Unterstuetzt BTCEUR, ETHEUR und XRPEUR Paare mit EUR als einzigem Quote-Asset.
 
 ## Core Value
 
-XRP-Lots unabhaengig vom Quote-Asset (EUR oder BTC) in einem Pairing buendeln und ueber das ertragreichere Pair verkaufen — mit deterministischer EUR-P&L-Berechnung ueber historische BTC/EUR-Kursumrechnung.
+Ledger-first, deterministisches, auditierbares Cashflow-Tracking und automatisiertes Trading-System fuer EUR-denominierte Spot-Paare.
+
+## Current Milestone: v2.0 Frontend Redesign + EUR-Fokus
+
+**Goal:** Frontend komplett neugestalten (Dark Mode, 3-Bereichs-Navigation, Combined Score ins Dashboard) und XRPBTC-Support entfernen — nur noch EUR-Paare.
+
+**Target features:**
+- XRPBTC komplett entfernen (Backend + Frontend, Symbol Registry, Cross-Pair Routing, BTC-Quote-Logik)
+- Navigation von 7 Tabs auf 3 Bereiche reduzieren: Trading (Dashboard + Combined Score + Lots + Pairing), Orderblocks, Admin (Reconciliation + Settings)
+- Dark Mode Theme (Trading-App-Optik)
+- Combined Score ins Dashboard integrieren (statt eigene Seite)
+- API Docs aus Navbar entfernen
 
 ## Requirements
 
@@ -46,7 +57,11 @@ XRP-Lots unabhaengig vom Quote-Asset (EUR oder BTC) in einem Pairing buendeln un
 
 <!-- Current scope. Building toward these. -->
 
-(None yet — next milestone TBD)
+- [ ] XRPBTC aus Symbol Registry, Backend und Frontend entfernen
+- [ ] Navigation auf 3 Bereiche: Trading, Orderblocks, Admin
+- [ ] Dark Mode Theme fuer gesamtes Frontend
+- [ ] Combined Score ins Dashboard integrieren
+- [ ] API Docs aus Navbar entfernen
 
 ### Out of Scope
 
@@ -67,9 +82,11 @@ Shipped v1.1 mit 6.054 neuen Zeilen ueber 52 Dateien (4 Phasen, 9 Plaene, 17 Tas
 Tech Stack: Python 3 + FastAPI, SQLAlchemy 2, Alembic, React 19, TanStack Query.
 633+ Backend-Tests, Frontend-Build sauber.
 
-Symbol Registry kennt 4 Pairs: BTCEUR, ETHEUR, XRPEUR, XRPBTC. XRP ist das einzige Base-Asset mit zwei Quote-Pairs. Historische Kursumrechnung (Klines API) wird sowohl fuer BNB-Fees als auch fuer EUR-Kostenbasis bei BTC-quoted Lots verwendet.
+Symbol Registry kennt aktuell 4 Pairs: BTCEUR, ETHEUR, XRPEUR, XRPBTC. v2.0 entfernt XRPBTC — nur noch EUR-quoted Pairs. Historische Kursumrechnung (Klines API) wird fuer BNB-Fee-Konvertierung verwendet.
 
 API-Schicht hat exponentiellen Backoff mit Retry-After Support, konfigurierbare Timeouts, strukturierte Fehlerklassifikation. Sync liefert per-Fill Ergebnisse (PROCESSED/FAILED/SKIPPED_FIFO). Auto-Reconciliation nach jedem Sync mit Threshold-Alerts. AlertBanner persistent im Frontend, Reconciliation-Historie mit expandierbaren Run-Details.
+
+Frontend aktuell: 7 Top-Level Tabs (Dashboard, TradeLots, Combined Score, Orderblocks, Reconciliation, Settings, API Docs). Plain CSS, Light Mode, Purple-Gradient Navbar. v2.0 redesigned zu 3 Bereichen mit Dark Mode.
 
 ### Known Tech Debt (v1.0)
 - backfill_cost_eur.py verwendet float() statt Decimal fuer SQL-Writes
@@ -85,8 +102,9 @@ API-Schicht hat exponentiellen Backoff mit Retry-After Support, konfigurierbare 
 - **Determinismus**: Alle Berechnungen aus Ledger + Regeln reproduzierbar — historische BTC/EUR-Kurse, nicht aktuelle
 - **Ledger-first**: Append-only Ledger als Single Source of Truth
 - **Decimal-Praezision**: Kein float fuer Geld/Preise, API-Transport als String
-- **Backward Compatibility**: Bestehende BTC/EUR und ETH/EUR Lots duerfen nicht beeintraechtigt werden
-- **Idempotenz**: Cross-Pair Orders halten dasselbe clientOrderId-Pattern ein (mit Satoshi-Encoding fuer sub-1 Preise)
+- **Backward Compatibility**: Bestehende BTC/EUR, ETH/EUR und XRP/EUR Lots duerfen nicht beeintraechtigt werden
+- **Idempotenz**: Orders halten dasselbe clientOrderId-Pattern ein
+- **Plain CSS**: Kein UI-Framework, eigenes Design-System
 
 ## Key Decisions
 
@@ -108,5 +126,10 @@ API-Schicht hat exponentiellen Backoff mit Retry-After Support, konfigurierbare 
 | AlertBanner mit 30s Polling (nicht WebSocket) | Konsistent mit CombinedScore Pattern, einfach | ✓ Good — WebSocket-Push in v2 |
 | Tolerance Inputs als type=text | Decimal-Praezision per Projekt-Konvention | ✓ Good — Backend validiert via Decimal |
 
+| XRPBTC komplett entfernen | Nur EUR-Paare, vereinfacht Codebase (kein Cross-Pair Routing, kein Satoshi-Encoding, kein BTC-Quote) | — Pending |
+| 3-Bereichs-Navigation statt 7 Tabs | Weniger kognitive Last, logische Gruppierung (Trading/Orderblocks/Admin) | — Pending |
+| Dark Mode statt Light Mode | Trading-App-Konvention, bessere Lesbarkeit bei laengerer Nutzung | — Pending |
+| Combined Score ins Dashboard | Zentrale Handlungsempfehlung gehoert zur Trading-Uebersicht, nicht auf eigene Seite | — Pending |
+
 ---
-*Last updated: 2026-02-23 after v1.1 milestone completion*
+*Last updated: 2026-02-23 after v2.0 milestone start*
