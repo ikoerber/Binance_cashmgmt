@@ -16,6 +16,8 @@ const Settings = () => {
   const [obAtrMultiplier, setObAtrMultiplier] = useState('2.0');
   const [obTargetRr, setObTargetRr] = useState('2.0');
   const [obImpulseWindow, setObImpulseWindow] = useState('5');
+  const [reconToleranceBase, setReconToleranceBase] = useState('0.0001');
+  const [reconToleranceQuote, setReconToleranceQuote] = useState('1.00');
 
   const { data: settings, isLoading } = useQuery({
     queryKey: ['settings', userId],
@@ -31,6 +33,8 @@ const Settings = () => {
       setObAtrMultiplier(settings.ob_atr_multiplier ?? '2.0');
       setObTargetRr(settings.ob_target_rr ?? '2.0');
       setObImpulseWindow(settings.ob_impulse_window ?? '5');
+      setReconToleranceBase(settings.recon_tolerance_base ?? '0.0001');
+      setReconToleranceQuote(settings.recon_tolerance_quote ?? '1.00');
     }
   }, [settings]);
 
@@ -66,14 +70,26 @@ const Settings = () => {
       showMessage('error', 'Impulse Window muss zwischen 2 und 20 liegen.');
       return;
     }
+    const toleranceBase = parseFloat(reconToleranceBase);
+    if (isNaN(toleranceBase) || toleranceBase < 0) {
+      showMessage('error', 'Base-Toleranz muss eine Zahl >= 0 sein.');
+      return;
+    }
+    const toleranceQuote = parseFloat(reconToleranceQuote);
+    if (isNaN(toleranceQuote) || toleranceQuote < 0) {
+      showMessage('error', 'Quote-Toleranz muss eine Zahl >= 0 sein.');
+      return;
+    }
     saveMutation.mutate({
-      max_order_value_eur: value,
+      max_order_value_eur: String(value),
       macro_signal_interval: macroSignalInterval,
       sell_allocation_strategy: sellAllocationStrategy,
       ob_interval: obInterval,
-      ob_atr_multiplier: atrMult,
-      ob_target_rr: targetRr,
+      ob_atr_multiplier: String(atrMult),
+      ob_target_rr: String(targetRr),
       ob_impulse_window: impulseW,
+      recon_tolerance_base: reconToleranceBase,
+      recon_tolerance_quote: reconToleranceQuote,
     });
   };
 
@@ -251,6 +267,44 @@ const Settings = () => {
           </div>
           <div className="settings-hint">
             Max. Kerzen nach Basiskerze fuer Displacement/FVG/BOS. Empfohlen: 5 (4h), 8 (1h), 3 (1d).
+          </div>
+        </div>
+      </div>
+
+      <div className="settings-section">
+        <h3>Reconciliation Toleranzen</h3>
+
+        <div className="settings-field">
+          <label className="settings-label">Base-Asset Toleranz (z.B. BTC)</label>
+          <div className="settings-input-group">
+            <input
+              type="text"
+              value={reconToleranceBase}
+              onChange={(e) => setReconToleranceBase(e.target.value)}
+              placeholder="0.0001"
+            />
+            <span className="settings-unit">BTC</span>
+          </div>
+          <div className="settings-hint">
+            Maximale Abweichung zwischen Binance- und berechneter Base-Asset-Balance,
+            ab der ein Alert erzeugt wird. 0.0001 BTC = ca. 8-10 EUR bei aktuellen Kursen.
+          </div>
+        </div>
+
+        <div className="settings-field">
+          <label className="settings-label">Quote-Asset Toleranz (z.B. EUR)</label>
+          <div className="settings-input-group">
+            <input
+              type="text"
+              value={reconToleranceQuote}
+              onChange={(e) => setReconToleranceQuote(e.target.value)}
+              placeholder="1.00"
+            />
+            <span className="settings-unit">EUR</span>
+          </div>
+          <div className="settings-hint">
+            Maximale Abweichung zwischen Binance- und berechneter Quote-Asset-Balance.
+            Differenzen darueber erzeugen Warning-Alerts, &gt;10x Toleranz erzeugt Critical-Alerts.
           </div>
         </div>
       </div>
