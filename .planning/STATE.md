@@ -9,19 +9,19 @@ See: .planning/PROJECT.md (updated 2026-02-22)
 
 ## Current Position
 
-Phase: 8 of 8 (Alert System) -- IN PROGRESS
-Plan: 2 of 3 -- COMPLETE
-Status: Phase 8 plan 02 complete, ready for plan 03
-Last activity: 2026-02-23 — Completed 08-02 (Frontend AlertBanner + Sync Fill Details)
+Phase: 8 of 8 (Alert System) -- COMPLETE
+Plan: 3 of 3 -- COMPLETE
+Status: Phase 8 complete, v1.1 API Hardening milestone complete
+Last activity: 2026-02-23 — Completed 08-03 (Reconciliation History + Settings Threshold UI)
 
-Progress: [████████░░] 88% (v1.1, 8/9 plans)
+Progress: [██████████] 100% (v1.1, 9/9 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 16 (8 v1.0 + 8 v1.1)
+- Total plans completed: 17 (8 v1.0 + 9 v1.1)
 - Average duration: 3.1min
-- Total execution time: 55min
+- Total execution time: 58min
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
@@ -35,6 +35,7 @@ Progress: [████████░░] 88% (v1.1, 8/9 plans)
 *Updated after each plan completion*
 | 08-01 | Alert API + Structured Logging | 2min | 2 | 3 |
 | 08-02 | Frontend AlertBanner + Sync Fill Details | 2min | 2 | 5 |
+| 08-03 | Reconciliation History + Settings Threshold UI | 3min | 2 | 3 |
 
 ## Accumulated Context
 
@@ -65,6 +66,9 @@ Progress: [████████░░] 88% (v1.1, 8/9 plans)
 - [08-02] AlertBanner uses useQuery with 30s refetchInterval (consistent with CombinedScore polling pattern)
 - [08-02] Alerts query invalidated in LotsTable onSuccess for immediate banner update after sync
 - [08-02] Fill error display uses warning message type when fills_failed or fills_skipped_fifo > 0
+- [08-03] ReconHistorySection as inline sub-component in Reconciliation.jsx for co-location
+- [08-03] Tolerance inputs use type=text (not type=number) to preserve Decimal precision per project convention
+- [08-03] History query invalidated after every reconciliation mutation for immediate UI refresh
 
 Full v1.0 decision log archived in milestones/v1.0-phases/ SUMMARY.md files.
 
@@ -79,5 +83,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-23
-Stopped at: Completed 08-02-PLAN.md (Frontend AlertBanner + Sync Fill Details)
+Stopped at: Completed 08-03-PLAN.md (Reconciliation History + Settings Threshold UI)
 Resume file: None
