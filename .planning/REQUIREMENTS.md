@@ -69,28 +69,28 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| REM-01 | — | Pending |
-| REM-02 | — | Pending |
-| REM-03 | — | Pending |
-| REM-04 | — | Pending |
-| REM-05 | — | Pending |
-| REM-06 | — | Pending |
-| DARK-01 | — | Pending |
-| DARK-02 | — | Pending |
-| DARK-03 | — | Pending |
-| DARK-04 | — | Pending |
-| DARK-05 | — | Pending |
-| DARK-06 | — | Pending |
-| NAV-01 | — | Pending |
-| NAV-02 | — | Pending |
-| NAV-03 | — | Pending |
-| NAV-04 | — | Pending |
+| REM-01 | Phase 9 | Pending |
+| REM-02 | Phase 9 | Pending |
+| REM-03 | Phase 9 | Pending |
+| REM-04 | Phase 9 | Pending |
+| REM-05 | Phase 9 | Pending |
+| REM-06 | Phase 9 | Pending |
+| DARK-01 | Phase 10 | Pending |
+| DARK-02 | Phase 10 | Pending |
+| DARK-03 | Phase 11 | Pending |
+| DARK-04 | Phase 11 | Pending |
+| DARK-05 | Phase 11 | Pending |
+| DARK-06 | Phase 11 | Pending |
+| NAV-01 | Phase 12 | Pending |
+| NAV-02 | Phase 12 | Pending |
+| NAV-03 | Phase 12 | Pending |
+| NAV-04 | Phase 12 | Pending |
 
 **Coverage:**
 - v2.0 requirements: 16 total
-- Mapped to phases: 0
-- Unmapped: 16 (pending roadmap creation)
+- Mapped to phases: 16
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-02-23*
-*Last updated: 2026-02-23 after initial definition*
+*Last updated: 2026-02-23 after roadmap creation*

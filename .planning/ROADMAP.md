@@ -4,6 +4,7 @@
 
 - ✅ **v1.0 XRP Cross-Pair Pairing** — Phases 1-4 (shipped 2026-02-22)
 - ✅ **v1.1 API Hardening** — Phases 5-8 (shipped 2026-02-23)
+- 🚧 **v2.0 Frontend Redesign + EUR-Fokus** — Phases 9-12 (in progress)
 
 ## Phases
 
@@ -31,6 +32,78 @@ See: `.planning/milestones/v1.1-ROADMAP.md` for full details
 
 </details>
 
+### 🚧 v2.0 Frontend Redesign + EUR-Fokus
+
+**Milestone Goal:** Frontend komplett neugestalten (Dark Mode, 3-Bereichs-Navigation, Combined Score ins Dashboard) und XRPBTC-Support entfernen — nur noch EUR-Paare.
+
+- [ ] **Phase 9: XRPBTC Removal** - Alle XRPBTC Code-Pfade aus Backend und Frontend entfernen (historische DB-Daten bleiben)
+- [ ] **Phase 10: CSS Variable Foundation** - Alle hardcoded Farbwerte durch CSS Custom Properties ersetzen (kein visueller Unterschied)
+- [ ] **Phase 11: Dark Mode Activation + Charts** - Dunkles Theme aktivieren, Chart-Bibliotheken integrieren, FOWT verhindern
+- [ ] **Phase 12: Navigation Restructure + Dashboard** - 3-Bereichs-Navigation, Combined Score ins Dashboard, API Docs entfernen
+
+## Phase Details
+
+### Phase 9: XRPBTC Removal
+**Goal**: Die Codebase kennt nur noch EUR-quoted Pairs (BTCEUR, ETHEUR, XRPEUR) — alle Cross-Pair-Logik ist entfernt
+**Depends on**: Nothing (first phase in v2.0; builds on shipped v1.1)
+**Requirements**: REM-01, REM-02, REM-03, REM-04, REM-05, REM-06
+**Success Criteria** (what must be TRUE):
+  1. Symbol Registry liefert genau 3 Symbole (BTCEUR, ETHEUR, XRPEUR) — kein XRPBTC in Backend oder Frontend
+  2. Pairing-Erstellung und Sell-Order-Platzierung funktionieren fuer alle 3 EUR-Paare ohne Routing-Logik oder BTC-Quote-Pfade
+  3. Frontend zeigt keine Cross-Pair UI-Elemente (keine Pair-Herkunft-Badges, kein Dual-Route Vergleich, kein Cross-Pair Toggle)
+  4. Alle Backend-Tests bestehen ohne XRPBTC-spezifische Testdateien, restliche Tests sind angepasst
+  5. Historische XRPBTC-Daten in der Datenbank sind unberuehrt (Ledger-Events, Lots, Allocations bleiben erhalten)
+**Plans**: TBD
+
+Plans:
+- [ ] 09-01: TBD
+- [ ] 09-02: TBD
+
+### Phase 10: CSS Variable Foundation
+**Goal**: Alle Farben im Frontend werden ueber CSS Custom Properties gesteuert — die App sieht identisch aus, aber jede Farbe ist eine Variable
+**Depends on**: Nothing (kann parallel zu Phase 9 laufen, aber sequentiell geplant)
+**Requirements**: DARK-01, DARK-02
+**Success Criteria** (what must be TRUE):
+  1. Kein hardcoded Hex-Farbwert existiert ausserhalb der `:root`-Definition in `index.css` (verifizierbar via grep)
+  2. Die App im Browser sieht pixelidentisch zum Zustand vor der Konvertierung aus (kein visueller Unterschied)
+  3. Die Dark-Mode-Farbpalette ist als `[data-theme="dark"]`-Block in `index.css` definiert (noch nicht aktiv, aber bereit)
+**Plans**: TBD
+
+Plans:
+- [ ] 10-01: TBD
+- [ ] 10-02: TBD
+
+### Phase 11: Dark Mode Activation + Charts
+**Goal**: Das gesamte Frontend ist dunkel gestylt — alle Komponenten, Charts und Lade-Zustaende verwenden das Dark Theme
+**Depends on**: Phase 10 (CSS Variables muessen komplett sein, sonst bleiben Elemente hell)
+**Requirements**: DARK-03, DARK-04, DARK-05, DARK-06
+**Success Criteria** (what must be TRUE):
+  1. Alle 12 CSS-Dateien rendern korrekt im Dark Mode — keine weissen Flaechen, keine unlesbaren Texte, keine unsichtbaren Borders
+  2. Candlestick-Chart (lightweight-charts) hat dunklen Hintergrund mit lesbaren Kerzen, Zonen-Overlays und Volume-Histogramm
+  3. Recharts-Diagramme (Orderblock Stats, Overview PieChart) haben dunkle Hintergruende mit lesbaren Labels und Tooltips
+  4. Beim Laden der Seite gibt es keinen weissen Blitz (Flash of Wrong Theme) — der dunkle Hintergrund ist sofort sichtbar
+**Plans**: TBD
+
+Plans:
+- [ ] 11-01: TBD
+- [ ] 11-02: TBD
+
+### Phase 12: Navigation Restructure + Dashboard
+**Goal**: Die App hat 3 klare Bereiche (Trading, Orderblocks, Admin) und die zentrale Handlungsempfehlung ist direkt im Dashboard sichtbar
+**Depends on**: Phase 9 (saubere 3-Symbol-Liste), Phase 11 (Dark-Mode-aware Komponenten)
+**Requirements**: NAV-01, NAV-02, NAV-03, NAV-04
+**Success Criteria** (what must be TRUE):
+  1. Die Navigation zeigt 3 Bereiche (Trading, Orderblocks, Admin) statt 7 einzelne Tabs — Symbol-Selector bleibt immer sichtbar
+  2. Das Dashboard enthaelt das Combined Score Hero-Widget (Action Banner + Score Bar) oberhalb der KPI-Kacheln
+  3. API Docs ist nicht mehr in der Navbar (Link ggf. im Footer oder Settings)
+  4. Alte URLs (z.B. `/s/:symbol/combined`) leiten korrekt auf die neue Struktur um — keine 404s fuer Bookmarks
+  5. Browser-Navigation (Zurueck/Vorwaerts) funktioniert korrekt zwischen allen Bereichen und Symbolen
+**Plans**: TBD
+
+Plans:
+- [ ] 12-01: TBD
+- [ ] 12-02: TBD
+
 ## Progress
 
 | Phase | Milestone | Plans | Status | Completed |
@@ -43,3 +116,7 @@ See: `.planning/milestones/v1.1-ROADMAP.md` for full details
 | 6. Sync Reliability | v1.1 | 2/2 | Complete | 2026-02-22 |
 | 7. Proactive Reconciliation | v1.1 | 2/2 | Complete | 2026-02-22 |
 | 8. Alert System | v1.1 | 3/3 | Complete | 2026-02-23 |
+| 9. XRPBTC Removal | v2.0 | 0/? | Not started | - |
+| 10. CSS Variable Foundation | v2.0 | 0/? | Not started | - |
+| 11. Dark Mode Activation + Charts | v2.0 | 0/? | Not started | - |
+| 12. Navigation Restructure + Dashboard | v2.0 | 0/? | Not started | - |
