@@ -52,6 +52,10 @@ def compute_portfolio_from_ledger(
 
     for event in events:
         if event.type == EventType.TRADE_FILL:
+            # Nur Fills des aktiven Symbols verarbeiten.
+            # Legacy-Events (symbol=None) werden weiterhin akzeptiert.
+            if event.symbol and event.symbol != symbol:
+                continue
             if event.side == TradeSide.BUY:
                 # Buy: Base-Bestand erhöht, Kosten erhöht, Quote reduziert
                 # WICHTIG: qty von Binance ist BRUTTO (VOR Fee-Abzug)
@@ -130,7 +134,9 @@ def compute_portfolio_from_ledger(
         elif event.type == EventType.EXTERNAL_CASHFLOW:
             # Externe Cashflows (Bank Ein-/Auszahlung)
             # Beeinflussen NICHT Base-Kostenbasis
-            external_net_quote += event.amount
+            # Nur zaehlen wenn Asset zum Quote-Asset passt (EUR-Cashflows → EUR-Paare, nicht BTC-Paare)
+            if event.asset == quote_asset:
+                external_net_quote += event.amount
 
         elif event.type == EventType.FEE:
             # Separate Fee Events (falls nicht im Fill enthalten)
@@ -187,10 +193,12 @@ def compute_daily_performance(
     unrealized_sod = portfolio_sod.unrealized_pnl_quote(market_price)
     unrealized_now = portfolio_now.unrealized_pnl_quote(market_price)
 
-    # Heutige Trade-Fills filtern
+    # Heutige Trade-Fills filtern — nur fuer das aktive Symbol
     today_fills = [
         e for e in events
-        if e.timestamp > start_of_day and e.type == EventType.TRADE_FILL
+        if e.timestamp > start_of_day
+        and e.type == EventType.TRADE_FILL
+        and (not e.symbol or e.symbol == symbol)
     ]
 
     buys = [e for e in today_fills if e.side == TradeSide.BUY]

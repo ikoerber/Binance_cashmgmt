@@ -14,27 +14,18 @@ from .models import (
     PairingItem,
     PairingStatus,
     PairingSimulation,
-    RouteDetails,
-    DualRouteComparison,
     utcnow,
 )
-from app.symbol_registry import get_base_asset
 
 
-def _lot_cost(lot: TradeLot, use_eur_cost: bool) -> Decimal:
-    """Gibt Lot-Kosten in der passenden Waehrung zurueck.
-
-    use_eur_cost=True:  lot.cost_eur (EUR-normalisiert fuer Cross-Pair)
-    use_eur_cost=False: lot.break_even * lot.qty_base_open (native Quote-Currency)
-    """
-    if use_eur_cost:
-        return lot.cost_eur  # type: ignore[return-value]  # validated before call
+def _lot_cost(lot: TradeLot) -> Decimal:
+    """Gibt Lot-Kosten in Quote-Currency zurueck."""
     return lot.break_even * lot.qty_base_open
 
 
-def _lot_pnl_pct(lot: TradeLot, market_price: Decimal, use_eur_cost: bool) -> Decimal:
-    """Berechnet P&L% fuer ein Lot im passenden Modus."""
-    cost = _lot_cost(lot, use_eur_cost)
+def _lot_pnl_pct(lot: TradeLot, market_price: Decimal) -> Decimal:
+    """Berechnet P&L% fuer ein Lot."""
+    cost = _lot_cost(lot)
     if cost == 0:
         return Decimal("0")
     value = market_price * lot.qty_base_open
@@ -45,7 +36,6 @@ def suggest_pairings(
     lots: List[TradeLot],
     market_price: Decimal,
     threshold_pct: Decimal = Decimal("0.05"),
-    use_eur_cost: bool = False,
 ) -> List[Pairing]:
     """
     Schlaegt Pairings vor (Heuristik v1.2)
@@ -60,10 +50,8 @@ def suggest_pairings(
 
     Args:
         lots: Liste offener TradeLots
-        market_price: Aktueller Marktpreis (EUR fuer Cross-Pair, Quote-Currency sonst)
+        market_price: Aktueller Marktpreis in Quote-Currency
         threshold_pct: Zielmarge (z.B. 0.05 fuer 5%)
-        use_eur_cost: True fuer Cross-Pair-Modus (verwendet lot.cost_eur).
-                      False (default) fuer bestehendes Single-Pair-Verhalten.
 
     Returns:
         Liste von Pairing-Vorschlaegen
@@ -71,30 +59,22 @@ def suggest_pairings(
     if not lots:
         return []
 
-    # Validation: Cross-pair mode requires all lots to have cost_eur
-    if use_eur_cost:
-        for lot in lots:
-            if lot.cost_eur is None:
-                raise ValueError(
-                    f"Lot {lot.id} has no cost_eur -- cannot use EUR-normalized P&L"
-                )
-
     # 1. Lots nach P&L% sortieren
     # Gewinner (positive P&L%) absteigend
     winners = [
         lot for lot in lots
-        if _lot_pnl_pct(lot, market_price, use_eur_cost) > 0
+        if _lot_pnl_pct(lot, market_price) > 0
     ]
     winners.sort(
-        key=lambda l: _lot_pnl_pct(l, market_price, use_eur_cost), reverse=True
+        key=lambda l: _lot_pnl_pct(l, market_price), reverse=True
     )
 
     # Verlierer (negative P&L%) aufsteigend (negativste zuerst)
     losers = [
         lot for lot in lots
-        if _lot_pnl_pct(lot, market_price, use_eur_cost) <= 0
+        if _lot_pnl_pct(lot, market_price) <= 0
     ]
-    losers.sort(key=lambda l: _lot_pnl_pct(l, market_price, use_eur_cost))
+    losers.sort(key=lambda l: _lot_pnl_pct(l, market_price))
 
     if not winners:
         # Keine Gewinner -> keine Pairings moeglich
@@ -102,9 +82,6 @@ def suggest_pairings(
 
     # Symbol aus erstem Lot ableiten
     symbol = lots[0].symbol if lots else "BTCEUR"
-
-    # Base-Asset fuer Cross-Pair Modus
-    cross_pair_base_asset = get_base_asset(lots[0].symbol) if use_eur_cost else None
 
     # 2. Pairings bauen
     pairings = []
@@ -116,7 +93,7 @@ def suggest_pairings(
             continue
 
         # Kosten fuer diesen Gewinner
-        winner_cost = _lot_cost(winner, use_eur_cost)
+        winner_cost = _lot_cost(winner)
 
         # Pairing starten mit diesem Gewinner
         items = [
@@ -124,8 +101,6 @@ def suggest_pairings(
                 lot_id=winner.id,
                 qty_base=winner.qty_base_open,
                 cost_quote=winner.break_even * winner.qty_base_open,
-                cost_eur=winner.cost_eur if use_eur_cost else None,
-                lot_symbol=winner.symbol if use_eur_cost else None,
             )
         ]
 
@@ -139,7 +114,7 @@ def suggest_pairings(
                 continue
 
             # Simuliere: Was passiert wenn wir diesen Loser hinzufuegen?
-            loser_cost = _lot_cost(loser, use_eur_cost)
+            loser_cost = _lot_cost(loser)
             loser_value = market_price * loser.qty_base_open
 
             new_cost = current_cost + loser_cost
@@ -154,8 +129,6 @@ def suggest_pairings(
                         lot_id=loser.id,
                         qty_base=loser.qty_base_open,
                         cost_quote=loser.break_even * loser.qty_base_open,
-                        cost_eur=loser.cost_eur if use_eur_cost else None,
-                        lot_symbol=loser.symbol if use_eur_cost else None,
                     )
                 )
                 current_cost = new_cost
@@ -174,7 +147,6 @@ def suggest_pairings(
                 status=PairingStatus.DRAFT,
                 created_at=utcnow(),
                 symbol=symbol,
-                base_asset=cross_pair_base_asset,
             )
             pairings.append(pairing)
             used_winners.add(winner.id)
@@ -263,76 +235,6 @@ def simulate_pairing(
         remaining_portfolio_cost_quote=remaining_cost,
         estimated_fee_quote=estimated_fee,
         fee_pct=fee_pct,
-    )
-
-
-def compute_dual_route_comparison(
-    total_base: Decimal,
-    xrpeur_price: Decimal,
-    xrpbtc_price: Decimal,
-    btceur_price: Decimal,
-    fee_pct: Decimal = Decimal("0.001"),
-) -> DualRouteComparison:
-    """
-    Berechnet EUR-Erloese fuer zwei Verkaufsrouten (pure, kein I/O).
-
-    Route 1 (direkt): Sell auf XRPEUR-Markt.
-      gross = total_base * xrpeur_price
-      net = gross * (1 - fee_pct)
-
-    Route 2 (indirekt): Sell auf XRPBTC -> dann BTC auf BTCEUR.
-      Step 1: gross_btc = total_base * xrpbtc_price, net_btc = gross_btc * (1 - fee_pct)
-      Step 2: gross_eur = net_btc * btceur_price, net_eur = gross_eur * (1 - fee_pct)
-      (Zwei Fee-Schritte -> compounded fees)
-
-    Args:
-        total_base: Gesamte Base-Asset-Menge zu verkaufen
-        xrpeur_price: Aktueller XRPEUR-Preis
-        xrpbtc_price: Aktueller XRPBTC-Preis
-        btceur_price: Aktueller BTCEUR-Preis
-        fee_pct: Trading Fee (z.B. 0.001 fuer 0.1%)
-
-    Returns:
-        DualRouteComparison mit beiden Routen und Empfehlung
-    """
-    # Route 1: XRPEUR direkt
-    gross_direct = total_base * xrpeur_price
-    fees_direct = gross_direct * fee_pct
-    net_direct = gross_direct - fees_direct
-
-    # Route 2: XRPBTC -> BTCEUR (zwei Fee-Schritte)
-    gross_btc = total_base * xrpbtc_price
-    fees_btc = gross_btc * fee_pct
-    net_btc = gross_btc - fees_btc
-    gross_eur_indirect = net_btc * btceur_price
-    fees_eur_indirect = gross_eur_indirect * fee_pct
-    net_indirect = gross_eur_indirect - fees_eur_indirect
-
-    # Empfohlene Route: hoehere Netto-Erloese
-    recommended = "XRPEUR" if net_direct >= net_indirect else "XRPBTC"
-    diff = abs(net_direct - net_indirect)
-
-    return DualRouteComparison(
-        route_direct=RouteDetails(
-            symbol="XRPEUR",
-            sell_price=xrpeur_price,
-            gross_proceeds_eur=gross_direct,
-            fees_eur=fees_direct,
-            net_proceeds_eur=net_direct,
-            conversion_rate=None,
-            fee_steps=1,
-        ),
-        route_indirect=RouteDetails(
-            symbol="XRPBTC",
-            sell_price=xrpbtc_price,
-            gross_proceeds_eur=gross_eur_indirect,
-            fees_eur=fees_btc * btceur_price + fees_eur_indirect,
-            net_proceeds_eur=net_indirect,
-            conversion_rate=btceur_price,
-            fee_steps=2,
-        ),
-        recommended_route=recommended,
-        eur_difference=diff,
     )
 
 

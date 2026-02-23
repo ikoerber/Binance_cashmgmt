@@ -95,8 +95,7 @@ class TradeLot:
     qty_base_open: Decimal  # Aktuell offene Menge
 
     cost_quote: Decimal  # Gesamtkosten in Quote-Currency (inkl. Fees)
-    cost_eur: Optional[Decimal] = None  # EUR-equivalent Kosten (None = needs backfill)
-    quote_to_eur_rate: Optional[Decimal] = None  # Konvertierungsrate zum Fill-Zeitpunkt (None = needs backfill)
+    cost_eur: Optional[Decimal] = None  # EUR-equivalent Kosten
 
     status: LotStatus = LotStatus.OPEN
     target_margin_pct: Optional[Decimal] = None  # Lot-spezifische Zielmarge
@@ -152,8 +151,6 @@ class PairingItem:
     lot_id: str
     qty_base: Decimal  # Wie viel Base-Asset von diesem Lot im Pairing
     cost_quote: Decimal  # Anteilige Kosten in Quote-Currency
-    cost_eur: Optional[Decimal] = None  # EUR-normalisierte Kosten (fuer Cross-Pair)
-    lot_symbol: Optional[str] = None  # Pair-of-origin (z.B. "XRPEUR" oder "XRPBTC")
 
 
 class PairingStatus(Enum):
@@ -176,19 +173,6 @@ class Pairing:
     status: PairingStatus = PairingStatus.DRAFT
     created_at: Optional[datetime] = None
     symbol: str = "BTCEUR"  # Trading Pair
-    base_asset: Optional[str] = None  # Base-Asset fuer Cross-Pair (z.B. "XRP"), None fuer Single-Pair
-
-    @property
-    def is_cross_pair(self) -> bool:
-        """True wenn Pairing Lots aus mehreren Symbols enthaelt."""
-        return self.base_asset is not None
-
-    def net_cost_eur(self) -> Optional[Decimal]:
-        """EUR-normalisierte Netto-Kosten (fuer Cross-Pair). None wenn cost_eur fehlt."""
-        costs = [item.cost_eur for item in self.items]
-        if any(c is None for c in costs):
-            return None
-        return sum(costs, Decimal("0"))
 
     def net_cost(self) -> Decimal:
         """Netto-Kosten aller Items"""
@@ -241,62 +225,6 @@ class PairingSimulation:
     # Fees
     estimated_fee_quote: Decimal
     fee_pct: Decimal  # z.B. 0.001 für 0.1%
-
-
-@dataclass
-class RouteDetails:
-    """
-    Details einer Verkaufsroute fuer Cross-Pair Simulation.
-
-    Beschreibt Erloese, Fees und Konvertierung fuer eine einzelne Route.
-    """
-    symbol: str  # "XRPEUR" oder "XRPBTC"
-    sell_price: Decimal  # Verkaufspreis auf diesem Markt
-    gross_proceeds_eur: Decimal  # Brutto-Erloes in EUR (vor Fees)
-    fees_eur: Decimal  # Fees in EUR
-    net_proceeds_eur: Decimal  # Netto-Erloes in EUR (nach Fees)
-    conversion_rate: Optional[Decimal]  # BTC/EUR-Kurs fuer indirekten Route, None fuer direkt
-    fee_steps: int  # 1 fuer direkt, 2 fuer indirekt
-
-
-@dataclass
-class DualRouteComparison:
-    """
-    Vergleich zweier Verkaufsrouten fuer Cross-Pair Pairings.
-
-    Berechnet EUR-Erloese fuer direkten (z.B. XRPEUR) und indirekten
-    (z.B. XRPBTC -> BTCEUR) Verkaufsweg.
-    """
-    route_direct: RouteDetails
-    route_indirect: RouteDetails
-    recommended_route: str  # "XRPEUR" oder "XRPBTC"
-    eur_difference: Decimal  # Absolute Differenz zwischen den Routen
-
-
-@dataclass
-class RoutingDecision:
-    """Audit record of a sell routing decision at pairing execution time."""
-    selected_route: str           # "XRPEUR" or "XRPBTC"
-    xrpeur_price: Decimal
-    xrpbtc_price: Decimal
-    btceur_price: Decimal
-    direct_net_eur: Decimal       # Net EUR proceeds via direct route
-    indirect_net_eur: Decimal     # Net EUR proceeds via indirect route
-    eur_difference: Decimal       # |direct - indirect|
-    timestamp: datetime
-
-    def to_dict(self) -> dict:
-        """Serialize to JSON-safe dict with Decimal values as strings."""
-        return {
-            "selected_route": self.selected_route,
-            "xrpeur_price": str(self.xrpeur_price),
-            "xrpbtc_price": str(self.xrpbtc_price),
-            "btceur_price": str(self.btceur_price),
-            "direct_net_eur": str(self.direct_net_eur),
-            "indirect_net_eur": str(self.indirect_net_eur),
-            "eur_difference": str(self.eur_difference),
-            "timestamp": self.timestamp.isoformat(),
-        }
 
 
 @dataclass

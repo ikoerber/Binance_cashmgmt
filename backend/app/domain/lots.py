@@ -29,7 +29,6 @@ from app.utils.fee_conversion import compute_fee_quote_value  # noqa: F401 — R
 def create_trade_lot_from_buy_fill(
     fill_event: LedgerEvent,
     fee_conversion_rates: dict[str, Decimal] | None = None,
-    quote_to_eur_rate: Decimal | None = None,
 ) -> TradeLot:
     """
     Erstellt ein TradeLot aus einem Buy-Fill Event
@@ -95,19 +94,8 @@ def create_trade_lot_from_buy_fill(
                 fill_event.id, fill_event.fee_amount, fill_event.fee_asset,
             )
 
-    # EUR Cost Basis Computation
-    # EUR-quoted lots: cost_eur = cost_quote (trivially EUR)
-    # Non-EUR-quoted lots with rate: cost_eur = cost_quote * quote_to_eur_rate
-    # Non-EUR-quoted lots without rate: cost_eur = None (needs backfill)
-    if quote_asset == "EUR":
-        effective_rate = Decimal("1")
-        computed_cost_eur = cost_quote
-    elif quote_to_eur_rate is not None:
-        effective_rate = quote_to_eur_rate
-        computed_cost_eur = cost_quote * quote_to_eur_rate
-    else:
-        effective_rate = None
-        computed_cost_eur = None
+    # EUR Cost Basis: All remaining pairs are EUR-quoted, so cost_eur = cost_quote
+    computed_cost_eur = cost_quote
 
     lot = TradeLot(
         id=f"lot_{fill_event.id}",
@@ -117,7 +105,6 @@ def create_trade_lot_from_buy_fill(
         qty_base_open=qty_net,
         cost_quote=cost_quote,
         cost_eur=computed_cost_eur,
-        quote_to_eur_rate=effective_rate,
         status=LotStatus.OPEN,
         symbol=symbol,
     )
@@ -171,60 +158,6 @@ def _compute_net_proceeds_per_base(
     min_prec = get_min_base_precision(symbol)
     fee_per_unit = total_fee_quote / sell_event.amount if sell_event.amount > min_prec else Decimal("0")
     return sell_proceeds_per_base - fee_per_unit
-
-
-def compute_cross_pair_realized_pnl_eur(
-    qty_allocated: Decimal,
-    net_proceeds_per_base: Decimal,
-    sell_quote_asset: str,
-    lot_cost_eur: Decimal,
-    lot_qty_base_initial: Decimal,
-    btceur_rate: Decimal | None = None,
-) -> Decimal:
-    """
-    Berechnet EUR-normalisierte realisierte P&L fuer Cross-Pair Sell Allocation.
-
-    Bei Cross-Pair Pairings kann das Sell-Event auf einem anderen Pair stattfinden
-    als dem, auf dem das Lot gekauft wurde. In diesem Fall muessen sowohl Erloes
-    als auch Kosten in EUR normalisiert werden.
-
-    Args:
-        qty_allocated: Allokierte Menge (Base-Asset)
-        net_proceeds_per_base: Netto-Erloes pro Base-Unit (in sell_quote_asset)
-        sell_quote_asset: Quote-Asset des Sell-Events ("EUR" oder "BTC")
-        lot_cost_eur: EUR-Kosten des gesamten Lots (lot.cost_eur)
-        lot_qty_base_initial: Initiale Base-Menge des Lots
-        btceur_rate: BTC/EUR-Kurs (Pflicht wenn sell_quote_asset != "EUR")
-
-    Returns:
-        Realisierte P&L in EUR
-
-    Raises:
-        ValueError: Wenn sell_quote_asset == "BTC" aber btceur_rate fehlt
-    """
-    if qty_allocated == 0:
-        return Decimal("0")
-
-    # EUR-Erloes pro Base-Unit berechnen
-    if sell_quote_asset == "EUR":
-        eur_proceeds_per_base = net_proceeds_per_base
-    elif sell_quote_asset == "BTC":
-        if btceur_rate is None:
-            raise ValueError(
-                "btceur_rate required for EUR-normalization when sell is on BTC-quoted pair"
-            )
-        eur_proceeds_per_base = net_proceeds_per_base * btceur_rate
-    else:
-        raise ValueError(f"Unsupported sell quote asset: {sell_quote_asset}")
-
-    # EUR-Kosten pro Base-Unit aus lot.cost_eur
-    cost_eur_per_base = lot_cost_eur / lot_qty_base_initial
-
-    # Realisierte P&L in EUR
-    proceeds_eur = eur_proceeds_per_base * qty_allocated
-    cost_eur = cost_eur_per_base * qty_allocated
-
-    return proceeds_eur - cost_eur
 
 
 def _allocate_qty_to_lots(

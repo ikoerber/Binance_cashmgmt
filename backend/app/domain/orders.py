@@ -2,12 +2,138 @@
 Order Domain Logic – Pure Funktionen (kein I/O, keine Seiteneffekte).
 
 Berechnet Order-Parameter deterministisch aus Eingabedaten.
+Enthaelt Binance Exchange Filter Validierung (LOT_SIZE, PRICE_FILTER, NOTIONAL).
 """
 import re
-from decimal import Decimal
-from typing import Dict, Any
+from dataclasses import dataclass
+from decimal import Decimal, ROUND_DOWN, ROUND_HALF_UP
+from typing import Dict, Any, List
 
 from app.symbol_registry import get_price_precision, get_base_precision, get_quote_asset
+
+
+# ─── Binance Exchange Filter Types ───
+
+
+@dataclass(frozen=True)
+class SymbolFilters:
+    """Binance Exchange Filters fuer ein Trading Pair (immutable, pure data)."""
+
+    # LOT_SIZE
+    min_qty: Decimal
+    max_qty: Decimal
+    step_size: Decimal
+    # PRICE_FILTER
+    min_price: Decimal
+    max_price: Decimal
+    tick_size: Decimal
+    # NOTIONAL / MIN_NOTIONAL
+    min_notional: Decimal
+
+
+def parse_symbol_filters(raw_filters: list[dict]) -> SymbolFilters:
+    """
+    Extrahiert LOT_SIZE, PRICE_FILTER und NOTIONAL aus Binance exchangeInfo Antwort.
+
+    Args:
+        raw_filters: Liste der Filter-Dicts aus Binance Symbol-Info
+
+    Returns:
+        SymbolFilters Dataclass
+
+    Raises:
+        ValueError: Wenn LOT_SIZE oder PRICE_FILTER fehlt
+    """
+    filters_by_type = {f["filterType"]: f for f in raw_filters}
+
+    lot_size = filters_by_type.get("LOT_SIZE")
+    if not lot_size:
+        raise ValueError("LOT_SIZE filter nicht gefunden")
+
+    price_filter = filters_by_type.get("PRICE_FILTER")
+    if not price_filter:
+        raise ValueError("PRICE_FILTER nicht gefunden")
+
+    # Binance verwendet sowohl NOTIONAL als auch MIN_NOTIONAL (aeltere Symbols)
+    notional = filters_by_type.get("NOTIONAL") or filters_by_type.get("MIN_NOTIONAL")
+    min_notional = Decimal(notional.get("minNotional", "0")) if notional else Decimal("0")
+
+    return SymbolFilters(
+        min_qty=Decimal(lot_size["minQty"]),
+        max_qty=Decimal(lot_size["maxQty"]),
+        step_size=Decimal(lot_size["stepSize"]),
+        min_price=Decimal(price_filter["minPrice"]),
+        max_price=Decimal(price_filter["maxPrice"]),
+        tick_size=Decimal(price_filter["tickSize"]),
+        min_notional=min_notional,
+    )
+
+
+def round_qty_to_step_size(qty: Decimal, step_size: Decimal) -> Decimal:
+    """
+    Floor-Rundung auf naechstes Vielfaches von step_size.
+
+    Floor statt Round, damit nie mehr als verfuegbar verkauft wird.
+    Bei step_size == 0 wird qty unveraendert zurueckgegeben.
+    """
+    if step_size <= 0:
+        return qty
+    return (qty // step_size) * step_size
+
+
+def round_price_to_tick_size(price: Decimal, tick_size: Decimal) -> Decimal:
+    """
+    Rundet Preis auf naechstes Vielfaches von tick_size (ROUND_HALF_UP).
+
+    Bei tick_size == 0 wird price unveraendert zurueckgegeben.
+    """
+    if tick_size <= 0:
+        return price
+    # Anzahl Dezimalstellen aus tick_size ableiten
+    # z.B. tick_size=0.01 → quantize auf 2 Stellen
+    return price.quantize(tick_size, rounding=ROUND_HALF_UP)
+
+
+def validate_order_filters(
+    qty: Decimal, price: Decimal, filters: SymbolFilters
+) -> List[str]:
+    """
+    Validiert qty und price gegen Binance Exchange Filters.
+
+    Returns:
+        Liste von Fehlermeldungen (leer = valide)
+    """
+    errors = []
+
+    # LOT_SIZE
+    if qty < filters.min_qty:
+        errors.append(f"Menge {qty} unter Minimum {filters.min_qty}")
+    if qty > filters.max_qty:
+        errors.append(f"Menge {qty} ueber Maximum {filters.max_qty}")
+    if filters.step_size > 0:
+        remainder = qty % filters.step_size
+        if remainder != Decimal("0"):
+            errors.append(
+                f"Menge {qty} ist kein Vielfaches von stepSize {filters.step_size}"
+            )
+
+    # PRICE_FILTER
+    if price < filters.min_price:
+        errors.append(f"Preis {price} unter Minimum {filters.min_price}")
+    if filters.max_price > 0 and price > filters.max_price:
+        errors.append(f"Preis {price} ueber Maximum {filters.max_price}")
+
+    # NOTIONAL
+    notional = qty * price
+    if filters.min_notional > 0 and notional < filters.min_notional:
+        errors.append(
+            f"Orderwert {notional} unter minNotional {filters.min_notional}"
+        )
+
+    return errors
+
+
+# ─── Pairing Order Parameter Berechnung ───
 
 
 def compute_pairing_order_params(
@@ -19,7 +145,6 @@ def compute_pairing_order_params(
     max_order_value_eur: Decimal = Decimal("1000"),
     custom_sell_price: Decimal | None = None,
     symbol: str = "BTCEUR",
-    btceur_rate: Decimal | None = None,
 ) -> Dict[str, Any]:
     """
     Berechnet aggregierte Binance-Order-Parameter fuer ein Pairing.
@@ -38,7 +163,6 @@ def compute_pairing_order_params(
         max_order_value_eur: Max. Orderwert (aus UserSettings)
         custom_sell_price: Optionaler benutzerdefinierter Verkaufspreis (ueberschreibt Berechnung)
         symbol: Trading Pair (Default: BTCEUR)
-        btceur_rate: BTC/EUR-Kurs fuer EUR-Konvertierung (Pflicht fuer nicht-EUR-quoted Symbols)
 
     Returns:
         Dict mit aggregierten Binance-Order-Parametern
@@ -65,30 +189,22 @@ def compute_pairing_order_params(
     total_qty_rounded = total_qty.quantize(base_quantizer)
 
     # Symbol-aware client_order_id
-    # For sub-1 prices (e.g. XRPBTC), use satoshi encoding to avoid int(price) = 0 collisions
+    # For sub-1 prices (e.g. XRPEUR ~0.50 EUR), use satoshi encoding to avoid int(price) = 0 collisions
     version = "v1"
     safe_pairing_id = re.sub(r'[^a-zA-Z0-9_-]', '', pairing_id)[:12]
 
     if target_price_rounded >= Decimal("1"):
         price_enc = str(int(target_price_rounded))
     else:
-        # Satoshi encoding: multiply by 1e8 to get integer representation
+        # Satoshi encoding for sub-1 EUR prices: multiply by 1e8 to get integer representation
         price_enc = str(int(target_price_rounded * Decimal("100000000")))
 
     # Include short symbol to prevent cross-symbol collisions
     symbol_short = symbol[:6]
     client_order_id = f"{user_id}_p_{safe_pairing_id}_{symbol_short}_{price_enc}_{version}"[:36]
 
-    # Order value computation: in quote currency first, then convert to EUR if needed
-    order_value_quote = total_qty_rounded * target_price_rounded
-
-    if quote_asset == "EUR":
-        order_value_eur = order_value_quote
-    elif btceur_rate is not None:
-        order_value_eur = order_value_quote * btceur_rate
-    else:
-        # Fallback: use quote value as-is (may be in BTC, conservative check)
-        order_value_eur = order_value_quote
+    # Order value in EUR (all pairs are EUR-quoted)
+    order_value_eur = total_qty_rounded * target_price_rounded
 
     exceeds_max = order_value_eur > max_order_value_eur
 

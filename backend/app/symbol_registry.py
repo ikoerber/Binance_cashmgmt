@@ -21,7 +21,6 @@ KNOWN_PAIRS = {
     "BTCEUR": TradingPair("BTCEUR", "BTC", "EUR", 8, 2, "BTC/EUR"),
     "ETHEUR": TradingPair("ETHEUR", "ETH", "EUR", 5, 2, "ETH/EUR"),
     "XRPEUR": TradingPair("XRPEUR", "XRP", "EUR", 2, 4, "XRP/EUR"),
-    "XRPBTC": TradingPair("XRPBTC", "XRP", "BTC", 2, 8, "XRP/BTC"),
 }
 
 
@@ -37,24 +36,6 @@ def get_base_asset(symbol: str) -> str:
     """Gibt Base-Asset für ein Symbol zurück (z.B. 'BTC' für 'BTCEUR')."""
     return parse_symbol(symbol).base_asset
 
-
-def get_symbols_for_base_asset(base_asset: str) -> list[str]:
-    """Returns all known symbols for a given base asset.
-
-    Examples:
-        get_symbols_for_base_asset("XRP") -> ["XRPEUR", "XRPBTC"]
-        get_symbols_for_base_asset("BTC") -> ["BTCEUR"]
-        get_symbols_for_base_asset("ETH") -> ["ETHEUR"]
-
-    Raises:
-        ValueError: If no symbols found for the base asset.
-    """
-    symbols = [
-        pair.symbol for pair in KNOWN_PAIRS.values() if pair.base_asset == base_asset
-    ]
-    if not symbols:
-        raise ValueError(f"No symbols found for base asset: {base_asset}")
-    return symbols
 
 
 def get_base_precision(symbol: str) -> int:
