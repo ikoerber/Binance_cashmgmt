@@ -237,6 +237,39 @@ export const getOrderblockCandles = async (userId, { symbol = 'BTCEUR', interval
   return response.data;
 };
 
+// Alerts API
+export const getAlerts = async (userId, includeAcknowledged = false) => {
+  const response = await apiClient.get(`/api/alerts/${userId}`, {
+    params: { include_acknowledged: includeAcknowledged },
+  });
+  return response.data;
+};
+
+export const acknowledgeAlert = async (alertId, userId) => {
+  const response = await apiClient.patch(`/api/alerts/${alertId}/acknowledge`, null, {
+    params: { user_id: userId },
+  });
+  return response.data;
+};
+
+export const acknowledgeAllAlerts = async (userId) => {
+  const response = await apiClient.post(`/api/alerts/${userId}/acknowledge-all`);
+  return response.data;
+};
+
+// Reconciliation History API
+export const getReconciliationHistory = async (userId, limit = 20, offset = 0) => {
+  const response = await apiClient.get(`/api/reconciliation/${userId}/history`, {
+    params: { limit, offset },
+  });
+  return response.data;
+};
+
+export const getReconciliationRunDetail = async (userId, runId) => {
+  const response = await apiClient.get(`/api/reconciliation/${userId}/history/${runId}`);
+  return response.data;
+};
+
 // Server IP API
 export const getServerIp = async () => {
   const response = await apiClient.get('/api/server-ip');

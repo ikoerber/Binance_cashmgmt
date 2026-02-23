@@ -1,6 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
-import Dashboard from './components/Dashboard';
 import LotsTable from './components/LotsTable';
 import Reconciliation from './components/Reconciliation';
 import Settings from './components/Settings';
@@ -12,6 +11,7 @@ import GlobalNav from './components/GlobalNav';
 import { WebSocketProvider } from './contexts/WebSocketContext';
 import { UserProvider } from './contexts/UserContext';
 import FillNotification from './components/FillNotification';
+import AlertBanner from './components/AlertBanner';
 import { getServerIp } from './api/client';
 import './App.css';
 
@@ -36,11 +36,12 @@ function AppContent() {
   return (
     <div className="App">
       <GlobalNav />
+      <AlertBanner />
 
       <Routes>
         <Route path="/" element={<Overview />} />
         <Route path="/s/:symbol" element={<SymbolLayout />}>
-          <Route index element={<Dashboard />} />
+          <Route index element={<Navigate to="lots" replace />} />
           <Route path="lots" element={<LotsTable />} />
           <Route path="combined" element={<CombinedScore />} />
           <Route path="orderblock" element={<Orderblock />} />
