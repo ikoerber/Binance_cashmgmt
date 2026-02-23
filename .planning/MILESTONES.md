@@ -17,3 +17,20 @@
 
 ---
 
+
+## v1.1 API Hardening (Shipped: 2026-02-23)
+
+**Phases completed:** 4 phases, 9 plans, 17 tasks
+**Timeline:** 2 days (2026-02-22 → 2026-02-23)
+**Lines:** +6,054 / -174 across 52 files
+
+**Key accomplishments:**
+- Structured error classification (transient vs permanent) with exponential backoff + Retry-After support
+- Configurable timeouts on all Binance API clients (REST + public), no more hanging calls
+- Per-fill sync result tracking with explicit outcomes (PROCESSED/FAILED/SKIPPED_FIFO/SKIPPED_DUPLICATE)
+- Auto-reconciliation after every sync with threshold-based alerts (warning at >tolerance, critical at >10x)
+- Persistent AlertBanner in frontend with dismiss/bulk-dismiss, 30s polling, severity-colored (amber/red/blue)
+- Reconciliation history UI with expandable run details + configurable tolerance thresholds in Settings
+
+---
+

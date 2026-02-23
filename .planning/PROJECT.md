@@ -35,15 +35,18 @@ XRP-Lots unabhaengig vom Quote-Asset (EUR oder BTC) in einem Pairing buendeln un
 - ✓ Automatisches Sell-Routing: Live-Preise fuer 3 Pairs, Route mit hoechstem EUR-Erloes gewaehlt — v1.0
 - ✓ Routing-Audit: RoutingDecision mit Preisen, EUR-Erloesen und Delta persistiert — v1.0
 - ✓ EUR-normalisierte realized_pnl bei Cross-Pair Sell-Allocation — v1.0
+- ✓ Binance REST API Resilience: Rate-Limit Backoff, konfigurierbares Timeout, strukturierte Fehlerklassifikation (transient vs permanent) — v1.1
+- ✓ Sync Reliability: Per-Fill Tracking (PROCESSED/FAILED/SKIPPED_FIFO), explizite Fehlerrueckgabe, Watermark-basierte Wiederaufnahme — v1.1
+- ✓ Proaktive Reconciliation: Auto-Trigger nach Sync, Threshold-basierte Alerts (warning/critical), persistierte Run-Historie — v1.1
+- ✓ Alert-System: Persistent AlertBanner im Frontend, Dismiss/Bulk-Dismiss, strukturierte JSON-Logs (ALERT_EVENT/RECONCILIATION_RUN) — v1.1
+- ✓ Reconciliation-Historie: Expandierbare Run-Details mit Alerts im Frontend — v1.1
+- ✓ Konfigurierbare Reconciliation-Toleranzen (Base/Quote) in Settings — v1.1
 
 ### Active
 
 <!-- Current scope. Building toward these. -->
 
-- [ ] Binance REST API Resilience (Rate-Limit Backoff, Timeout-Handling, Fehlerklassifikation)
-- [ ] Sync Reliability (keine stillen Fehler, Retry mit Backoff, resumable Partial Sync)
-- [ ] Proaktive Reconciliation (Auto-Trigger nach Sync, Threshold-basierte Diskrepanz-Erkennung)
-- [ ] Alert-System (In-App Benachrichtigungen + strukturierte Logs fuer Sync-Fehler und Diskrepanzen)
+(None yet — next milestone TBD)
 
 ### Out of Scope
 
@@ -60,16 +63,22 @@ XRP-Lots unabhaengig vom Quote-Asset (EUR oder BTC) in einem Pairing buendeln un
 ## Context
 
 Shipped v1.0 mit 8.035 neuen Zeilen ueber 50 Dateien (4 Phasen, 8 Plaene, 13 Tasks).
+Shipped v1.1 mit 6.054 neuen Zeilen ueber 52 Dateien (4 Phasen, 9 Plaene, 17 Tasks).
 Tech Stack: Python 3 + FastAPI, SQLAlchemy 2, Alembic, React 19, TanStack Query.
-633 Backend-Tests, Frontend-Build sauber.
+633+ Backend-Tests, Frontend-Build sauber.
 
 Symbol Registry kennt 4 Pairs: BTCEUR, ETHEUR, XRPEUR, XRPBTC. XRP ist das einzige Base-Asset mit zwei Quote-Pairs. Historische Kursumrechnung (Klines API) wird sowohl fuer BNB-Fees als auch fuer EUR-Kostenbasis bei BTC-quoted Lots verwendet.
+
+API-Schicht hat exponentiellen Backoff mit Retry-After Support, konfigurierbare Timeouts, strukturierte Fehlerklassifikation. Sync liefert per-Fill Ergebnisse (PROCESSED/FAILED/SKIPPED_FIFO). Auto-Reconciliation nach jedem Sync mit Threshold-Alerts. AlertBanner persistent im Frontend, Reconciliation-Historie mit expandierbaren Run-Details.
 
 ### Known Tech Debt (v1.0)
 - backfill_cost_eur.py verwendet float() statt Decimal fuer SQL-Writes
 - Single-Pairing GET Endpoint liefert routing_decision_json nicht (List-Endpoint tut es)
 - EUR P&L Normalisierung bei Fill-Zeit nutzt btceur_price vom Routing-Zeitpunkt (akzeptierte Approximation)
 - Phase 1 hat kein VERIFICATION.md (vor Einfuehrung des Verify-Steps ausgefuehrt)
+
+### Known Tech Debt (v1.1)
+- ROADMAP.md Plan-Checkboxen fuer Phase 5/6/8 nicht alle markiert (nur Phase 7 hat [x]) — rein kosmetisch, alle SUMMARYs vorhanden
 
 ## Constraints
 
@@ -93,16 +102,11 @@ Symbol Registry kennt 4 Pairs: BTCEUR, ETHEUR, XRPEUR, XRPBTC. XRP ist das einzi
 | Sell-Routing automatisch (bestes Pair) | Maximiert EUR-Erloes ohne manuellen Aufwand | ✓ Good — 3 Live-Preise, DRC-basierte Selektion |
 | Satoshi-Encoding fuer XRPBTC clientOrderId | Verhindert Kollisionen bei sub-1 Preisen (int(price) waere 0) | ✓ Good — int(price * 1e8) + Symbol-Abkuerzung |
 | Phase 4 platziert nur erstes Leg (XRPBTC Sell) | Auto BTC→EUR Konvertierung ist separate Trading-Entscheidung | ✓ Good — klare Abgrenzung, User kontrolliert BTC |
-
-## Current Milestone: v1.1 API Hardening
-
-**Goal:** Binance API Interaktionen resilient und beobachtbar machen — keine stillen Sync-Fehler, automatischer Retry mit Backoff, proaktive Reconciliation mit In-App Alerts.
-
-**Target features:**
-- Binance REST Resilience (429 Backoff, Timeouts, Error Classification)
-- Sync Reliability (explizite Fehler, Retry, resumable Partial Sync)
-- Proaktive Reconciliation (Auto-Trigger, Threshold-Alerts)
-- Alert-System (Frontend Banner + strukturierte Logs)
+| BinanceAPIError als einzige Exception fuer alle API-Fehler | Einheitlicher Error-Pfad (permanent + exhausted retry) | ✓ Good — Single exception type |
+| create_order ohne Retry | Doppel-Order-Risiko bei Retry (out of scope) | ✓ Good — Nur Reads retried |
+| Auto-Recon nur Balances + Orders (nicht Fills) | Fills gerade abgeschlossen, Re-Run redundant | ✓ Good — Performant, kein doppelter Fill-Check |
+| AlertBanner mit 30s Polling (nicht WebSocket) | Konsistent mit CombinedScore Pattern, einfach | ✓ Good — WebSocket-Push in v2 |
+| Tolerance Inputs als type=text | Decimal-Praezision per Projekt-Konvention | ✓ Good — Backend validiert via Decimal |
 
 ---
-*Last updated: 2026-02-22 after v1.1 milestone start*
+*Last updated: 2026-02-23 after v1.1 milestone completion*
