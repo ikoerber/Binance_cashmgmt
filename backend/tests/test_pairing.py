@@ -357,3 +357,54 @@ def test_pairing_simulation_with_custom_sell_price():
 
     # market_price bleibt unveraendert (fuer Display)
     assert sim_custom.market_price == market_price
+
+
+# ---------------------------------------------------------------------------
+# Pairing Order Params (salvaged from test_sell_routing.py)
+# ---------------------------------------------------------------------------
+
+
+class TestPairingOrderParams:
+    """Symbol-aware client_order_id and price precision for EUR-quoted pairs."""
+
+    def _make_items(self, qty=Decimal("50")):
+        """Helper: create a list of PairingItem for testing."""
+        from app.domain.models import PairingItem
+
+        return [PairingItem(lot_id="lot_1", qty_base=qty, cost_quote=Decimal("100"))]
+
+    def test_pairing_order_params_xrpeur(self):
+        """XRPEUR behavior: target_price > 0, client_order_id works, price precision."""
+        from app.domain.orders import compute_pairing_order_params
+
+        params = compute_pairing_order_params(
+            pairing_id="pair_xyz",
+            user_id="u1",
+            items=self._make_items(),
+            market_price=Decimal("2.20"),
+            symbol="XRPEUR",
+        )
+        assert params["symbol"] == "XRPEUR"
+        assert params["side"] == "SELL"
+        assert "newClientOrderId" in params
+        # Price should be quantized to 4 decimal places (XRPEUR price_precision=4)
+        price_str = params["price"]
+        parts = price_str.split(".")
+        assert len(parts) == 2
+        assert len(parts[1]) <= 4
+
+    def test_pairing_order_params_btceur_precision(self):
+        """BTCEUR price should have up to 2 decimal places."""
+        from app.domain.orders import compute_pairing_order_params
+
+        params = compute_pairing_order_params(
+            pairing_id="pair_a",
+            user_id="u1",
+            items=self._make_items(qty=Decimal("0.01")),
+            market_price=Decimal("57000.55"),
+            symbol="BTCEUR",
+        )
+        price_str = params["price"]
+        parts = price_str.split(".")
+        assert len(parts) == 2
+        assert len(parts[1]) <= 2
