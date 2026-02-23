@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-22)
 
 **Core value:** Binance API Interaktionen resilient und beobachtbar machen — keine stillen Sync-Fehler, automatischer Retry mit Backoff, proaktive Reconciliation mit Alerts
-**Current focus:** v1.1 API Hardening — Phase 7 in progress (Proactive Reconciliation)
+**Current focus:** v1.1 API Hardening — Phase 8 in progress (Alert System)
 
 ## Current Position
 
-Phase: 7 of 8 (Proactive Reconciliation) -- COMPLETE
-Plan: 2 of 2 -- COMPLETE
-Status: Phase 7 complete, ready for Phase 8
-Last activity: 2026-02-22 — Completed 07-02 (Auto-reconciliation integration + history API)
+Phase: 8 of 8 (Alert System) -- IN PROGRESS
+Plan: 2 of 3 -- COMPLETE
+Status: Phase 8 plan 02 complete, ready for plan 03
+Last activity: 2026-02-23 — Completed 08-02 (Frontend AlertBanner + Sync Fill Details)
 
-Progress: [███████░░░] 75% (v1.1, 6/8 plans)
+Progress: [████████░░] 88% (v1.1, 8/9 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 14 (8 v1.0 + 6 v1.1)
-- Average duration: 3.4min
-- Total execution time: 51min
+- Total plans completed: 16 (8 v1.0 + 8 v1.1)
+- Average duration: 3.1min
+- Total execution time: 55min
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
@@ -33,6 +33,8 @@ Progress: [███████░░░] 75% (v1.1, 6/8 plans)
 | 07-02 | Auto-reconciliation integration + history API | 3min | 2 | 5 |
 
 *Updated after each plan completion*
+| 08-01 | Alert API + Structured Logging | 2min | 2 | 3 |
+| 08-02 | Frontend AlertBanner + Sync Fill Details | 2min | 2 | 5 |
 
 ## Accumulated Context
 
@@ -58,6 +60,11 @@ Progress: [███████░░░] 75% (v1.1, 6/8 plans)
 - [07-02] Auto-recon wrapped in try/except at all call sites -- sync must never fail because of reconciliation
 - [07-02] Thresholds loaded from UserSettingsDB via _load_user_thresholds() with defaults if not configured
 - [07-02] full_reconciliation() delegates to run_and_persist() for persistence, fills handled separately for backward compat
+- [08-01] IDOR protection via user_id query param on PATCH acknowledge (consistent with existing route patterns)
+- [08-01] ALERT_EVENT and RECONCILIATION_RUN log prefixes for greppable structured monitoring
+- [08-02] AlertBanner uses useQuery with 30s refetchInterval (consistent with CombinedScore polling pattern)
+- [08-02] Alerts query invalidated in LotsTable onSuccess for immediate banner update after sync
+- [08-02] Fill error display uses warning message type when fills_failed or fills_skipped_fifo > 0
 
 Full v1.0 decision log archived in milestones/v1.0-phases/ SUMMARY.md files.
 
@@ -71,6 +78,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-22
-Stopped at: Completed 07-02-PLAN.md (Auto-reconciliation integration + history API)
+Last session: 2026-02-23
+Stopped at: Completed 08-02-PLAN.md (Frontend AlertBanner + Sync Fill Details)
 Resume file: None

@@ -25,9 +25,9 @@
 
 ### Alerting
 
-- [ ] **ALERT-01**: Alert-Events werden im Frontend als Banner/Toast angezeigt (Sync-Fehler, Diskrepanzen, fehlgeschlagene Orders)
+- [x] **ALERT-01**: Alert-Events werden im Frontend als Banner/Toast angezeigt (Sync-Fehler, Diskrepanzen, fehlgeschlagene Orders)
 - [ ] **ALERT-02**: Alert-Events werden als strukturierte Log-Eintraege geschrieben (maschinenlesbar, fuer externes Monitoring)
-- [ ] **ALERT-03**: Alerts sind persistent (nicht nur fluechtiger Toast) und koennen vom User bestaetigt/dismissed werden
+- [x] **ALERT-03**: Alerts sind persistent (nicht nur fluechtiger Toast) und koennen vom User bestaetigt/dismissed werden
 
 ## v2 Requirements
 
@@ -60,9 +60,9 @@
 | RECON-01 | Phase 7 | Complete |
 | RECON-02 | Phase 7 | Complete |
 | RECON-03 | Phase 7 | Complete |
-| ALERT-01 | Phase 8 | Pending |
+| ALERT-01 | Phase 8 | Complete |
 | ALERT-02 | Phase 8 | Pending |
-| ALERT-03 | Phase 8 | Pending |
+| ALERT-03 | Phase 8 | Complete |
 
 **Coverage:**
 - v1.1 requirements: 12 total
