@@ -14,7 +14,6 @@ from app.domain.lots import (
     allocate_sell_with_strategy,
     allocate_sell_to_lot,
     calculate_lot_target_price,
-    compute_cross_pair_realized_pnl_eur,
     _compute_net_proceeds_per_base,
     _allocate_qty_to_lots,
     _sort_lots_by_strategy,
@@ -37,7 +36,6 @@ from app.db.models import (
 from app.domain.lot_merge import validate_merge, compute_merge
 from app.symbol_registry import (
     get_base_asset,
-    get_symbols_for_base_asset,
     get_quote_asset,
 )
 
@@ -46,15 +44,13 @@ from app.services.portfolio_service import _db_event_to_domain
 
 
 def _get_base_symbols_for_sell_event(sell_event_db: LedgerEventDB) -> list[str]:
-    """Derives base-asset symbols from a sell event for lot filtering.
+    """Returns the symbol list for a sell event's lot filtering.
 
-    Uses the sell event's symbol to determine the base asset, then returns
-    all known symbols for that base asset. Falls back to BTCEUR for legacy
-    events without symbol.
+    With EUR-only pairs (1:1 base-to-symbol mapping), returns the single
+    sell event symbol. Falls back to BTCEUR for legacy events without symbol.
     """
     sell_symbol = sell_event_db.symbol or "BTCEUR"
-    base_asset = get_base_asset(sell_symbol)
-    return get_symbols_for_base_asset(base_asset)
+    return [sell_symbol]
 
 
 def get_lots_for_user(
@@ -169,7 +165,6 @@ def create_lot_from_buy_fill(
     user_id: str,
     fill_event_id: str,
     fee_conversion_rates: dict[str, Decimal] | None = None,
-    quote_to_eur_rate: Decimal | None = None,
 ) -> dict:
     """
     Erstellt TradeLot aus Buy-Fill Event
@@ -180,9 +175,6 @@ def create_lot_from_buy_fill(
         fill_event_id: Fill Event ID (LedgerEvent)
         fee_conversion_rates: Optional dict mit Konvertierungsraten zu Quote-Currency
                              z.B. {"BNB": Decimal("700.00")} fuer BNB/Quote-Preis
-        quote_to_eur_rate: Optional Quote-to-EUR Konvertierungsrate zum Fill-Zeitpunkt
-                          (z.B. BTC/EUR Preis fuer XRPBTC Fills). None fuer EUR-quoted Lots
-                          (auto-detected by domain logic) oder wenn Rate nicht verfuegbar.
 
     Returns:
         Erstelltes Lot als Dict
@@ -205,7 +197,7 @@ def create_lot_from_buy_fill(
 
     # TradeLot erstellen (Domain-Logik)
     lot_domain = create_trade_lot_from_buy_fill(
-        event_domain, fee_conversion_rates, quote_to_eur_rate
+        event_domain, fee_conversion_rates
     )
 
     # Safety-Check: Lot existiert bereits (z.B. nach Merge)?
@@ -229,7 +221,6 @@ def create_lot_from_buy_fill(
         qty_base_open=lot_domain.qty_base_open,
         cost_quote=lot_domain.cost_quote,
         cost_eur=lot_domain.cost_eur,
-        quote_to_eur_rate=lot_domain.quote_to_eur_rate,
         status=LotStatusEnum[lot_domain.status.value],
         target_margin_pct=lot_domain.target_margin_pct,
     )
@@ -556,30 +547,6 @@ def process_sell_fill_for_pairing(
             f"Not enough open lots to allocate sell. Remaining: {remaining}"
         )
 
-    # Cross-pair P&L override: compute EUR-normalized realized_pnl for cross-pair allocations
-    pairing_db = db.query(PairingDB).filter(PairingDB.id == pairing_id).first()
-    is_cross_pair = pairing_db and pairing_db.base_asset is not None
-
-    if is_cross_pair and pairing_db.routing_decision_json:
-        sell_quote = get_quote_asset(sell_event_domain.symbol or "XRPEUR")
-        btceur_rate_str = pairing_db.routing_decision_json.get("btceur_price")
-        btceur_rate = Decimal(btceur_rate_str) if btceur_rate_str else None
-
-        # Build lot lookup for cost_eur and qty_base_initial
-        lot_map = {lot.id: lot for lot in pairing_lots_db}
-
-        for alloc in allocations_domain:
-            lot_db_ref = lot_map.get(alloc.trade_lot_id)
-            if lot_db_ref and lot_db_ref.cost_eur is not None:
-                alloc.realized_pnl_quote = compute_cross_pair_realized_pnl_eur(
-                    qty_allocated=alloc.qty_allocated,
-                    net_proceeds_per_base=net_proceeds_per_base,
-                    sell_quote_asset=sell_quote,
-                    lot_cost_eur=lot_db_ref.cost_eur,
-                    lot_qty_base_initial=lot_db_ref.qty_base_initial,
-                    btceur_rate=btceur_rate,
-                )
-
     # In DB persistieren
     updated_lot_dicts = []
     for updated_lot in updated_lots_domain:
@@ -599,9 +566,6 @@ def process_sell_fill_for_pairing(
             realized_pnl_quote=allocation.realized_pnl_quote,
             created_at=allocation.created_at,
         )
-        # Persist EUR P&L for cross-pair allocations
-        if is_cross_pair and pairing_db.routing_decision_json:
-            alloc_db.realized_pnl_eur = allocation.realized_pnl_quote
         db.add(alloc_db)
         allocation_dicts.append(
             {
@@ -610,23 +574,17 @@ def process_sell_fill_for_pairing(
                 "trade_lot_id": allocation.trade_lot_id,
                 "qty_allocated": str(allocation.qty_allocated),
                 "realized_pnl_quote": str(allocation.realized_pnl_quote),
-                "realized_pnl_eur": (
-                    str(allocation.realized_pnl_quote)
-                    if (is_cross_pair and pairing_db.routing_decision_json)
-                    else None
-                ),
             }
         )
 
     db.flush()
 
     logger.info(
-        "Pairing %s: allocated sell %s to %d lots (%d from pairing, cross_pair=%s)",
+        "Pairing %s: allocated sell %s to %d lots (%d from pairing)",
         pairing_id,
         sell_event_id,
         len(allocation_dicts),
         len(pairing_lots_domain),
-        is_cross_pair,
     )
 
     return {
@@ -980,11 +938,6 @@ def _lot_db_to_dict(lot_db: TradeLotDB, db: Session = None, fill_event=None) -> 
         "qty_base_open": str(lot_db.qty_base_open),
         "cost_quote": str(lot_db.cost_quote),
         "cost_eur": str(lot_db.cost_eur) if lot_db.cost_eur is not None else None,
-        "quote_to_eur_rate": (
-            str(lot_db.quote_to_eur_rate)
-            if lot_db.quote_to_eur_rate is not None
-            else None
-        ),
         "break_even": (
             str(lot_db.cost_quote / lot_db.qty_base_initial)
             if lot_db.qty_base_initial
@@ -1015,7 +968,6 @@ def _lot_db_to_domain(lot_db: TradeLotDB) -> DomainLot:
         qty_base_open=lot_db.qty_base_open,
         cost_quote=lot_db.cost_quote,
         cost_eur=lot_db.cost_eur,
-        quote_to_eur_rate=lot_db.quote_to_eur_rate,
         status=LotStatus[lot_db.status.value],
         target_margin_pct=lot_db.target_margin_pct,
         symbol=lot_db.symbol,

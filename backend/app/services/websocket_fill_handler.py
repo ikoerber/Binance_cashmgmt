@@ -140,24 +140,7 @@ def _sync_handle_fill_event(user_id: str, raw_data: dict) -> Optional[dict]:
         }
 
         if side == "BUY":
-            # Fetch quote-to-EUR rate for non-EUR-quoted symbols
-            quote_to_eur_rate = None
-            if quote_asset != "EUR":
-                try:
-                    rate_pair = f"{quote_asset}EUR"
-                    from app.services.binance import BinanceService
-                    binance_svc = BinanceService()
-                    quote_to_eur_rate = binance_svc.get_historical_price(rate_pair, timestamp)
-                    if quote_to_eur_rate is None:
-                        quote_to_eur_rate = binance_svc.get_current_price(rate_pair)
-                except Exception as e:
-                    logger.warning(
-                        "Could not fetch %sEUR rate for WebSocket fill: %s",
-                        quote_asset, e,
-                    )
-                    # quote_to_eur_rate stays None — lot gets cost_eur=NULL, can backfill later
-
-            lot_dict = create_lot_from_buy_fill(db, user_id, event_id, fee_conversion_rates, quote_to_eur_rate=quote_to_eur_rate)
+            lot_dict = create_lot_from_buy_fill(db, user_id, event_id, fee_conversion_rates)
             result["action"] = "lot_created"
             result["lot_id"] = lot_dict.get("id")
         elif side == "SELL":

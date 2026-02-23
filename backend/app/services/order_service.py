@@ -22,12 +22,14 @@ from app.services.pairing_service import (
 )
 from app.db.models import TradeLotDB, UserSettingsDB, OrderDB, PairingDB
 from app.domain.lots import calculate_lot_target_price
-from app.domain.pairing import compute_dual_route_comparison
-from app.domain.models import RoutingDecision, utcnow
 from app.symbol_registry import get_base_precision, get_price_precision, get_quote_asset
-
-# Re-Export aus Domain fuer Backward-Kompatibilitaet
-from app.domain.orders import compute_pairing_order_params  # noqa: F401
+from app.domain.orders import (
+    compute_pairing_order_params,  # noqa: F401 (Re-Export Backward-Kompatibilitaet)
+    round_qty_to_step_size,
+    round_price_to_tick_size,
+    validate_order_filters,
+)
+from app.services.binance_public_client import get_binance_public_client
 
 
 class OrderService:
@@ -40,6 +42,49 @@ class OrderService:
     def __init__(self, binance_service: BinanceService):
         self.binance_service = binance_service
         self.order_tracking = OrderTrackingService(binance_service)
+
+    def _apply_symbol_filters(
+        self, symbol: str, qty: Decimal, price: Decimal
+    ) -> tuple[Decimal, Decimal]:
+        """
+        Rundet qty und price gemaess Binance Exchange Filters und validiert.
+
+        Graceful Fallback auf statische Precision bei Netzwerkfehlern.
+        Wirft ValueError bei Filter-Verletzungen (minQty, minNotional etc.).
+
+        Returns:
+            (qty_rounded, price_rounded)
+        """
+        try:
+            public_client = get_binance_public_client()
+            filters = public_client.get_symbol_filters(symbol)
+
+            price_rounded = round_price_to_tick_size(price, filters.tick_size)
+            qty_rounded = round_qty_to_step_size(qty, filters.step_size)
+
+            violations = validate_order_filters(qty_rounded, price_rounded, filters)
+            if violations:
+                raise ValueError(
+                    f"Binance Filter-Validierung fehlgeschlagen: {'; '.join(violations)}"
+                )
+
+            return qty_rounded, price_rounded
+
+        except ValueError:
+            raise  # Filter-Validierungsfehler weiterleiten
+        except Exception as e:
+            # Netzwerk-/API-Fehler: Fallback auf statische Precision
+            logger.warning(
+                "Symbol filter fetch failed for %s, using static precision: %s",
+                symbol,
+                e,
+            )
+            price_prec = get_price_precision(symbol)
+            base_prec = get_base_precision(symbol)
+            return (
+                qty.quantize(Decimal(10) ** -base_prec),
+                price.quantize(Decimal(10) ** -price_prec),
+            )
 
     def create_limit_sell_for_lot(
         self,
@@ -99,13 +144,10 @@ class OrderService:
         # Binance Order Parameter validieren
         qty_base = lot_db.qty_base_open
 
-        # Runde auf Binance-konforme Werte (aus Symbol Registry)
-        price_prec = get_price_precision(symbol)
-        base_prec = get_base_precision(symbol)
-        price_quant = Decimal(10) ** -price_prec
-        base_quant = Decimal(10) ** -base_prec
-        target_price_rounded = target_price.quantize(price_quant)
-        qty_base_rounded = qty_base.quantize(base_quant)
+        # Runde auf Binance-konforme Werte (Exchange Filters mit Fallback auf statische Precision)
+        qty_base_rounded, target_price_rounded = self._apply_symbol_filters(
+            symbol, qty_base, target_price
+        )
 
         # Client Order ID (idempotent!)
         # Format: {userId}_{lotId}_{targetPrice}_{qty}_{version}
@@ -284,73 +326,21 @@ class OrderService:
             if not lot_db:
                 raise ValueError(f"Lot {item.lot_id} not found")
 
-        # 3a. Route Selection for cross-pair pairings
-        routing_decision = None
-
-        if pairing_db.base_asset is not None:
-            # Cross-pair: fetch live prices for both routes
-            xrpeur_price = self.binance_service.get_current_price("XRPEUR")
-            xrpbtc_price = self.binance_service.get_current_price("XRPBTC")
-            btceur_price = self.binance_service.get_current_price("BTCEUR")
-
-            total_qty = sum(item.qty_base for item in pairing_domain.items)
-
-            # Compute dual-route comparison (pure domain function)
-            drc = compute_dual_route_comparison(
-                total_base=total_qty,
-                xrpeur_price=xrpeur_price,
-                xrpbtc_price=xrpbtc_price,
-                btceur_price=btceur_price,
-                fee_pct=Decimal("0.001"),
-            )
-
-            # Select winning route
-            selected_symbol = drc.recommended_route  # "XRPEUR" or "XRPBTC"
-            if selected_symbol == "XRPEUR":
-                effective_market_price = xrpeur_price
-            else:
-                effective_market_price = xrpbtc_price
-
-            # Override symbol for order placement
-            symbol = selected_symbol
-
-            # Build routing decision for audit logging
-            routing_decision = RoutingDecision(
-                selected_route=selected_symbol,
-                xrpeur_price=xrpeur_price,
-                xrpbtc_price=xrpbtc_price,
-                btceur_price=btceur_price,
-                direct_net_eur=drc.route_direct.net_proceeds_eur,
-                indirect_net_eur=drc.route_indirect.net_proceeds_eur,
-                eur_difference=drc.eur_difference,
-                timestamp=utcnow(),
-            )
-
-            # Override market_price for target calculation
-            market_price = effective_market_price
-
         # 4. Berechne aggregierte Order-Parameter
-        price_prec = get_price_precision(symbol)
-        base_prec = get_base_precision(symbol)
-        price_quant = Decimal(10) ** -price_prec
-        base_quant = Decimal(10) ** -base_prec
-
         if custom_sell_price is not None:
-            target_price_rounded = custom_sell_price.quantize(price_quant)
+            raw_price = custom_sell_price
         else:
-            target_price = market_price * (Decimal("1") + fee_buffer_pct)
-            target_price_rounded = target_price.quantize(price_quant)
+            raw_price = market_price * (Decimal("1") + fee_buffer_pct)
 
         total_qty = sum(item.qty_base for item in pairing_domain.items)
-        total_qty_rounded = total_qty.quantize(base_quant)
 
-        # Max Order Value pruefen (EUR-equivalent for non-EUR quote orders)
-        order_value = total_qty_rounded * target_price_rounded
-        quote_asset = get_quote_asset(symbol)
-        if quote_asset != "EUR" and routing_decision is not None:
-            order_value_eur = order_value * routing_decision.btceur_price
-        else:
-            order_value_eur = order_value
+        # Runde auf Binance-konforme Werte (Exchange Filters mit Fallback auf statische Precision)
+        total_qty_rounded, target_price_rounded = self._apply_symbol_filters(
+            symbol, total_qty, raw_price
+        )
+
+        # Max Order Value pruefen (all pairs are EUR-quoted)
+        order_value_eur = total_qty_rounded * target_price_rounded
 
         settings = (
             db.query(UserSettingsDB).filter(UserSettingsDB.user_id == user_id).first()
@@ -365,7 +355,7 @@ class OrderService:
 
         # 5. Client Order ID (idempotent, pro Pairing)
         # Symbol-aware: include symbol to prevent cross-symbol collisions
-        # Satoshi encoding for sub-1 prices (e.g. XRPBTC)
+        # Satoshi encoding for sub-1 prices (e.g. XRPEUR ~0.50 EUR)
         version = "v1"
         safe_pairing_id = re.sub(r"[^a-zA-Z0-9_-]", "", pairing_id)[:12]
 
@@ -452,12 +442,7 @@ class OrderService:
         except Exception as e:
             logger.warning("Order placed but pairing status update failed: %s", e)
 
-        # 9. Persist routing decision on PairingDB
-        if routing_decision is not None:
-            pairing_db.routing_decision_json = routing_decision.to_dict()
-            db.flush()
-
-        result = {
+        return {
             "status": "success",
             "pairing_id": pairing_id,
             "order": order,
@@ -465,9 +450,6 @@ class OrderService:
             "total_qty_base": str(total_qty_rounded),
             "lot_count": len(pairing_domain.items),
         }
-        if routing_decision is not None:
-            result["routing_decision"] = routing_decision.to_dict()
-        return result
 
     def _verify_order_on_binance(
         self, db: Session, order_id: str, client_order_id: str, symbol: str = "BTCEUR"
