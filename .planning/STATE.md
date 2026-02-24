@@ -5,24 +5,24 @@
 See: .planning/PROJECT.md (updated 2026-02-23)
 
 **Core value:** Ledger-first, deterministisches, auditierbares Cashflow-Tracking und automatisiertes Trading-System
-**Current focus:** v2.0 Frontend Redesign + EUR-Fokus — Phase 11 complete, Phase 12 next
+**Current focus:** v2.0 Frontend Redesign + EUR-Fokus — Phase 11 complete (incl. gap closure), Phase 12 next
 
 ## Current Position
 
 Milestone: v2.0 Frontend Redesign + EUR-Fokus
 Phase: 11 of 12 (Dark Mode Activation + Charts)
-Plan: 3 of 3
+Plan: 4 of 4
 Status: Phase complete
-Last activity: 2026-02-24 — Plan 03 complete (Recharts + CombinedScore + helpers theme-aware)
+Last activity: 2026-02-24 — Plan 04 complete (gap closure: CombinedScore action_color + Overview tooltip)
 
 Progress: [########=-] 86%
 
 ## Performance Metrics
 
 **Velocity (previous milestones):**
-- Total plans completed: 26 (8 v1.0 + 9 v1.1 + 9 v2.0)
-- Average duration: 3.5min
-- Total execution time: 98min
+- Total plans completed: 27 (8 v1.0 + 9 v1.1 + 10 v2.0)
+- Average duration: 3.4min
+- Total execution time: 100min
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
@@ -35,6 +35,7 @@ Progress: [########=-] 86%
 | 11-dark-mode-activation-charts | 01 | 2min | 2 | 3 |
 | 11-dark-mode-activation-charts | 02 | 2min | 1 | 1 |
 | 11-dark-mode-activation-charts | 03 | 3min | 2 | 6 |
+| 11-dark-mode-activation-charts | 04 | 2min | 2 | 2 |
 
 ## Accumulated Context
 
@@ -76,6 +77,9 @@ v1.0 decision log archived in milestones/v1.0-phases/ SUMMARY.md files.
 - 11-03: MACRO_REC_COLORS moved from module-level const into CombinedScore component body for theme access
 - 11-03: OrderblockKPIs + OrderblockZoneTable import useChartTheme directly (discovered as additional callers of getScoreGradient)
 
+- 11-04: ACTION_COLOR_MAP uses German CombinedAction.value strings as keys (Aggressiv kaufen, Kaufen, etc.) matching backend enum
+- 11-04: Backend action_color field remains in API response for external consumers -- frontend-only change
+
 ### Key Context for v2.0
 
 - XRPBTC removal: Historical DB data preserved (Ledger-first). Only code paths removed.
@@ -86,7 +90,7 @@ v1.0 decision log archived in milestones/v1.0-phases/ SUMMARY.md files.
 - DARK-03 COMPLETE: Dark theme activated with FOWT-safe blocking script. All CSS-driven components render dark.
 - DARK-04 COMPLETE: OrderblockChart.jsx (lightweight-charts) fully theme-aware -- zero hardcoded hex, all 25 colors via useChartTheme.
 - DARK-05 COMPLETE: Recharts charts + CombinedScore + orderblockHelpers all theme-aware -- 49 hex values replaced via useChartTheme.
-- PHASE 11 COMPLETE: All 3 plans done. Dark theme activated, all chart libraries (lightweight-charts + Recharts) converted, zero hardcoded hex in chart components.
+- PHASE 11 COMPLETE: All 4 plans done (3 original + 1 gap closure). Dark theme activated, all chart libraries (lightweight-charts + Recharts) converted, zero hardcoded hex in chart components. CombinedScore hero banner uses theme-aware ACTION_COLOR_MAP, Overview PieChart Tooltip has dark contentStyle.
 - Research confidence: HIGH across all 4 phases. No phases need additional research.
 
 ### Pending Todos
@@ -100,5 +104,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 11-03-PLAN.md (Recharts + CombinedScore + helpers theme-aware). Phase 11 complete. Next: Phase 12
+Stopped at: Completed 11-04-PLAN.md (gap closure: CombinedScore action_color + Overview tooltip). Phase 11 fully complete. Next: Phase 12
 Resume file: None
