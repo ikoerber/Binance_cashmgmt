@@ -9,6 +9,7 @@ import {
 } from '../api/client';
 import { formatNumber, formatDate } from '../utils/formatters';
 import { zoneDistance } from '../utils/orderblockHelpers.jsx';
+import { useChartTheme } from '../hooks/useChartTheme';
 import { useSymbol } from '../contexts/SymbolContext';
 import { useUser } from '../contexts/UserContext';
 import useNotification from '../hooks/useNotification';
@@ -24,6 +25,7 @@ const Orderblock = () => {
   const { symbol, marketPrice } = useSymbol();
   const queryClient = useQueryClient();
   const { message, showMessage: showMsg, dismissMessage } = useNotification();
+  const theme = useChartTheme();
 
   // ─── State ───
   const [selectedInterval, setSelectedInterval] = useState('4h');
@@ -188,10 +190,10 @@ const Orderblock = () => {
   const metrics = analyzeResult?.metrics;
 
   const stateChartData = useMemo(() => [
-    { name: 'Unmitigated', count: allZones.filter(z => z.state === 'UNMITIGATED').length, fill: '#16a34a' },
-    { name: 'Mitigated', count: allZones.filter(z => z.state === 'MITIGATED').length, fill: '#94a3b8' },
-    { name: 'Invalid', count: allZones.filter(z => z.state === 'INVALID').length, fill: '#dc2626' },
-  ], [allZones]);
+    { name: 'Unmitigated', count: allZones.filter(z => z.state === 'UNMITIGATED').length, fill: theme.profit },
+    { name: 'Mitigated', count: allZones.filter(z => z.state === 'MITIGATED').length, fill: theme.textMuted },
+    { name: 'Invalid', count: allZones.filter(z => z.state === 'INVALID').length, fill: theme.loss },
+  ], [allZones, theme]);
 
   const convChartData = useMemo(() => {
     const breakdown = metrics?.conviction_breakdown || [];
@@ -342,10 +344,10 @@ const Orderblock = () => {
               <h3>Zone States</h3>
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={stateChartData} barSize={48}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis dataKey="name" stroke="#64748b" fontSize={12} />
-                  <YAxis stroke="#64748b" fontSize={12} allowDecimals={false} />
-                  <Tooltip contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px' }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={theme.borderLight} />
+                  <XAxis dataKey="name" stroke={theme.textMuted} fontSize={12} />
+                  <YAxis stroke={theme.textMuted} fontSize={12} allowDecimals={false} />
+                  <Tooltip contentStyle={{ background: theme.bgCard, border: '1px solid ' + theme.border, borderRadius: '8px', color: theme.textPrimary }} />
                   <Bar dataKey="count" radius={[6, 6, 0, 0]}>
                     {stateChartData.map((entry) => (
                       <Cell key={entry.name} fill={entry.fill} />
@@ -360,14 +362,14 @@ const Orderblock = () => {
               <h3>Conviction Breakdown</h3>
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={convChartData} barGap={2}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis dataKey="level" stroke="#64748b" fontSize={11} />
-                  <YAxis stroke="#64748b" fontSize={11} allowDecimals={false} />
-                  <Tooltip contentStyle={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px' }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={theme.borderLight} />
+                  <XAxis dataKey="level" stroke={theme.textMuted} fontSize={11} />
+                  <YAxis stroke={theme.textMuted} fontSize={11} allowDecimals={false} />
+                  <Tooltip contentStyle={{ background: theme.bgCard, border: '1px solid ' + theme.border, borderRadius: '8px', color: theme.textPrimary }} />
                   <Legend />
-                  <Bar dataKey="Hits" fill="#16a34a" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="Misses" fill="#dc2626" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="Expired" fill="#94a3b8" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Hits" fill={theme.profit} radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Misses" fill={theme.loss} radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Expired" fill={theme.textMuted} radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -388,6 +390,7 @@ const Orderblock = () => {
           zoneSortConfig={zoneSortConfig}
           onSort={handleZoneSort}
           marketPrice={marketPrice}
+          symbol={symbol}
         />
       )}
 
