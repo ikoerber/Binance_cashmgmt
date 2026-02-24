@@ -174,6 +174,37 @@
   --color-chart-4: #ef4444;
   --color-chart-5: #8b5cf6;
 
+  /* ─── Action Colors (CombinedScore badge backgrounds) ─── */
+  --color-action-strong-buy: #16a34a;
+  --color-action-buy: #22c55e;
+  --color-action-lean-buy: #4ade80;
+  --color-action-hold: #64748b;
+  --color-action-lean-sell: #f97316;
+  --color-action-sell: #f97316;
+  --color-action-strong-sell: #dc2626;
+
+  /* ─── Score Gradient Endpoints (orderblockHelpers + CombinedScore) ─── */
+  --color-gradient-score-low-start: #94a3b8;
+  --color-gradient-score-low-end: #cbd5e1;
+  --color-gradient-score-mid-start: #60a5fa;
+  --color-gradient-score-mid-end: #3b82f6;
+  --color-gradient-score-high-start: #fbbf24;
+  --color-gradient-score-high-end: #d97706;
+  --color-gradient-score-top-start: #a855f7;
+  --color-gradient-score-top-end: #7c3aed;
+
+  /* ─── Pillar Gradient Endpoints (CombinedScore sentiment pillar bars) ─── */
+  --color-gradient-pillar-fear-start: #dc2626;
+  --color-gradient-pillar-fear-end: #f97316;
+  --color-gradient-pillar-caution-start: #f97316;
+  --color-gradient-pillar-caution-end: #fb923c;
+  --color-gradient-pillar-neutral-start: #94a3b8;
+  --color-gradient-pillar-neutral-end: #64748b;
+  --color-gradient-pillar-greed-start: #4ade80;
+  --color-gradient-pillar-greed-end: #22c55e;
+  --color-gradient-pillar-extreme-start: #22c55e;
+  --color-gradient-pillar-extreme-end: #16a34a;
+
   /* ─── Price Display (Navbar) ─── */
   --color-price-gold: #ffd700;
   --color-price-up: #4ade80;
@@ -231,7 +262,7 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   Dark Mode -- defined but not active until Phase 11 enables theme toggle
+   Dark Mode (active)
    ═══════════════════════════════════════════════════════════════════════════ */
 [data-theme="dark"] {
   /* ─── Color Palette ─── */
@@ -398,6 +429,37 @@
   --color-chart-3: #34d399;
   --color-chart-4: #f87171;
   --color-chart-5: #a78bfa;
+
+  /* ─── Action Colors (CombinedScore badge backgrounds) ─── */
+  --color-action-strong-buy: #22c55e;
+  --color-action-buy: #4ade80;
+  --color-action-lean-buy: #86efac;
+  --color-action-hold: #94a3b8;
+  --color-action-lean-sell: #fbbf24;
+  --color-action-sell: #fb923c;
+  --color-action-strong-sell: #ef4444;
+
+  /* ─── Score Gradient Endpoints (orderblockHelpers + CombinedScore) ─── */
+  --color-gradient-score-low-start: #94a3b8;
+  --color-gradient-score-low-end: #cbd5e1;
+  --color-gradient-score-mid-start: #60a5fa;
+  --color-gradient-score-mid-end: #93c5fd;
+  --color-gradient-score-high-start: #fbbf24;
+  --color-gradient-score-high-end: #fcd34d;
+  --color-gradient-score-top-start: #a855f7;
+  --color-gradient-score-top-end: #c084fc;
+
+  /* ─── Pillar Gradient Endpoints (CombinedScore sentiment pillar bars) ─── */
+  --color-gradient-pillar-fear-start: #ef4444;
+  --color-gradient-pillar-fear-end: #fb923c;
+  --color-gradient-pillar-caution-start: #fb923c;
+  --color-gradient-pillar-caution-end: #fbbf24;
+  --color-gradient-pillar-neutral-start: #94a3b8;
+  --color-gradient-pillar-neutral-end: #cbd5e1;
+  --color-gradient-pillar-greed-start: #4ade80;
+  --color-gradient-pillar-greed-end: #86efac;
+  --color-gradient-pillar-extreme-start: #22c55e;
+  --color-gradient-pillar-extreme-end: #4ade80;
 
   /* ─── Price Display (Navbar) ─── */
   --color-price-gold: #fbbf24;
