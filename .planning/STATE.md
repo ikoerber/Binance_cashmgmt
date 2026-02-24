@@ -5,24 +5,24 @@
 See: .planning/PROJECT.md (updated 2026-02-23)
 
 **Core value:** Ledger-first, deterministisches, auditierbares Cashflow-Tracking und automatisiertes Trading-System
-**Current focus:** v2.0 Frontend Redesign + EUR-Fokus — Phase 11 in progress
+**Current focus:** v2.0 Frontend Redesign + EUR-Fokus — Phase 11 complete, Phase 12 next
 
 ## Current Position
 
 Milestone: v2.0 Frontend Redesign + EUR-Fokus
 Phase: 11 of 12 (Dark Mode Activation + Charts)
-Plan: 1 of 3
-Status: In progress
-Last activity: 2026-02-24 — Plan 01 complete (dark theme activated, useChartTheme hook created)
+Plan: 3 of 3
+Status: Phase complete
+Last activity: 2026-02-24 — Plan 03 complete (Recharts + CombinedScore + helpers theme-aware)
 
-Progress: [########--] 79%
+Progress: [########=-] 86%
 
 ## Performance Metrics
 
 **Velocity (previous milestones):**
-- Total plans completed: 24 (8 v1.0 + 9 v1.1 + 7 v2.0)
-- Average duration: 3.6min
-- Total execution time: 93min
+- Total plans completed: 26 (8 v1.0 + 9 v1.1 + 9 v2.0)
+- Average duration: 3.5min
+- Total execution time: 98min
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
@@ -33,6 +33,8 @@ Progress: [########--] 79%
 | 10-css-variable-foundation | 02 | 9min | 2 | 7 |
 | 10-css-variable-foundation | 03 | 5min | 2 | 8 |
 | 11-dark-mode-activation-charts | 01 | 2min | 2 | 3 |
+| 11-dark-mode-activation-charts | 02 | 2min | 1 | 1 |
+| 11-dark-mode-activation-charts | 03 | 3min | 2 | 6 |
 
 ## Accumulated Context
 
@@ -67,6 +69,13 @@ v1.0 decision log archived in milestones/v1.0-phases/ SUMMARY.md files.
 - 11-01: useChartTheme is plain function (no hooks) reading getComputedStyle -- called at component render time
 - 11-01: 27 new CSS tokens (action 7, score gradient 8, pillar gradient 10) for chart JSX in both :root and dark block
 
+- 11-02: Volume bar alpha increased from 0.25 to 0.3 for dark background visibility
+- 11-02: theme added to all three useEffect dependency arrays for forward-compatible theme changes
+
+- 11-03: getScoreGradient(score, theme) with graceful fallback for missing theme param (utility functions cannot call hooks)
+- 11-03: MACRO_REC_COLORS moved from module-level const into CombinedScore component body for theme access
+- 11-03: OrderblockKPIs + OrderblockZoneTable import useChartTheme directly (discovered as additional callers of getScoreGradient)
+
 ### Key Context for v2.0
 
 - XRPBTC removal: Historical DB data preserved (Ledger-first). Only code paths removed.
@@ -75,8 +84,9 @@ v1.0 decision log archived in milestones/v1.0-phases/ SUMMARY.md files.
 - DARK-01 COMPLETE: All 11 CSS files have zero hardcoded hex values. 440+ hex values converted across Plans 01-03.
 - Overview.jsx chart palette uses getComputedStyle pattern (theme-aware). 60 deferred JSX chart hex values for Phase 11.
 - DARK-03 COMPLETE: Dark theme activated with FOWT-safe blocking script. All CSS-driven components render dark.
-- useChartTheme hook + hexToRgb utility ready for Plans 02-03 chart library integration.
-- Chart libraries (lightweight-charts, Recharts) still use hardcoded hex -- Plans 02-03 will convert via useChartTheme.
+- DARK-04 COMPLETE: OrderblockChart.jsx (lightweight-charts) fully theme-aware -- zero hardcoded hex, all 25 colors via useChartTheme.
+- DARK-05 COMPLETE: Recharts charts + CombinedScore + orderblockHelpers all theme-aware -- 49 hex values replaced via useChartTheme.
+- PHASE 11 COMPLETE: All 3 plans done. Dark theme activated, all chart libraries (lightweight-charts + Recharts) converted, zero hardcoded hex in chart components.
 - Research confidence: HIGH across all 4 phases. No phases need additional research.
 
 ### Pending Todos
@@ -90,5 +100,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 11-01-PLAN.md (dark theme activated, useChartTheme hook created). Next: 11-02-PLAN.md (OrderblockChart lightweight-charts integration)
+Stopped at: Completed 11-03-PLAN.md (Recharts + CombinedScore + helpers theme-aware). Phase 11 complete. Next: Phase 12
 Resume file: None

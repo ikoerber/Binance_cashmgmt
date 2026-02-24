@@ -38,7 +38,7 @@ See: `.planning/milestones/v1.1-ROADMAP.md` for full details
 
 - [x] **Phase 9: XRPBTC Removal** - Alle XRPBTC Code-Pfade aus Backend und Frontend entfernen (historische DB-Daten bleiben)
 - [x] **Phase 10: CSS Variable Foundation** - Alle hardcoded Farbwerte durch CSS Custom Properties ersetzen (kein visueller Unterschied) (completed 2026-02-24)
-- [ ] **Phase 11: Dark Mode Activation + Charts** - Dunkles Theme aktivieren, Chart-Bibliotheken integrieren, FOWT verhindern
+- [x] **Phase 11: Dark Mode Activation + Charts** - Dunkles Theme aktivieren, Chart-Bibliotheken integrieren, FOWT verhindern (completed 2026-02-24)
 - [ ] **Phase 12: Navigation Restructure + Dashboard** - 3-Bereichs-Navigation, Combined Score ins Dashboard, API Docs entfernen
 
 ## Phase Details
@@ -88,8 +88,8 @@ Plans:
 
 Plans:
 - [x] 11-01-PLAN.md — FOWT prevention script + dark theme activation + useChartTheme hook + new CSS tokens
-- [ ] 11-02-PLAN.md — OrderblockChart.jsx lightweight-charts dark theme integration (25 color values)
-- [ ] 11-03-PLAN.md — Recharts + CombinedScore + orderblockHelpers dark theme integration (49 color values)
+- [x] 11-02-PLAN.md — OrderblockChart.jsx lightweight-charts dark theme integration (25 color values)
+- [x] 11-03-PLAN.md — Recharts + CombinedScore + orderblockHelpers dark theme integration (49 color values)
 
 ### Phase 12: Navigation Restructure + Dashboard
 **Goal**: Die App hat 3 klare Bereiche (Trading, Orderblocks, Admin) und die zentrale Handlungsempfehlung ist direkt im Dashboard sichtbar
@@ -121,5 +121,5 @@ Plans:
 | 8. Alert System | v1.1 | 3/3 | Complete | 2026-02-23 |
 | 9. XRPBTC Removal | v2.0 | 3/3 | Complete | 2026-02-23 |
 | 10. CSS Variable Foundation | v2.0 | 3/3 | Complete | 2026-02-24 |
-| 11. Dark Mode Activation + Charts | v2.0 | 1/3 | In progress | - |
+| 11. Dark Mode Activation + Charts | 3/3 | Complete   | 2026-02-24 | - |
 | 12. Navigation Restructure + Dashboard | v2.0 | 0/? | Not started | - |
