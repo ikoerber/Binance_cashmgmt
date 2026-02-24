@@ -2,8 +2,8 @@
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
-  color: #213547;
-  background-color: #f5f7fa;
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-page);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -12,57 +12,131 @@
   /* ─── Color Palette ─── */
   --color-profit: #16a34a;
   --color-loss: #dc2626;
+  --color-profit-bright: #22c55e;
+
+  /* ─── Text Hierarchy ─── */
   --color-text-primary: #1e293b;
   --color-text-secondary: #64748b;
   --color-text-muted: #94a3b8;
   --color-text-heading: #1a1a2e;
+  --color-text-dark: #334155;
+  --color-text-body: #475569;
+  --color-text-inverse: #ffffff;
 
-  /* Accent Colors */
+  /* ─── Accent Colors ─── */
   --color-accent-navbar-start: #667eea;
   --color-accent-navbar-end: #764ba2;
   --color-accent-sync: #f7931a;
   --color-accent-pairing: #6366f1;
   --color-accent-recon: #0ea5e9;
   --color-accent-orderblock: #d97706;
+  --color-accent-indigo: #818cf8;
+  --color-accent-indigo-light: #eef2ff;
 
-  /* Neutrals */
+  /* ─── Surface / Background ─── */
   --color-bg-page: #f5f7fa;
   --color-bg-card: #ffffff;
   --color-bg-subtle: #f8fafc;
   --color-bg-muted: #f1f5f9;
+  --color-bg-hover: #f1f5f9;
+  --color-bg-selected: #eef2ff;
+  --color-bg-footer: #1e293b;
+  --color-bg-input: #ffffff;
+  --color-bg-disabled: #f9fafb;
+  --color-bg-warning-row: #fffbeb;
+
+  /* ─── Borders ─── */
   --color-border: #e2e8f0;
   --color-border-light: #f1f5f9;
+  --color-border-input: #d1d5db;
+  --color-border-focus: #6366f1;
 
-  /* Feedback */
+  /* ─── Feedback: Success ─── */
   --color-success-bg: #dcfce7;
   --color-success-text: #166534;
   --color-success-border: #bbf7d0;
+
+  /* ─── Feedback: Error ─── */
   --color-error-bg: #fef2f2;
   --color-error-text: #991b1b;
   --color-error-border: #fecaca;
 
-  /* Shadows */
+  /* ─── Feedback: Warning ─── */
+  --color-warning-bg: #fef3c7;
+  --color-warning-text: #92400e;
+  --color-warning-border: #fcd34d;
+
+  /* ─── Feedback: Info ─── */
+  --color-info-bg: #eff6ff;
+  --color-info-text: #1e40af;
+  --color-info-border: #bfdbfe;
+
+  /* ─── Badge Variants ─── */
+  --color-badge-purple-bg: #f3e8ff;
+  --color-badge-purple-text: #6b21a8;
+  --color-badge-blue-bg: #dbeafe;
+  --color-badge-blue-text: #1e40af;
+  --color-badge-amber-bg: #fef3c7;
+  --color-badge-amber-text: #92400e;
+  --color-badge-emerald-bg: #d1fae5;
+  --color-badge-emerald-text: #065f46;
+  --color-badge-slate-bg: #f1f5f9;
+  --color-badge-slate-text: #475569;
+
+  /* ─── Table ─── */
+  --color-table-header-bg: #f8fafc;
+  --color-table-row-even: #fafbfd;
+  --color-table-row-hover: #f1f5f9;
+
+  /* ─── Gradient Endpoints ─── */
+  --color-gradient-section-start: #f8fafc;
+  --color-gradient-section-end: #f1f5f9;
+  --color-gradient-success-start: #ecfdf5;
+  --color-gradient-success-end: #d1fae5;
+  --color-gradient-navbar-start: #667eea;
+  --color-gradient-navbar-end: #764ba2;
+
+  /* ─── Status / State Colors ─── */
+  --color-status-open: #16a34a;
+  --color-status-partial: #d97706;
+  --color-status-closed: #64748b;
+  --color-status-cancelled: #dc2626;
+  --color-status-draft: #6366f1;
+  --color-status-locked: #d97706;
+  --color-status-executed: #16a34a;
+
+  /* ─── Links & Interactive ─── */
+  --color-link: #646cff;
+  --color-link-hover: #535bf2;
+  --color-button-bg: #f9f9f9;
+  --color-focus-ring: #646cff;
+
+  /* ─── Scrollbar ─── */
+  --color-scrollbar-track: #f1f5f9;
+  --color-scrollbar-thumb: #cbd5e1;
+
+  /* ─── Shadows ─── */
   --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.08), 0 4px 16px rgba(0, 0, 0, 0.06);
   --shadow-hover: 0 6px 16px rgba(0, 0, 0, 0.12);
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.1);
 
-  /* Radii */
+  /* ─── Radii ─── */
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 12px;
   --radius-xl: 16px;
 
-  /* Fonts */
+  /* ─── Fonts ─── */
   --font-mono: 'SF Mono', 'Fira Code', 'Consolas', monospace;
 }
 
 a {
   font-weight: 500;
-  color: #646cff;
+  color: var(--color-link);
   text-decoration: inherit;
 }
 a:hover {
-  color: #535bf2;
+  color: var(--color-link-hover);
 }
 
 body {
@@ -78,12 +152,12 @@ button {
   font-size: 1em;
   font-weight: 500;
   font-family: inherit;
-  background-color: #f9f9f9;
+  background-color: var(--color-button-bg);
   cursor: pointer;
   transition: border-color 0.25s;
 }
 button:hover {
-  border-color: #646cff;
+  border-color: var(--color-focus-ring);
 }
 button:focus,
 button:focus-visible {
