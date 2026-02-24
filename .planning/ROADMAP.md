@@ -84,11 +84,12 @@ Plans:
   2. Candlestick-Chart (lightweight-charts) hat dunklen Hintergrund mit lesbaren Kerzen, Zonen-Overlays und Volume-Histogramm
   3. Recharts-Diagramme (Orderblock Stats, Overview PieChart) haben dunkle Hintergruende mit lesbaren Labels und Tooltips
   4. Beim Laden der Seite gibt es keinen weissen Blitz (Flash of Wrong Theme) — der dunkle Hintergrund ist sofort sichtbar
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 11-01: TBD
-- [ ] 11-02: TBD
+- [ ] 11-01-PLAN.md — FOWT prevention script + dark theme activation + useChartTheme hook + new CSS tokens
+- [ ] 11-02-PLAN.md — OrderblockChart.jsx lightweight-charts dark theme integration (25 color values)
+- [ ] 11-03-PLAN.md — Recharts + CombinedScore + orderblockHelpers dark theme integration (49 color values)
 
 ### Phase 12: Navigation Restructure + Dashboard
 **Goal**: Die App hat 3 klare Bereiche (Trading, Orderblocks, Admin) und die zentrale Handlungsempfehlung ist direkt im Dashboard sichtbar
@@ -119,6 +120,6 @@ Plans:
 | 7. Proactive Reconciliation | v1.1 | 2/2 | Complete | 2026-02-22 |
 | 8. Alert System | v1.1 | 3/3 | Complete | 2026-02-23 |
 | 9. XRPBTC Removal | v2.0 | 3/3 | Complete | 2026-02-23 |
-| 10. CSS Variable Foundation | 3/3 | Complete    | 2026-02-24 | - |
-| 11. Dark Mode Activation + Charts | v2.0 | 0/? | Not started | - |
+| 10. CSS Variable Foundation | v2.0 | 3/3 | Complete | 2026-02-24 |
+| 11. Dark Mode Activation + Charts | v2.0 | 0/3 | Not started | - |
 | 12. Navigation Restructure + Dashboard | v2.0 | 0/? | Not started | - |
