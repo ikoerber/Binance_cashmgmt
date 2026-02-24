@@ -5,24 +5,24 @@
 See: .planning/PROJECT.md (updated 2026-02-23)
 
 **Core value:** Ledger-first, deterministisches, auditierbares Cashflow-Tracking und automatisiertes Trading-System
-**Current focus:** v2.0 Frontend Redesign + EUR-Fokus — Phase 10 complete, Phase 11 next
+**Current focus:** v2.0 Frontend Redesign + EUR-Fokus — Phase 11 in progress
 
 ## Current Position
 
 Milestone: v2.0 Frontend Redesign + EUR-Fokus
-Phase: 10 of 12 (CSS Variable Foundation)
-Plan: 3 of 3
-Status: Phase 10 complete
-Last activity: 2026-02-24 — Plan 03 complete (all CSS files converted, zero-hex verified)
+Phase: 11 of 12 (Dark Mode Activation + Charts)
+Plan: 1 of 3
+Status: In progress
+Last activity: 2026-02-24 — Plan 01 complete (dark theme activated, useChartTheme hook created)
 
-Progress: [########--] 75%
+Progress: [########--] 79%
 
 ## Performance Metrics
 
 **Velocity (previous milestones):**
-- Total plans completed: 23 (8 v1.0 + 9 v1.1 + 6 v2.0)
-- Average duration: 3.7min
-- Total execution time: 91min
+- Total plans completed: 24 (8 v1.0 + 9 v1.1 + 7 v2.0)
+- Average duration: 3.6min
+- Total execution time: 93min
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
@@ -32,6 +32,7 @@ Progress: [########--] 75%
 | 10-css-variable-foundation | 01 | 2min | 2 | 1 |
 | 10-css-variable-foundation | 02 | 9min | 2 | 7 |
 | 10-css-variable-foundation | 03 | 5min | 2 | 8 |
+| 11-dark-mode-activation-charts | 01 | 2min | 2 | 3 |
 
 ## Accumulated Context
 
@@ -62,6 +63,10 @@ v1.0 decision log archived in milestones/v1.0-phases/ SUMMARY.md files.
 - 10-03: PairingExistingTab.jsx inline style removed (redundant with .filter-group select CSS)
 - 10-03: 60 deferred JSX chart hex values documented for Phase 11 (OrderblockChart 23, Orderblock 14, CombinedScore 14, Overview 5, orderblockHelpers 4)
 
+- 11-01: Blocking script in <head> before CSS for zero-flash FOWT prevention (belt-and-suspenders: data-theme + backgroundColor)
+- 11-01: useChartTheme is plain function (no hooks) reading getComputedStyle -- called at component render time
+- 11-01: 27 new CSS tokens (action 7, score gradient 8, pillar gradient 10) for chart JSX in both :root and dark block
+
 ### Key Context for v2.0
 
 - XRPBTC removal: Historical DB data preserved (Ledger-first). Only code paths removed.
@@ -69,7 +74,9 @@ v1.0 decision log archived in milestones/v1.0-phases/ SUMMARY.md files.
 - Dark Mode: Dark-only (no light/dark toggle). `[data-theme="dark"]` on `:root`.
 - DARK-01 COMPLETE: All 11 CSS files have zero hardcoded hex values. 440+ hex values converted across Plans 01-03.
 - Overview.jsx chart palette uses getComputedStyle pattern (theme-aware). 60 deferred JSX chart hex values for Phase 11.
-- Chart libraries (lightweight-charts, Recharts) render outside CSS cascade -- need programmatic theme integration in Phase 11.
+- DARK-03 COMPLETE: Dark theme activated with FOWT-safe blocking script. All CSS-driven components render dark.
+- useChartTheme hook + hexToRgb utility ready for Plans 02-03 chart library integration.
+- Chart libraries (lightweight-charts, Recharts) still use hardcoded hex -- Plans 02-03 will convert via useChartTheme.
 - Research confidence: HIGH across all 4 phases. No phases need additional research.
 
 ### Pending Todos
@@ -83,5 +90,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 10-03-PLAN.md (Phase 10 complete: all CSS files converted, zero-hex verified). Next: Phase 11 (Dark Mode Activation + Charts)
+Stopped at: Completed 11-01-PLAN.md (dark theme activated, useChartTheme hook created). Next: 11-02-PLAN.md (OrderblockChart lightweight-charts integration)
 Resume file: None
