@@ -130,6 +130,122 @@
   --font-mono: 'SF Mono', 'Fira Code', 'Consolas', monospace;
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   Dark Mode -- defined but not active until Phase 11 enables theme toggle
+   ═══════════════════════════════════════════════════════════════════════════ */
+[data-theme="dark"] {
+  /* ─── Color Palette ─── */
+  --color-profit: #22c55e;
+  --color-loss: #ef4444;
+  --color-profit-bright: #4ade80;
+
+  /* ─── Text Hierarchy ─── */
+  --color-text-primary: #e2e8f0;
+  --color-text-secondary: #94a3b8;
+  --color-text-muted: #64748b;
+  --color-text-heading: #f1f5f9;
+  --color-text-dark: #cbd5e1;
+  --color-text-body: #94a3b8;
+  --color-text-inverse: #0f1117;
+
+  /* ─── Accent Colors ─── */
+  --color-accent-navbar-start: #1e2030;
+  --color-accent-navbar-end: #252838;
+  --color-accent-sync: #f7931a;
+  --color-accent-pairing: #818cf8;
+  --color-accent-recon: #38bdf8;
+  --color-accent-orderblock: #fbbf24;
+  --color-accent-indigo: #818cf8;
+  --color-accent-indigo-light: #1e2448;
+
+  /* ─── Surface / Background ─── */
+  --color-bg-page: #0f1117;
+  --color-bg-card: #161822;
+  --color-bg-subtle: #1e2030;
+  --color-bg-muted: #252838;
+  --color-bg-hover: #252838;
+  --color-bg-selected: #1e2448;
+  --color-bg-footer: #0f1117;
+  --color-bg-input: #1e2030;
+  --color-bg-disabled: #161822;
+  --color-bg-warning-row: #1c1408;
+
+  /* ─── Borders ─── */
+  --color-border: #2e3348;
+  --color-border-light: #252838;
+  --color-border-input: #3e4458;
+  --color-border-focus: #818cf8;
+
+  /* ─── Feedback: Success ─── */
+  --color-success-bg: #052e16;
+  --color-success-text: #22c55e;
+  --color-success-border: #166534;
+
+  /* ─── Feedback: Error ─── */
+  --color-error-bg: #2a0f0f;
+  --color-error-text: #ef4444;
+  --color-error-border: #991b1b;
+
+  /* ─── Feedback: Warning ─── */
+  --color-warning-bg: #1c1408;
+  --color-warning-text: #fbbf24;
+  --color-warning-border: #92400e;
+
+  /* ─── Feedback: Info ─── */
+  --color-info-bg: #0c1929;
+  --color-info-text: #38bdf8;
+  --color-info-border: #0369a1;
+
+  /* ─── Badge Variants ─── */
+  --color-badge-purple-bg: #2e1065;
+  --color-badge-purple-text: #c084fc;
+  --color-badge-blue-bg: #1e3a5f;
+  --color-badge-blue-text: #60a5fa;
+  --color-badge-amber-bg: #451a03;
+  --color-badge-amber-text: #fbbf24;
+  --color-badge-emerald-bg: #052e16;
+  --color-badge-emerald-text: #34d399;
+  --color-badge-slate-bg: #1e293b;
+  --color-badge-slate-text: #94a3b8;
+
+  /* ─── Table ─── */
+  --color-table-header-bg: #1e2030;
+  --color-table-row-even: #161822;
+  --color-table-row-hover: #252838;
+
+  /* ─── Gradient Endpoints ─── */
+  --color-gradient-section-start: #1e2030;
+  --color-gradient-section-end: #252838;
+  --color-gradient-success-start: #052e16;
+  --color-gradient-success-end: #064e3b;
+  --color-gradient-navbar-start: #1e2030;
+  --color-gradient-navbar-end: #252838;
+
+  /* ─── Status / State Colors ─── */
+  --color-status-open: #22c55e;
+  --color-status-partial: #fbbf24;
+  --color-status-closed: #94a3b8;
+  --color-status-cancelled: #ef4444;
+  --color-status-draft: #818cf8;
+  --color-status-locked: #fbbf24;
+  --color-status-executed: #22c55e;
+
+  /* ─── Links & Interactive ─── */
+  --color-link: #818cf8;
+  --color-link-hover: #a5b4fc;
+  --color-button-bg: #1e2030;
+  --color-focus-ring: #818cf8;
+
+  /* ─── Scrollbar ─── */
+  --color-scrollbar-track: #161822;
+  --color-scrollbar-thumb: #3e4458;
+
+  /* ─── Shadows ─── */
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.2);
+  --shadow-hover: 0 6px 16px rgba(0, 0, 0, 0.4);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
 a {
   font-weight: 500;
   color: var(--color-link);
