@@ -170,7 +170,12 @@ const Overview = () => {
                     cx="50%"
                     cy="50%"
                     outerRadius={100}
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    label={({ name, percent, x, y, textAnchor }) => (
+                      <text x={x} y={y} textAnchor={textAnchor} fill={theme.textPrimary} fontSize={13}>
+                        {`${name} ${(percent * 100).toFixed(0)}%`}
+                      </text>
+                    )}
+                    isAnimationActive={false}
                   >
                     {pieData.map((_, idx) => (
                       <Cell key={idx} fill={COLORS[idx % COLORS.length]} />
@@ -184,6 +189,8 @@ const Overview = () => {
                       borderRadius: '8px',
                       color: theme.textPrimary,
                     }}
+                    itemStyle={{ color: theme.textPrimary }}
+                    labelStyle={{ color: theme.textSecondary }}
                   />
                 </PieChart>
               </ResponsiveContainer>
