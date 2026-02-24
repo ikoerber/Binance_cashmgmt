@@ -1,4 +1,4 @@
-/* Combined Score Dashboard - Akzentfarbe: Indigo #4f46e5 */
+/* Combined Score Dashboard - Akzentfarbe: Indigo */
 
 .combined-loading,
 .combined-error {
@@ -19,7 +19,7 @@
   background: var(--color-bg-card);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-card);
-  border-top: 3px solid #4f46e5;
+  border-top: 3px solid var(--color-accent-combined);
 }
 
 /* ─── Header ─── */
@@ -46,12 +46,12 @@
 }
 
 .combined-header-left h2 span {
-  color: #4f46e5;
+  color: var(--color-accent-combined);
 }
 
 .combined-interval-badge {
-  background: #eef2ff;
-  color: #4f46e5;
+  background: var(--color-accent-indigo-light);
+  color: var(--color-accent-combined);
   padding: 4px 10px;
   border-radius: var(--radius-lg);
   font-size: 13px;
@@ -71,12 +71,12 @@
 }
 
 .combined-quality-badge.quality-partial {
-  background: #fef3c7;
-  color: #d97706;
+  background: var(--color-warning-bg);
+  color: var(--color-accent-orderblock);
 }
 
 .combined-quality-badge.quality-degraded {
-  background: #fee2e2;
+  background: var(--color-alert-red-severity-bg);
   color: var(--color-loss);
 }
 
@@ -95,8 +95,8 @@
 /* ─── Hero Action Banner ─── */
 
 .combined-action-banner {
-  background: linear-gradient(135deg, #eef2ff, #e0e7ff);
-  border: 1px solid #c7d2fe;
+  background: linear-gradient(135deg, var(--color-gradient-action-start), var(--color-gradient-action-end));
+  border: 1px solid var(--color-accent-pairing-border);
   border-radius: var(--radius-lg);
   padding: 24px;
   margin-bottom: 20px;
@@ -140,7 +140,7 @@
 .combined-score-track {
   position: relative;
   height: 12px;
-  background: linear-gradient(90deg, #dc2626 0%, #f97316 25%, #e2e8f0 45%, #e2e8f0 55%, #4ade80 75%, #16a34a 100%);
+  background: linear-gradient(90deg, var(--color-loss) 0%, var(--color-factor-negative) 25%, var(--color-border) 45%, var(--color-border) 55%, var(--color-profit-bright) 75%, var(--color-profit) 100%);
   border-radius: 6px;
   margin-bottom: 8px;
 }
@@ -151,7 +151,7 @@
   top: -2px;
   width: 2px;
   height: 16px;
-  background: #475569;
+  background: var(--color-text-body);
   transform: translateX(-50%);
   border-radius: 1px;
 }
@@ -179,7 +179,7 @@
 .combined-score-value {
   text-align: center;
   font-size: 14px;
-  color: #475569;
+  color: var(--color-text-body);
 }
 
 .combined-score-value strong {
@@ -189,15 +189,15 @@
 /* ─── Conflict Alert ─── */
 
 .combined-conflict-alert {
-  background: #fefce8;
-  border: 1px solid #fde047;
+  background: var(--color-conflict-bg);
+  border: 1px solid var(--color-conflict-border);
   border-radius: 8px;
   padding: 12px 16px;
   margin-bottom: 20px;
   display: flex;
   align-items: center;
   gap: 10px;
-  color: #854d0e;
+  color: var(--color-conflict-text);
   font-size: 14px;
 }
 
@@ -215,7 +215,7 @@
 }
 
 .combined-subsignal-card {
-  background: #f8fafc;
+  background: var(--color-bg-subtle);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   padding: 20px;
@@ -235,7 +235,7 @@
 }
 
 .combined-weight-badge {
-  background: #4f46e5;
+  background: var(--color-accent-combined);
   color: white;
   padding: 3px 10px;
   border-radius: var(--radius-md);
@@ -294,14 +294,14 @@
   background: transparent;
   border: 1px solid var(--color-border);
   border-radius: 6px;
-  color: #4f46e5;
+  color: var(--color-accent-combined);
   font-size: 13px;
   cursor: pointer;
   transition: background 0.15s;
 }
 
 .combined-detail-toggle:hover {
-  background: #eef2ff;
+  background: var(--color-accent-indigo-light);
 }
 
 /* ─── Detail Section (Macro Factors) ─── */
@@ -322,7 +322,7 @@
 }
 
 .combined-factor-name {
-  color: #475569;
+  color: var(--color-text-body);
   font-weight: 500;
 }
 
@@ -335,7 +335,7 @@
 .combined-factor-bar-track {
   position: relative;
   height: 8px;
-  background: #e2e8f0;
+  background: var(--color-border);
   border-radius: 4px;
 }
 
@@ -348,15 +348,15 @@
 }
 
 .combined-factor-bar-fill.positive {
-  background: #22c55e;
+  background: var(--color-profit-bright);
 }
 
 .combined-factor-bar-fill.negative {
-  background: #f97316;
+  background: var(--color-factor-negative);
 }
 
 .combined-factor-bar-fill.neutral {
-  background: #94a3b8;
+  background: var(--color-text-muted);
   left: 50% !important;
   width: 2px !important;
 }
@@ -367,7 +367,7 @@
   top: 0;
   width: 1px;
   height: 8px;
-  background: #94a3b8;
+  background: var(--color-text-muted);
   transform: translateX(-50%);
 }
 
@@ -403,13 +403,13 @@
 }
 
 .combined-pillar-name {
-  color: #475569;
+  color: var(--color-text-body);
   font-weight: 500;
 }
 
 .combined-pillar-bar-track {
   height: 8px;
-  background: #e2e8f0;
+  background: var(--color-border);
   border-radius: 4px;
   overflow: hidden;
 }
@@ -434,22 +434,22 @@
 }
 
 .combined-pillar-quality.quality-live {
-  background: #ccfbf1;
-  color: #0d9488;
+  background: var(--color-quality-teal-bg);
+  color: var(--color-quality-teal-text);
 }
 
 .combined-pillar-quality.quality-cached {
-  background: #f1f5f9;
+  background: var(--color-bg-muted);
   color: var(--color-text-secondary);
 }
 
 .combined-pillar-quality.quality-stale {
-  background: #fff7ed;
-  color: #ea580c;
+  background: var(--color-quality-orange-bg);
+  color: var(--color-quality-orange-text);
 }
 
 .combined-pillar-quality.quality-unavailable {
-  background: #f1f5f9;
+  background: var(--color-bg-muted);
   color: var(--color-text-muted);
 }
 
@@ -457,25 +457,25 @@
 .combined-vol-info {
   margin-top: 8px;
   padding: 8px 12px;
-  background: #f1f5f9;
+  background: var(--color-bg-muted);
   border-radius: 6px;
   font-size: 12px;
-  color: #475569;
+  color: var(--color-text-body);
 }
 
 .combined-dispersion-warn {
-  color: #d97706;
+  color: var(--color-accent-orderblock);
   font-weight: 600;
 }
 
 /* ─── Quality Note ─── */
 
 .combined-quality-note {
-  background: #fef3c7;
+  background: var(--color-warning-bg);
   border-radius: 8px;
   padding: 10px 16px;
   font-size: 13px;
-  color: #92400e;
+  color: var(--color-warning-text);
   margin-bottom: 16px;
 }
 
@@ -484,7 +484,7 @@
 .combined-disclaimer {
   margin-top: 20px;
   padding: 12px 16px;
-  background: #f8fafc;
+  background: var(--color-bg-subtle);
   border-radius: 8px;
   font-size: 12px;
   color: var(--color-text-muted);

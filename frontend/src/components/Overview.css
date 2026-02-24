@@ -4,13 +4,13 @@
 
 .overview-container h1 {
   font-size: 24px;
-  color: #1e293b;
+  color: var(--color-text-primary);
   margin-bottom: 24px;
 }
 
 .overview-loading {
   text-align: center;
-  color: #64748b;
+  color: var(--color-text-secondary);
   padding: 20px;
 }
 
@@ -23,16 +23,16 @@
 }
 
 .overview-total-card {
-  background: white;
-  border-radius: 12px;
+  background: var(--color-bg-card);
+  border-radius: var(--radius-lg);
   padding: 20px;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--color-border);
 }
 
 .overview-total-card h3 {
   font-size: 13px;
-  color: #64748b;
+  color: var(--color-text-secondary);
   font-weight: 600;
   margin-bottom: 8px;
   text-transform: uppercase;
@@ -42,7 +42,7 @@
 .overview-total-value {
   font-size: 28px;
   font-weight: 700;
-  color: #1e293b;
+  color: var(--color-text-primary);
 }
 
 .overview-total-sub {
@@ -52,12 +52,12 @@
 
 .overview-total-card.positive .overview-total-value,
 .overview-total-card.positive .overview-total-sub {
-  color: #16a34a;
+  color: var(--color-profit);
 }
 
 .overview-total-card.negative .overview-total-value,
 .overview-total-card.negative .overview-total-sub {
-  color: #dc2626;
+  color: var(--color-loss);
 }
 
 /* Main Layout */
@@ -68,17 +68,17 @@
 }
 
 .overview-pie-section {
-  background: white;
-  border-radius: 12px;
+  background: var(--color-bg-card);
+  border-radius: var(--radius-lg);
   padding: 20px;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--color-border);
 }
 
 .overview-pie-section h2,
 .overview-symbols h2 {
   font-size: 16px;
-  color: #1e293b;
+  color: var(--color-text-primary);
   margin-bottom: 16px;
 }
 
@@ -90,17 +90,17 @@
 }
 
 .overview-symbol-card {
-  background: white;
-  border-radius: 12px;
+  background: var(--color-bg-card);
+  border-radius: var(--radius-lg);
   padding: 16px;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--color-border);
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .overview-symbol-card:hover {
-  border-color: #667eea;
+  border-color: var(--color-accent-navbar-start);
   box-shadow: 0 2px 8px rgba(102, 126, 234, 0.15);
   transform: translateY(-2px);
 }
@@ -111,19 +111,19 @@
   align-items: center;
   margin-bottom: 12px;
   padding-bottom: 10px;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid var(--color-border-light);
 }
 
 .overview-symbol-label {
   font-size: 18px;
   font-weight: 700;
-  color: #1e293b;
+  color: var(--color-text-primary);
 }
 
 .overview-symbol-price {
   font-size: 16px;
   font-weight: 600;
-  color: #667eea;
+  color: var(--color-accent-navbar-start);
 }
 
 .overview-symbol-body {
@@ -136,21 +136,21 @@
   display: flex;
   justify-content: space-between;
   font-size: 14px;
-  color: #475569;
+  color: var(--color-text-body);
 }
 
 .overview-symbol-row.positive span:last-child {
-  color: #16a34a;
+  color: var(--color-profit);
   font-weight: 600;
 }
 
 .overview-symbol-row.negative span:last-child {
-  color: #dc2626;
+  color: var(--color-loss);
   font-weight: 600;
 }
 
 .overview-symbol-empty {
-  color: #94a3b8;
+  color: var(--color-text-muted);
   text-align: center;
   padding: 20px 0;
   font-size: 14px;
@@ -161,25 +161,25 @@
   gap: 8px;
   margin-top: 10px;
   padding-top: 10px;
-  border-top: 1px solid #f1f5f9;
+  border-top: 1px solid var(--color-border-light);
 }
 
 .overview-symbol-links button {
   padding: 5px 12px;
-  background: #f1f5f9;
-  border: 1px solid #e2e8f0;
+  background: var(--color-bg-muted);
+  border: 1px solid var(--color-border);
   border-radius: 6px;
   font-size: 12px;
   font-weight: 600;
-  color: #475569;
+  color: var(--color-text-body);
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .overview-symbol-links button:hover {
-  background: #667eea;
+  background: var(--color-accent-navbar-start);
   color: white;
-  border-color: #667eea;
+  border-color: var(--color-accent-navbar-start);
 }
 
 /* Responsive */
