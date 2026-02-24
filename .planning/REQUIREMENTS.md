@@ -18,8 +18,8 @@ Requirements for v2.0 Frontend Redesign + EUR-Fokus. Each maps to roadmap phases
 
 ### Dark Mode
 
-- [ ] **DARK-01**: CSS Custom Property System vervollstaendigen (alle hardcoded Hex-Werte in Variablen)
-- [ ] **DARK-02**: Dark Mode Farbpalette definieren (Slate-950 Background, WCAG AA Kontrast)
+- [x] **DARK-01**: CSS Custom Property System vervollstaendigen (alle hardcoded Hex-Werte in Variablen)
+- [x] **DARK-02**: Dark Mode Farbpalette definieren (Slate-950 Background, WCAG AA Kontrast)
 - [ ] **DARK-03**: Alle 12 CSS-Dateien auf Dark-Mode-Variablen umstellen
 - [ ] **DARK-04**: lightweight-charts Dark Theme Integration (via applyOptions())
 - [ ] **DARK-05**: Recharts Dark Theme Integration (via JS Theme Hook)
@@ -75,8 +75,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | REM-04 | Phase 9 | Complete |
 | REM-05 | Phase 9 | Complete |
 | REM-06 | Phase 9 | Complete |
-| DARK-01 | Phase 10 | Pending |
-| DARK-02 | Phase 10 | Pending |
+| DARK-01 | Phase 10 | Complete |
+| DARK-02 | Phase 10 | Complete |
 | DARK-03 | Phase 11 | Pending |
 | DARK-04 | Phase 11 | Pending |
 | DARK-05 | Phase 11 | Pending |
