@@ -68,11 +68,12 @@ Plans:
   1. Kein hardcoded Hex-Farbwert existiert ausserhalb der `:root`-Definition in `index.css` (verifizierbar via grep)
   2. Die App im Browser sieht pixelidentisch zum Zustand vor der Konvertierung aus (kein visueller Unterschied)
   3. Die Dark-Mode-Farbpalette ist als `[data-theme="dark"]`-Block in `index.css` definiert (noch nicht aktiv, aber bereit)
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 10-01: TBD
-- [ ] 10-02: TBD
+- [ ] 10-01-PLAN.md — Define complete CSS Custom Property system in index.css (:root light tokens + [data-theme="dark"] palette)
+- [ ] 10-02-PLAN.md — Convert 6 heaviest CSS files to var() references (Orderblock, LotsTable, PairingPanel, Reconciliation, CombinedScore, Overview)
+- [ ] 10-03-PLAN.md — Convert remaining 5 CSS files + JSX inline color references + final zero-hex verification
 
 ### Phase 11: Dark Mode Activation + Charts
 **Goal**: Das gesamte Frontend ist dunkel gestylt — alle Komponenten, Charts und Lade-Zustaende verwenden das Dark Theme
@@ -118,6 +119,6 @@ Plans:
 | 7. Proactive Reconciliation | v1.1 | 2/2 | Complete | 2026-02-22 |
 | 8. Alert System | v1.1 | 3/3 | Complete | 2026-02-23 |
 | 9. XRPBTC Removal | v2.0 | 3/3 | Complete | 2026-02-23 |
-| 10. CSS Variable Foundation | v2.0 | 0/? | Not started | - |
+| 10. CSS Variable Foundation | v2.0 | 0/3 | Not started | - |
 | 11. Dark Mode Activation + Charts | v2.0 | 0/? | Not started | - |
 | 12. Navigation Restructure + Dashboard | v2.0 | 0/? | Not started | - |
