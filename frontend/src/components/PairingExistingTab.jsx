@@ -143,7 +143,6 @@ const PairingExistingTab = ({ onHighlightLots, showMessage }) => {
           <select
             value={existingStatusFilter || ''}
             onChange={(e) => setExistingStatusFilter(e.target.value || null)}
-            style={{ padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 13, minHeight: 38, background: 'white', cursor: 'pointer' }}
           >
             <option value="">Alle</option>
             <option value="DRAFT">Draft</option>
