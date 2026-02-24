@@ -35,6 +35,16 @@ const CombinedScore = () => {
     'STARK SHORT': theme.actionStrongSell,
   };
 
+  const ACTION_COLOR_MAP = {
+    'Aggressiv kaufen': theme.actionStrongBuy,
+    'Kaufen': theme.actionBuy,
+    'Leicht akkumulieren': theme.actionLeanBuy,
+    'Abwarten': theme.actionHold,
+    'Leicht reduzieren': theme.actionLeanSell,
+    'Verkaufen': theme.actionSell,
+    'Aggressiv verkaufen': theme.actionStrongSell,
+  };
+
   const { data: settings } = useQuery({
     queryKey: ['settings', userId],
     queryFn: () => getSettings(userId),
@@ -52,6 +62,7 @@ const CombinedScore = () => {
   if (error) return <div className="combined-error">Fehler: {error.message}</div>;
   if (!data) return null;
 
+  const actionColor = ACTION_COLOR_MAP[data.action] || theme.actionHold;
   const scorePosition = ((data.unified_score + 100) / 200) * 100;
 
   return (
@@ -76,9 +87,9 @@ const CombinedScore = () => {
       </div>
 
       {/* Hero Action Banner */}
-      <div className="combined-action-banner" style={{ '--action-color': data.action_color }}>
+      <div className="combined-action-banner" style={{ '--action-color': actionColor }}>
         <div className="combined-action-main">
-          <span className="combined-action-label" style={{ color: data.action_color }}>
+          <span className="combined-action-label" style={{ color: actionColor }}>
             {data.action}
           </span>
           <span className="combined-multiplier" style={{ color: data.size_multiplier > 1 ? theme.profit : data.size_multiplier < 1 ? theme.loss : theme.textMuted }}>
@@ -109,7 +120,7 @@ const CombinedScore = () => {
               className="combined-score-indicator"
               style={{
                 left: `${Math.max(2, Math.min(98, scorePosition))}%`,
-                backgroundColor: data.action_color,
+                backgroundColor: actionColor,
               }}
             />
           </div>
@@ -209,7 +220,7 @@ const CombinedScore = () => {
           <div className="combined-subsignal-body">
             <span
               className="combined-rec-badge"
-              style={{ backgroundColor: data.action_color }}
+              style={{ backgroundColor: actionColor }}
             >
               {data.sizing.label}
             </span>
