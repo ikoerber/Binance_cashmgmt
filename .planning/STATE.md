@@ -11,18 +11,18 @@ See: .planning/PROJECT.md (updated 2026-02-23)
 
 Milestone: v2.0 Frontend Redesign + EUR-Fokus
 Phase: 10 of 12 (CSS Variable Foundation)
-Plan: 1 of 3
-Status: Plan 01 complete
-Last activity: 2026-02-24 — Plan 01 complete (CSS token system + dark palette)
+Plan: 2 of 3
+Status: Plan 02 complete
+Last activity: 2026-02-24 — Plan 02 complete (6 heaviest CSS files converted to var())
 
-Progress: [###-------] 33%
+Progress: [######----] 67%
 
 ## Performance Metrics
 
 **Velocity (previous milestones):**
-- Total plans completed: 21 (8 v1.0 + 9 v1.1 + 4 v2.0)
-- Average duration: 3.5min
-- Total execution time: 82min
+- Total plans completed: 22 (8 v1.0 + 9 v1.1 + 5 v2.0)
+- Average duration: 3.7min
+- Total execution time: 91min
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
@@ -30,6 +30,7 @@ Progress: [###-------] 33%
 | 09-xrpbtc-removal | 02 | 5min | 2 | 9 |
 | 09-xrpbtc-removal | 03 | 6min | 2 | 7 |
 | 10-css-variable-foundation | 01 | 2min | 2 | 1 |
+| 10-css-variable-foundation | 02 | 9min | 2 | 7 |
 
 ## Accumulated Context
 
@@ -50,12 +51,17 @@ v1.0 decision log archived in milestones/v1.0-phases/ SUMMARY.md files.
 - 10-01: Dark surface hierarchy: 5-level depth (#0f1117 page through #252838 muted)
 - 10-01: Radii and font tokens excluded from dark override (theme-invariant)
 
+- 10-02: Added 40+ new tokens for edge-case colors (gradients, badges, alerts, interactive states)
+- 10-02: Mapped closely similar hex values to existing semantic tokens to prevent token explosion
+- 10-02: Resolved both !important usages via parent selector specificity (.lots-table, .pairing-panel)
+- 10-02: rgba() shadow values left as-is (structural shadows, black-base with alpha)
+
 ### Key Context for v2.0
 
 - XRPBTC removal: Historical DB data preserved (Ledger-first). Only code paths removed.
 - XRPBTC removal COMPLETE: Backend (Plan 01), Frontend (Plan 02), Migration + Tests (Plan 03) all done. 6 DB columns dropped, 4 test files deleted, 655 tests passing.
 - Dark Mode: Dark-only (no light/dark toggle). `[data-theme="dark"]` on `:root`.
-- 444 hardcoded hex values across 12 CSS files must be converted to variables before dark mode activation.
+- 355+ of 444 hardcoded hex values converted in Plan 02 (6 heaviest files). Remaining ~90 hex values in 6 lighter files for Plan 03.
 - Chart libraries (lightweight-charts, Recharts) render outside CSS cascade — need programmatic theme integration.
 - Research confidence: HIGH across all 4 phases. No phases need additional research.
 
@@ -70,5 +76,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 10-01-PLAN.md (CSS token system + dark palette). Next: 10-02 (component CSS conversion batch 1)
+Stopped at: Completed 10-02-PLAN.md (6 heaviest CSS files converted). Next: 10-03 (remaining CSS files + JSX inline styles)
 Resume file: None
