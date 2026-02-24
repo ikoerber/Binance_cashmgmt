@@ -12,6 +12,7 @@ import { useUser } from '../contexts/UserContext';
 import { useWebSocket } from '../contexts/WebSocketContext';
 import { getAllSymbols, getPairLabel, getBaseLabel, getBaseAsset, getQuoteAsset } from '../utils/symbolRegistry';
 import { formatEUR, formatBase, formatNumber } from '../utils/formatters';
+import { useChartTheme } from '../hooks/useChartTheme';
 import './Overview.css';
 
 /** Read chart palette from CSS custom properties (theme-aware) */
@@ -30,6 +31,7 @@ const Overview = () => {
   const { userId } = useUser();
   const { prices } = useWebSocket();
   const navigate = useNavigate();
+  const theme = useChartTheme();
   const symbols = getAllSymbols();
   const COLORS = getChartColors();
 
@@ -174,7 +176,15 @@ const Overview = () => {
                       <Cell key={idx} fill={COLORS[idx % COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(value) => formatEUR(value)} />
+                  <Tooltip
+                    formatter={(value) => formatEUR(value)}
+                    contentStyle={{
+                      background: theme.bgCard,
+                      border: `1px solid ${theme.border}`,
+                      borderRadius: '8px',
+                      color: theme.textPrimary,
+                    }}
+                  />
                 </PieChart>
               </ResponsiveContainer>
             </div>
