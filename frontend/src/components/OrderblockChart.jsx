@@ -9,10 +9,12 @@ import {
   createSeriesMarkers,
 } from 'lightweight-charts';
 import { formatEUR, formatDate, formatTime } from '../utils/formatters';
+import { useChartTheme, hexToRgb } from '../hooks/useChartTheme';
 
 const TZ_OFFSET_SEC = new Date().getTimezoneOffset() * -60;
 
 const OrderblockChart = ({ candles, zone, trade, isLoading }) => {
+  const theme = useChartTheme();
   const chartContainerRef = useRef(null);
   const chartRef = useRef(null);
   const candleSeriesRef = useRef(null);
@@ -26,18 +28,18 @@ const OrderblockChart = ({ candles, zone, trade, isLoading }) => {
 
     const chart = createChart(chartContainerRef.current, {
       layout: {
-        background: { type: ColorType.Solid, color: '#ffffff' },
-        textColor: '#64748b',
+        background: { type: ColorType.Solid, color: theme.bgCard },
+        textColor: theme.textSecondary,
         fontFamily: "'SF Mono', 'Fira Code', 'Consolas', monospace",
       },
       grid: {
-        vertLines: { color: '#f1f5f9' },
-        horzLines: { color: '#f1f5f9' },
+        vertLines: { color: theme.borderLight },
+        horzLines: { color: theme.borderLight },
       },
       crosshair: { mode: CrosshairMode.Normal },
-      rightPriceScale: { borderColor: '#e2e8f0' },
+      rightPriceScale: { borderColor: theme.border },
       timeScale: {
-        borderColor: '#e2e8f0',
+        borderColor: theme.border,
         timeVisible: true,
         secondsVisible: false,
       },
@@ -46,16 +48,16 @@ const OrderblockChart = ({ candles, zone, trade, isLoading }) => {
     });
 
     const candleSeries = chart.addSeries(CandlestickSeries, {
-      upColor: '#16a34a',
-      downColor: '#dc2626',
-      borderUpColor: '#16a34a',
-      borderDownColor: '#dc2626',
-      wickUpColor: '#16a34a',
-      wickDownColor: '#dc2626',
+      upColor: theme.profit,
+      downColor: theme.loss,
+      borderUpColor: theme.profit,
+      borderDownColor: theme.loss,
+      wickUpColor: theme.profit,
+      wickDownColor: theme.loss,
     });
 
     const volumeSeries = chart.addSeries(HistogramSeries, {
-      color: '#94a3b8',
+      color: theme.textMuted,
       priceFormat: { type: 'volume' },
       priceScaleId: 'volume',
     });
@@ -81,7 +83,7 @@ const OrderblockChart = ({ candles, zone, trade, isLoading }) => {
       candleSeriesRef.current = null;
       volumeSeriesRef.current = null;
     };
-  }, []);
+  }, [theme]);
 
   // ─── Daten updaten ───
   useEffect(() => {
@@ -95,12 +97,14 @@ const OrderblockChart = ({ candles, zone, trade, isLoading }) => {
       adjusted.map(c => ({
         time: c.time,
         value: c.volume,
-        color: c.close >= c.open ? 'rgba(22,163,74,0.25)' : 'rgba(220,38,38,0.25)',
+        color: c.close >= c.open
+          ? `rgba(${hexToRgb(theme.profit)}, 0.3)`
+          : `rgba(${hexToRgb(theme.loss)}, 0.3)`,
       }))
     );
 
     chartRef.current.timeScale().fitContent();
-  }, [candles]);
+  }, [candles, theme]);
 
   // ─── Zone-Overlay + Trade-Levels ───
   useEffect(() => {
@@ -120,7 +124,7 @@ const OrderblockChart = ({ candles, zone, trade, isLoading }) => {
     }
 
     const isBullish = zone.direction === 'BULLISH';
-    const zoneBorder = isBullish ? '#16a34a' : '#dc2626';
+    const zoneBorder = isBullish ? theme.profit : theme.loss;
 
     // Zone Top/Bottom PriceLines
     priceLinesRef.current.push(
@@ -143,7 +147,7 @@ const OrderblockChart = ({ candles, zone, trade, isLoading }) => {
       // Equilibrium
       series.createPriceLine({
         price: parseFloat(zone.equilibrium),
-        color: '#d97706',
+        color: theme.accentOrderblock,
         lineWidth: 1,
         lineStyle: LineStyle.Dotted,
         axisLabelVisible: false,
@@ -156,7 +160,7 @@ const OrderblockChart = ({ candles, zone, trade, isLoading }) => {
       priceLinesRef.current.push(
         series.createPriceLine({
           price: parseFloat(zone.liquidity_sweep_level),
-          color: '#f59e0b',
+          color: theme.accentAmber,
           lineWidth: 1,
           lineStyle: LineStyle.SparseDotted,
           axisLabelVisible: true,
@@ -173,7 +177,7 @@ const OrderblockChart = ({ candles, zone, trade, isLoading }) => {
       markers.push({
         time: Math.floor(new Date(zone.formed_at).getTime() / 1000) + TZ_OFFSET_SEC,
         position: isBullish ? 'belowBar' : 'aboveBar',
-        color: '#d97706',
+        color: theme.accentOrderblock,
         shape: 'square',
         text: 'OB',
       });
@@ -184,7 +188,7 @@ const OrderblockChart = ({ candles, zone, trade, isLoading }) => {
       markers.push({
         time: Math.floor(new Date(zone.confirmed_at).getTime() / 1000) + TZ_OFFSET_SEC,
         position: isBullish ? 'aboveBar' : 'belowBar',
-        color: '#d97706',
+        color: theme.accentOrderblock,
         shape: 'circle',
         text: 'BOS',
       });
@@ -196,7 +200,7 @@ const OrderblockChart = ({ candles, zone, trade, isLoading }) => {
         priceLinesRef.current.push(
           series.createPriceLine({
             price: parseFloat(trade.entry_edge),
-            color: '#3b82f6',
+            color: theme.accentBlue,
             lineWidth: 2,
             lineStyle: LineStyle.Solid,
             axisLabelVisible: true,
@@ -208,7 +212,7 @@ const OrderblockChart = ({ candles, zone, trade, isLoading }) => {
         priceLinesRef.current.push(
           series.createPriceLine({
             price: parseFloat(trade.stop_edge),
-            color: '#dc2626',
+            color: theme.loss,
             lineWidth: 2,
             lineStyle: LineStyle.Solid,
             axisLabelVisible: true,
@@ -220,7 +224,7 @@ const OrderblockChart = ({ candles, zone, trade, isLoading }) => {
         priceLinesRef.current.push(
           series.createPriceLine({
             price: parseFloat(trade.target),
-            color: '#16a34a',
+            color: theme.profit,
             lineWidth: 2,
             lineStyle: LineStyle.Solid,
             axisLabelVisible: true,
@@ -234,7 +238,7 @@ const OrderblockChart = ({ candles, zone, trade, isLoading }) => {
         markers.push({
           time: Math.floor(new Date(trade.entry_timestamp).getTime() / 1000) + TZ_OFFSET_SEC,
           position: isBullish ? 'belowBar' : 'aboveBar',
-          color: '#3b82f6',
+          color: theme.accentBlue,
           shape: isBullish ? 'arrowUp' : 'arrowDown',
           text: 'Entry',
         });
@@ -244,7 +248,7 @@ const OrderblockChart = ({ candles, zone, trade, isLoading }) => {
         markers.push({
           time: Math.floor(new Date(trade.exit_timestamp).getTime() / 1000) + TZ_OFFSET_SEC,
           position: isBullish ? 'aboveBar' : 'belowBar',
-          color: isHit ? '#16a34a' : '#dc2626',
+          color: isHit ? theme.profit : theme.loss,
           shape: isBullish ? 'arrowDown' : 'arrowUp',
           text: trade.outcome,
         });
@@ -267,7 +271,7 @@ const OrderblockChart = ({ candles, zone, trade, isLoading }) => {
         markersRef.current = null;
       }
     };
-  }, [zone, trade, candles]);
+  }, [zone, trade, candles, theme]);
 
   if (isLoading) {
     return <div className="ob-chart-loading">Lade Kerzen...</div>;
