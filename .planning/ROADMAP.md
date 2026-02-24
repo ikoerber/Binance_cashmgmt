@@ -37,7 +37,7 @@ See: `.planning/milestones/v1.1-ROADMAP.md` for full details
 **Milestone Goal:** Frontend komplett neugestalten (Dark Mode, 3-Bereichs-Navigation, Combined Score ins Dashboard) und XRPBTC-Support entfernen — nur noch EUR-Paare.
 
 - [x] **Phase 9: XRPBTC Removal** - Alle XRPBTC Code-Pfade aus Backend und Frontend entfernen (historische DB-Daten bleiben)
-- [ ] **Phase 10: CSS Variable Foundation** - Alle hardcoded Farbwerte durch CSS Custom Properties ersetzen (kein visueller Unterschied)
+- [x] **Phase 10: CSS Variable Foundation** - Alle hardcoded Farbwerte durch CSS Custom Properties ersetzen (kein visueller Unterschied) (completed 2026-02-24)
 - [ ] **Phase 11: Dark Mode Activation + Charts** - Dunkles Theme aktivieren, Chart-Bibliotheken integrieren, FOWT verhindern
 - [ ] **Phase 12: Navigation Restructure + Dashboard** - 3-Bereichs-Navigation, Combined Score ins Dashboard, API Docs entfernen
 
@@ -71,9 +71,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 10-01-PLAN.md — Define complete CSS Custom Property system in index.css (:root light tokens + [data-theme="dark"] palette)
-- [ ] 10-02-PLAN.md — Convert 6 heaviest CSS files to var() references (Orderblock, LotsTable, PairingPanel, Reconciliation, CombinedScore, Overview)
-- [ ] 10-03-PLAN.md — Convert remaining 5 CSS files + JSX inline color references + final zero-hex verification
+- [x] 10-01-PLAN.md — Define complete CSS Custom Property system in index.css (:root light tokens + [data-theme="dark"] palette)
+- [x] 10-02-PLAN.md — Convert 6 heaviest CSS files to var() references (Orderblock, LotsTable, PairingPanel, Reconciliation, CombinedScore, Overview)
+- [x] 10-03-PLAN.md — Convert remaining 5 CSS files + JSX inline color references + final zero-hex verification
 
 ### Phase 11: Dark Mode Activation + Charts
 **Goal**: Das gesamte Frontend ist dunkel gestylt — alle Komponenten, Charts und Lade-Zustaende verwenden das Dark Theme
@@ -119,6 +119,6 @@ Plans:
 | 7. Proactive Reconciliation | v1.1 | 2/2 | Complete | 2026-02-22 |
 | 8. Alert System | v1.1 | 3/3 | Complete | 2026-02-23 |
 | 9. XRPBTC Removal | v2.0 | 3/3 | Complete | 2026-02-23 |
-| 10. CSS Variable Foundation | 2/3 | In Progress|  | - |
+| 10. CSS Variable Foundation | 3/3 | Complete   | 2026-02-24 | - |
 | 11. Dark Mode Activation + Charts | v2.0 | 0/? | Not started | - |
 | 12. Navigation Restructure + Dashboard | v2.0 | 0/? | Not started | - |

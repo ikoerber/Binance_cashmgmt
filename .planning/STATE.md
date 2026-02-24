@@ -5,22 +5,22 @@
 See: .planning/PROJECT.md (updated 2026-02-23)
 
 **Core value:** Ledger-first, deterministisches, auditierbares Cashflow-Tracking und automatisiertes Trading-System
-**Current focus:** v2.0 Frontend Redesign + EUR-Fokus — Phase 10 in progress
+**Current focus:** v2.0 Frontend Redesign + EUR-Fokus — Phase 10 complete, Phase 11 next
 
 ## Current Position
 
 Milestone: v2.0 Frontend Redesign + EUR-Fokus
 Phase: 10 of 12 (CSS Variable Foundation)
-Plan: 2 of 3
-Status: Plan 02 complete
-Last activity: 2026-02-24 — Plan 02 complete (6 heaviest CSS files converted to var())
+Plan: 3 of 3
+Status: Phase 10 complete
+Last activity: 2026-02-24 — Plan 03 complete (all CSS files converted, zero-hex verified)
 
-Progress: [######----] 67%
+Progress: [########--] 75%
 
 ## Performance Metrics
 
 **Velocity (previous milestones):**
-- Total plans completed: 22 (8 v1.0 + 9 v1.1 + 5 v2.0)
+- Total plans completed: 23 (8 v1.0 + 9 v1.1 + 6 v2.0)
 - Average duration: 3.7min
 - Total execution time: 91min
 
@@ -31,6 +31,7 @@ Progress: [######----] 67%
 | 09-xrpbtc-removal | 03 | 6min | 2 | 7 |
 | 10-css-variable-foundation | 01 | 2min | 2 | 1 |
 | 10-css-variable-foundation | 02 | 9min | 2 | 7 |
+| 10-css-variable-foundation | 03 | 5min | 2 | 8 |
 
 ## Accumulated Context
 
@@ -56,13 +57,19 @@ v1.0 decision log archived in milestones/v1.0-phases/ SUMMARY.md files.
 - 10-02: Resolved both !important usages via parent selector specificity (.lots-table, .pairing-panel)
 - 10-02: rgba() shadow values left as-is (structural shadows, black-base with alpha)
 
+- 10-03: getComputedStyle pattern for Recharts fill props (Overview.jsx chart colors read from CSS vars at render time)
+- 10-03: Added --color-chart-1..5 tokens for theme-switchable pie chart fills
+- 10-03: PairingExistingTab.jsx inline style removed (redundant with .filter-group select CSS)
+- 10-03: 60 deferred JSX chart hex values documented for Phase 11 (OrderblockChart 23, Orderblock 14, CombinedScore 14, Overview 5, orderblockHelpers 4)
+
 ### Key Context for v2.0
 
 - XRPBTC removal: Historical DB data preserved (Ledger-first). Only code paths removed.
 - XRPBTC removal COMPLETE: Backend (Plan 01), Frontend (Plan 02), Migration + Tests (Plan 03) all done. 6 DB columns dropped, 4 test files deleted, 655 tests passing.
 - Dark Mode: Dark-only (no light/dark toggle). `[data-theme="dark"]` on `:root`.
-- 355+ of 444 hardcoded hex values converted in Plan 02 (6 heaviest files). Remaining ~90 hex values in 6 lighter files for Plan 03.
-- Chart libraries (lightweight-charts, Recharts) render outside CSS cascade — need programmatic theme integration.
+- DARK-01 COMPLETE: All 11 CSS files have zero hardcoded hex values. 440+ hex values converted across Plans 01-03.
+- Overview.jsx chart palette uses getComputedStyle pattern (theme-aware). 60 deferred JSX chart hex values for Phase 11.
+- Chart libraries (lightweight-charts, Recharts) render outside CSS cascade -- need programmatic theme integration in Phase 11.
 - Research confidence: HIGH across all 4 phases. No phases need additional research.
 
 ### Pending Todos
@@ -76,5 +83,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 10-02-PLAN.md (6 heaviest CSS files converted). Next: 10-03 (remaining CSS files + JSX inline styles)
+Stopped at: Completed 10-03-PLAN.md (Phase 10 complete: all CSS files converted, zero-hex verified). Next: Phase 11 (Dark Mode Activation + Charts)
 Resume file: None
