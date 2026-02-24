@@ -167,6 +167,44 @@
   --color-alert-blue-info-bg: #dbeafe;
   --color-history-expanded-bg: #eff6ff;
 
+  /* ─── Chart Palette (Recharts fill props) ─── */
+  --color-chart-1: #667eea;
+  --color-chart-2: #f59e0b;
+  --color-chart-3: #10b981;
+  --color-chart-4: #ef4444;
+  --color-chart-5: #8b5cf6;
+
+  /* ─── Price Display (Navbar) ─── */
+  --color-price-gold: #ffd700;
+  --color-price-up: #4ade80;
+  --color-price-down: #f87171;
+  --color-price-flash-glow: rgba(250, 204, 21, 0.5);
+  --color-price-alert-up-bg: rgba(22, 163, 74, 0.35);
+  --color-price-alert-down-bg: rgba(220, 38, 38, 0.35);
+  --color-ws-connected-bg: rgba(22, 163, 74, 0.3);
+  --color-ws-connected-text: #86efac;
+  --color-ws-polling-bg: rgba(247, 147, 26, 0.3);
+  --color-ws-polling-text: #fcd34d;
+
+  /* ─── Footer / Dark Elements ─── */
+  --color-footer-border: #334155;
+  --color-footer-code-bg: #334155;
+
+  /* ─── Dashboard Accents ─── */
+  --color-card-subtitle: #666666;
+  --color-card-sub-value: #888888;
+
+  /* ─── Settings ─── */
+  --color-settings-success-bg: #ecfdf5;
+  --color-settings-success-text: #065f46;
+  --color-settings-success-border: #a7f3d0;
+  --color-focus-ring-indigo: rgba(129, 140, 248, 0.15);
+  --color-shadow-pairing: rgba(99, 102, 241, 0.35);
+  --color-shadow-pairing-sm: rgba(99, 102, 241, 0.25);
+
+  /* ─── Notification ─── */
+  --color-notification-detail: #475569;
+
   /* ─── Links & Interactive ─── */
   --color-link: #646cff;
   --color-link-hover: #535bf2;
@@ -353,6 +391,44 @@
   --color-alert-blue-border: #0369a1;
   --color-alert-blue-info-bg: #1e3a5f;
   --color-history-expanded-bg: #0c1929;
+
+  /* ─── Chart Palette (Recharts fill props) ─── */
+  --color-chart-1: #818cf8;
+  --color-chart-2: #fbbf24;
+  --color-chart-3: #34d399;
+  --color-chart-4: #f87171;
+  --color-chart-5: #a78bfa;
+
+  /* ─── Price Display (Navbar) ─── */
+  --color-price-gold: #fbbf24;
+  --color-price-up: #4ade80;
+  --color-price-down: #f87171;
+  --color-price-flash-glow: rgba(251, 191, 36, 0.5);
+  --color-price-alert-up-bg: rgba(34, 197, 94, 0.3);
+  --color-price-alert-down-bg: rgba(239, 68, 68, 0.3);
+  --color-ws-connected-bg: rgba(34, 197, 94, 0.25);
+  --color-ws-connected-text: #86efac;
+  --color-ws-polling-bg: rgba(251, 191, 36, 0.25);
+  --color-ws-polling-text: #fbbf24;
+
+  /* ─── Footer / Dark Elements ─── */
+  --color-footer-border: #2e3348;
+  --color-footer-code-bg: #252838;
+
+  /* ─── Dashboard Accents ─── */
+  --color-card-subtitle: #94a3b8;
+  --color-card-sub-value: #64748b;
+
+  /* ─── Settings ─── */
+  --color-settings-success-bg: #052e16;
+  --color-settings-success-text: #22c55e;
+  --color-settings-success-border: #166534;
+  --color-focus-ring-indigo: rgba(129, 140, 248, 0.25);
+  --color-shadow-pairing: rgba(99, 102, 241, 0.3);
+  --color-shadow-pairing-sm: rgba(99, 102, 241, 0.2);
+
+  /* ─── Notification ─── */
+  --color-notification-detail: #94a3b8;
 
   /* ─── Links & Interactive ─── */
   --color-link: #818cf8;

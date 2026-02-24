@@ -10,7 +10,7 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: #f5f7fa;
+  background: var(--color-bg-page);
 }
 
 .App {
@@ -21,7 +21,7 @@ body {
   background: linear-gradient(135deg, var(--color-accent-navbar-start) 0%, var(--color-accent-navbar-end) 100%);
   padding: 14px 40px;
   color: white;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow-sm);
 }
 
 .navbar h1 {
@@ -78,15 +78,15 @@ code {
   justify-content: space-between;
   align-items: center;
   padding: 12px 40px;
-  background: #1e293b;
-  color: #94a3b8;
+  background: var(--color-bg-footer);
+  color: var(--color-text-muted);
   font-size: 12px;
-  border-top: 1px solid #334155;
+  border-top: 1px solid var(--color-footer-border);
 }
 
 .footer-ip {
   font-family: source-code-pro, Menlo, Monaco, Consolas, monospace;
-  background: #334155;
+  background: var(--color-footer-code-bg);
   padding: 2px 8px;
   border-radius: 4px;
 }
@@ -136,7 +136,7 @@ code {
 
 .symbol-pill.active {
   background: white;
-  color: #667eea;
+  color: var(--color-accent-navbar-start);
   border-color: white;
 }
 
@@ -164,8 +164,8 @@ code {
   justify-content: space-between;
   align-items: center;
   padding: 10px 40px;
-  background: #1e293b;
-  border-bottom: 1px solid #334155;
+  background: var(--color-bg-footer);
+  border-bottom: 1px solid var(--color-footer-border);
 }
 
 .subnav-links {
@@ -178,7 +178,7 @@ code {
   background: rgba(255, 255, 255, 0.08);
   border: none;
   border-radius: 6px;
-  color: #94a3b8;
+  color: var(--color-text-muted);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -218,16 +218,16 @@ code {
 .price-value {
   font-size: 20px;
   font-weight: bold;
-  color: #ffd700;
+  color: var(--color-price-gold);
   transition: color 0.3s ease;
 }
 
 .price-value.price-up {
-  color: #4ade80;
+  color: var(--color-price-up);
 }
 
 .price-value.price-down {
-  color: #f87171;
+  color: var(--color-price-down);
 }
 
 .price-update {
@@ -250,7 +250,7 @@ code {
     box-shadow: 0 0 0 0 transparent;
   }
   50% {
-    box-shadow: 0 0 16px 4px rgba(250, 204, 21, 0.5);
+    box-shadow: 0 0 16px 4px var(--color-price-flash-glow);
   }
 }
 
@@ -264,13 +264,13 @@ code {
 }
 
 .price-alert-up {
-  background: rgba(22, 163, 74, 0.35);
-  color: #4ade80;
+  background: var(--color-price-alert-up-bg);
+  color: var(--color-price-up);
 }
 
 .price-alert-down {
-  background: rgba(220, 38, 38, 0.35);
-  color: #f87171;
+  background: var(--color-price-alert-down-bg);
+  color: var(--color-price-down);
 }
 
 @keyframes alert-fade-in {
@@ -293,13 +293,13 @@ code {
 }
 
 .ws-connected {
-  background: rgba(22, 163, 74, 0.3);
-  color: #86efac;
+  background: var(--color-ws-connected-bg);
+  color: var(--color-ws-connected-text);
 }
 
 .ws-polling {
-  background: rgba(247, 147, 26, 0.3);
-  color: #fcd34d;
+  background: var(--color-ws-polling-bg);
+  color: var(--color-ws-polling-text);
 }
 
 @media (max-width: 768px) {

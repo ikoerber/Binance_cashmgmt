@@ -14,13 +14,24 @@ import { getAllSymbols, getPairLabel, getBaseLabel, getBaseAsset, getQuoteAsset 
 import { formatEUR, formatBase, formatNumber } from '../utils/formatters';
 import './Overview.css';
 
-const COLORS = ['#667eea', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6'];
+/** Read chart palette from CSS custom properties (theme-aware) */
+const getChartColors = () => {
+  const style = getComputedStyle(document.documentElement);
+  return [
+    style.getPropertyValue('--color-chart-1').trim() || '#667eea',
+    style.getPropertyValue('--color-chart-2').trim() || '#f59e0b',
+    style.getPropertyValue('--color-chart-3').trim() || '#10b981',
+    style.getPropertyValue('--color-chart-4').trim() || '#ef4444',
+    style.getPropertyValue('--color-chart-5').trim() || '#8b5cf6',
+  ];
+};
 
 const Overview = () => {
   const { userId } = useUser();
   const { prices } = useWebSocket();
   const navigate = useNavigate();
   const symbols = getAllSymbols();
+  const COLORS = getChartColors();
 
   // Parallel portfolio queries fuer alle Symbole (useQueries statt useQuery in .map())
   const portfolioQueries = useQueries({

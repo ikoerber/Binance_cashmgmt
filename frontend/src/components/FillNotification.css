@@ -8,20 +8,20 @@
   gap: 12px;
   padding: 12px 16px;
   border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--shadow-hover);
   animation: fillSlideIn 0.3s ease-out;
   max-width: 360px;
   font-size: 0.875rem;
 }
 
 .fill-buy {
-  background: #f0fdf4;
-  border-left: 4px solid #16a34a;
+  background: var(--color-success-bg-light);
+  border-left: 4px solid var(--color-profit);
 }
 
 .fill-sell {
   background: var(--color-error-bg);
-  border-left: 4px solid #dc2626;
+  border-left: 4px solid var(--color-loss);
 }
 
 .fill-notification-icon {
@@ -50,7 +50,7 @@
 }
 
 .fill-notification-detail {
-  color: #475569;
+  color: var(--color-notification-detail);
   font-size: 0.8125rem;
 }
 
@@ -70,7 +70,7 @@
 }
 
 .fill-notification-close:hover {
-  color: #475569;
+  color: var(--color-notification-detail);
 }
 
 @keyframes fillSlideIn {
