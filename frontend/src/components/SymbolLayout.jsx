@@ -8,7 +8,7 @@
 import { Outlet, NavLink, Navigate, useParams } from 'react-router-dom';
 import { useLivePrice } from '../contexts/WebSocketContext';
 import { SymbolProvider } from '../contexts/SymbolContext';
-import { KNOWN_PAIRS, getPairLabel } from '../utils/symbolRegistry';
+import { KNOWN_PAIRS, getPairLabel, getQuoteAsset, getQuoteDecimals, getQuoteLabel } from '../utils/symbolRegistry';
 
 const SymbolLayout = () => {
   const { symbol } = useParams();
@@ -26,7 +26,6 @@ const SymbolLayout = () => {
       {/* Tier-2: Sub-Navigation + Live-Preis */}
       <div className="symbol-subnav">
         <div className="subnav-links">
-          <NavLink to={`/s/${symbol}`} end>Dashboard</NavLink>
           <NavLink to={`/s/${symbol}/lots`}>TradeLots</NavLink>
           <NavLink to={`/s/${symbol}/combined`}>Combined Score</NavLink>
           <NavLink to={`/s/${symbol}/orderblock`}>Orderblock</NavLink>
@@ -42,9 +41,9 @@ const SymbolLayout = () => {
                 {direction === 'up' && '\u25B2 '}
                 {direction === 'down' && '\u25BC '}
                 {marketPrice ? marketPrice.toLocaleString('de-DE', {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2
-                }) : '\u2014'} \u20ac
+                  minimumFractionDigits: getQuoteDecimals(symbol),
+                  maximumFractionDigits: getQuoteDecimals(symbol)
+                }) : '\u2014'} {getQuoteAsset(symbol) === 'EUR' ? '\u20ac' : getQuoteLabel(symbol)}
               </span>
               {isFlashing && (
                 <span className={`price-alert ${direction === 'up' ? 'price-alert-up' : 'price-alert-down'}`}>

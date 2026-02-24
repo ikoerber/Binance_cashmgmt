@@ -56,6 +56,8 @@ class BinancePublicClient:
             timeout: Request Timeout in Sekunden (Default: 10)
         """
         self.timeout = timeout
+        self._exchange_info_cache: dict[str, CachedValue] = {}
+        self._exchange_info_lock = threading.Lock()
 
     @retry_on_transient_error()
     def get_ticker_price(self, symbol: str) -> Decimal:
@@ -115,6 +117,57 @@ class BinancePublicClient:
         )
         resp.raise_for_status()
         return resp.json()
+
+    @retry_on_transient_error()
+    def _fetch_exchange_info(self, symbol: str) -> dict:
+        """
+        Holt Exchange Info fuer ein Symbol von Binance.
+
+        GET /api/v3/exchangeInfo?symbol=...
+
+        Returns:
+            Symbol-Info Dict mit 'filters' Array
+        """
+        resp = requests.get(
+            f"{BASE_URL}/api/v3/exchangeInfo",
+            params={"symbol": symbol},
+            timeout=self.timeout,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        symbols = data.get("symbols", [])
+        if not symbols:
+            raise ValueError(f"Keine Exchange Info fuer {symbol}")
+        return symbols[0]
+
+    def get_symbol_filters(self, symbol: str) -> "SymbolFilters":
+        """
+        Gibt gecachte SymbolFilters zurueck (24h TTL).
+
+        Returns:
+            SymbolFilters Dataclass mit LOT_SIZE, PRICE_FILTER, NOTIONAL
+        """
+        from app.domain.orders import parse_symbol_filters
+
+        now = datetime.now()
+        cache_key = f"filters_{symbol}"
+
+        with self._exchange_info_lock:
+            cached = self._exchange_info_cache.get(cache_key)
+            if cached and not cached.is_expired(now):
+                return cached.value
+
+        # Fetch ausserhalb des Locks (I/O)
+        raw = self._fetch_exchange_info(symbol)
+        filters = parse_symbol_filters(raw.get("filters", []))
+
+        with self._exchange_info_lock:
+            self._exchange_info_cache[cache_key] = CachedValue(
+                value=filters,
+                fetched_at=now,
+                ttl=timedelta(hours=24),
+            )
+        return filters
 
 
 # ─── Singleton ───
