@@ -8,6 +8,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getCombinedScore, getSettings } from '../api/client';
 import { formatNumber } from '../utils/formatters';
+import { useChartTheme } from '../hooks/useChartTheme';
 import { useSymbol } from '../contexts/SymbolContext';
 import { useUser } from '../contexts/UserContext';
 import { getPairLabel } from '../utils/symbolRegistry';
@@ -19,19 +20,20 @@ const QUALITY_LABELS = {
   degraded: 'Unzuverlaessig',
 };
 
-const MACRO_REC_COLORS = {
-  'STARK LONG': '#16a34a',
-  'LONG': '#22c55e',
-  'NEUTRAL': '#64748b',
-  'SHORT': '#f97316',
-  'STARK SHORT': '#dc2626',
-};
-
 const CombinedScore = () => {
   const { userId } = useUser();
   const { symbol } = useSymbol();
+  const theme = useChartTheme();
   const [showMacroDetail, setShowMacroDetail] = useState(false);
   const [showSentimentDetail, setShowSentimentDetail] = useState(false);
+
+  const MACRO_REC_COLORS = {
+    'STARK LONG': theme.actionStrongBuy,
+    'LONG': theme.actionBuy,
+    'NEUTRAL': theme.actionHold,
+    'SHORT': theme.actionSell,
+    'STARK SHORT': theme.actionStrongSell,
+  };
 
   const { data: settings } = useQuery({
     queryKey: ['settings', userId],
@@ -79,7 +81,7 @@ const CombinedScore = () => {
           <span className="combined-action-label" style={{ color: data.action_color }}>
             {data.action}
           </span>
-          <span className="combined-multiplier" style={{ color: data.size_multiplier > 1 ? '#16a34a' : data.size_multiplier < 1 ? '#dc2626' : '#64748b' }}>
+          <span className="combined-multiplier" style={{ color: data.size_multiplier > 1 ? theme.profit : data.size_multiplier < 1 ? theme.loss : theme.textMuted }}>
             {formatNumber(data.size_multiplier, 2)}x
           </span>
         </div>
@@ -137,7 +139,7 @@ const CombinedScore = () => {
           <div className="combined-subsignal-body">
             <span
               className="combined-rec-badge"
-              style={{ backgroundColor: MACRO_REC_COLORS[data.direction.recommendation] || '#64748b' }}
+              style={{ backgroundColor: MACRO_REC_COLORS[data.direction.recommendation] || theme.actionHold }}
             >
               {data.direction.recommendation}
             </span>
@@ -220,7 +222,7 @@ const CombinedScore = () => {
               </div>
               <div className="combined-metric">
                 <span className="combined-metric-label">Multiplikator</span>
-                <span className="combined-metric-value" style={{ color: data.sizing.buy_size_multiplier > 1 ? '#16a34a' : data.sizing.buy_size_multiplier < 1 ? '#dc2626' : '#64748b' }}>
+                <span className="combined-metric-value" style={{ color: data.sizing.buy_size_multiplier > 1 ? theme.profit : data.sizing.buy_size_multiplier < 1 ? theme.loss : theme.textMuted }}>
                   {formatNumber(data.sizing.buy_size_multiplier, 2)}x
                 </span>
               </div>
@@ -251,14 +253,14 @@ const CombinedScore = () => {
                       style={{
                         width: `${p.score}%`,
                         background: p.score <= 25
-                          ? 'linear-gradient(90deg, #dc2626, #f97316)'
+                          ? `linear-gradient(90deg, ${theme.gradientPillarFearStart}, ${theme.gradientPillarFearEnd})`
                           : p.score <= 40
-                            ? 'linear-gradient(90deg, #f97316, #fb923c)'
+                            ? `linear-gradient(90deg, ${theme.gradientPillarCautionStart}, ${theme.gradientPillarCautionEnd})`
                             : p.score <= 60
-                              ? 'linear-gradient(90deg, #94a3b8, #64748b)'
+                              ? `linear-gradient(90deg, ${theme.gradientPillarNeutralStart}, ${theme.gradientPillarNeutralEnd})`
                               : p.score <= 75
-                                ? 'linear-gradient(90deg, #4ade80, #22c55e)'
-                                : 'linear-gradient(90deg, #22c55e, #16a34a)',
+                                ? `linear-gradient(90deg, ${theme.gradientPillarGreedStart}, ${theme.gradientPillarGreedEnd})`
+                                : `linear-gradient(90deg, ${theme.gradientPillarExtremeStart}, ${theme.gradientPillarExtremeEnd})`,
                       }}
                     />
                   </div>

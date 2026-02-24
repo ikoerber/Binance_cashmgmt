@@ -18,11 +18,11 @@ import './Overview.css';
 const getChartColors = () => {
   const style = getComputedStyle(document.documentElement);
   return [
-    style.getPropertyValue('--color-chart-1').trim() || '#667eea',
-    style.getPropertyValue('--color-chart-2').trim() || '#f59e0b',
-    style.getPropertyValue('--color-chart-3').trim() || '#10b981',
-    style.getPropertyValue('--color-chart-4').trim() || '#ef4444',
-    style.getPropertyValue('--color-chart-5').trim() || '#8b5cf6',
+    style.getPropertyValue('--color-chart-1').trim() || '#818cf8',
+    style.getPropertyValue('--color-chart-2').trim() || '#fbbf24',
+    style.getPropertyValue('--color-chart-3').trim() || '#34d399',
+    style.getPropertyValue('--color-chart-4').trim() || '#f87171',
+    style.getPropertyValue('--color-chart-5').trim() || '#a78bfa',
   ];
 };
 

@@ -1,7 +1,9 @@
 import { formatNumber } from '../utils/formatters';
 import { getScoreGradient } from '../utils/orderblockHelpers.jsx';
+import { useChartTheme } from '../hooks/useChartTheme';
 
 const OrderblockKPIs = ({ allZones, metrics, analyzeResult }) => {
+  const theme = useChartTheme();
   if (allZones.length === 0 && !metrics) return null;
 
   const unmitCount = allZones.filter(z => z.state === 'UNMITIGATED').length;
@@ -41,7 +43,7 @@ const OrderblockKPIs = ({ allZones, metrics, analyzeResult }) => {
         <div className="ob-kpi-bar-track">
           <div
             className="ob-kpi-bar-fill"
-            style={{ width: `${avgScore}%`, background: getScoreGradient(avgScore) }}
+            style={{ width: `${avgScore}%`, background: getScoreGradient(avgScore, theme) }}
           />
         </div>
       </div>

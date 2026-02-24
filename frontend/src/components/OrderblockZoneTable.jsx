@@ -1,5 +1,6 @@
-import { formatEUR, formatDate, formatTime, formatNumber } from '../utils/formatters';
+import { formatQuote, formatDate, formatTime, formatNumber } from '../utils/formatters';
 import { SortIcon, getScoreGradient, zoneDistance } from '../utils/orderblockHelpers.jsx';
+import { useChartTheme } from '../hooks/useChartTheme';
 
 const OrderblockZoneTable = ({
   sortedZones,
@@ -8,7 +9,9 @@ const OrderblockZoneTable = ({
   zoneSortConfig,
   onSort,
   marketPrice,
+  symbol,
 }) => {
+  const theme = useChartTheme();
   if (sortedZones.length === 0) return null;
 
   return (
@@ -83,7 +86,7 @@ const OrderblockZoneTable = ({
                       className="ob-score-bar-fill"
                       style={{
                         width: `${parseFloat(zone.conviction_score) || 0}%`,
-                        background: getScoreGradient(zone.conviction_score),
+                        background: getScoreGradient(zone.conviction_score, theme),
                       }}
                     />
                   </div>
@@ -91,7 +94,7 @@ const OrderblockZoneTable = ({
               </td>
               <td>
                 {zone.has_liquidity_sweep ? (
-                  <span className="ob-badge sweep-yes" title={zone.liquidity_sweep_level ? `Level: ${formatEUR(zone.liquidity_sweep_level)}` : ''}>
+                  <span className="ob-badge sweep-yes" title={zone.liquidity_sweep_level ? `Level: ${formatQuote(zone.liquidity_sweep_level, symbol)}` : ''}>
                     Sweep
                   </span>
                 ) : (
@@ -111,13 +114,13 @@ const OrderblockZoneTable = ({
                 )}
               </td>
               <td>
-                <div className="cell-mono">{formatEUR(zone.zone_top)}</div>
-                <div className="cell-secondary">{formatEUR(zone.zone_bottom)}</div>
+                <div className="cell-mono">{formatQuote(zone.zone_top, symbol)}</div>
+                <div className="cell-secondary">{formatQuote(zone.zone_bottom, symbol)}</div>
               </td>
               <td>
                 {marketPrice ? (
                   <span className="cell-mono">
-                    {formatEUR(zoneDistance(zone, marketPrice))}
+                    {formatQuote(zoneDistance(zone, marketPrice), symbol)}
                   </span>
                 ) : '\u2014'}
               </td>
