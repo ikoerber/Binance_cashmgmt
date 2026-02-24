@@ -25,14 +25,14 @@
 
 .lots-header h2 span {
   font-weight: 400;
-  color: #8b8fa3;
+  color: var(--color-text-muted);
   font-size: 16px;
   margin-left: 4px;
 }
 
 .btn-sync {
   padding: 10px 22px;
-  background: linear-gradient(135deg, #f7931a 0%, #e8850f 100%);
+  background: linear-gradient(135deg, var(--color-gradient-sync-start) 0%, var(--color-gradient-sync-end) 100%);
   color: white;
   border: none;
   border-radius: var(--radius-md);
@@ -85,15 +85,15 @@
 }
 
 .sync-success {
-  background: #ecfdf5;
-  color: #065f46;
-  border: 1px solid #a7f3d0;
+  background: var(--color-success-bg-light);
+  color: var(--color-success-text-dark);
+  border: 1px solid var(--color-success-border);
 }
 
 .sync-info {
-  background: #eff6ff;
-  color: #1e40af;
-  border: 1px solid #bfdbfe;
+  background: var(--color-info-bg);
+  color: var(--color-info-text);
+  border: 1px solid var(--color-info-border);
 }
 
 .sync-error {
@@ -131,7 +131,7 @@
 }
 
 .summary-card {
-  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  background: linear-gradient(135deg, var(--color-gradient-section-start) 0%, var(--color-gradient-section-end) 100%);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   padding: 16px 20px;
@@ -162,7 +162,7 @@
   gap: 12px;
   flex-wrap: wrap;
   padding: 16px 20px;
-  background: #f8fafc;
+  background: var(--color-bg-subtle);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   margin-bottom: 20px;
@@ -186,7 +186,7 @@
 .filter-group input[type="date"],
 .filter-group select {
   padding: 8px 12px;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--color-border-input);
   border-radius: 8px;
   font-size: 13px;
   font-family: inherit;
@@ -200,12 +200,12 @@
 .filter-group input[type="text"]:focus,
 .filter-group input[type="date"]:focus,
 .filter-group select:focus {
-  border-color: #818cf8;
+  border-color: var(--color-accent-indigo);
   box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.15);
 }
 
 .filter-group input[type="text"]::placeholder {
-  color: #9ca3af;
+  color: var(--color-text-placeholder);
 }
 
 .filter-group input[type="text"] {
@@ -224,7 +224,7 @@
   gap: 8px;
   cursor: pointer;
   font-size: 13px;
-  color: #475569;
+  color: var(--color-text-body);
   padding-bottom: 2px;
   user-select: none;
 }
@@ -245,7 +245,7 @@
 .toggle-slider {
   position: absolute;
   inset: 0;
-  background: #cbd5e1;
+  background: var(--color-scrollbar-thumb);
   border-radius: 20px;
   transition: background 0.2s;
   cursor: pointer;
@@ -265,7 +265,7 @@
 }
 
 .toggle-switch input:checked + .toggle-slider {
-  background: #818cf8;
+  background: var(--color-accent-indigo);
 }
 
 .toggle-switch input:checked + .toggle-slider::before {
@@ -288,7 +288,7 @@
 .btn-reset-filters {
   padding: 8px 16px;
   background: var(--color-bg-card);
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--color-border-input);
   border-radius: 8px;
   font-size: 12px;
   font-weight: 500;
@@ -300,14 +300,14 @@
 }
 
 .btn-reset-filters:hover {
-  background: #f1f5f9;
+  background: var(--color-bg-muted);
   border-color: var(--color-text-muted);
-  color: #334155;
+  color: var(--color-text-dark);
 }
 
 /* ─── Open Orders Panel ─── */
 .open-orders-panel {
-  background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
+  background: linear-gradient(135deg, var(--color-gradient-success-start) 0%, var(--color-gradient-success-end) 100%);
   border: 1px solid var(--color-success-border);
   border-radius: var(--radius-lg);
   padding: 16px 20px;
@@ -334,7 +334,7 @@
   text-align: left;
   font-weight: 600;
   color: var(--color-success-text);
-  border-bottom: 1px solid #bbf7d0;
+  border-bottom: 1px solid var(--color-success-border);
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -342,27 +342,27 @@
 
 .open-orders-table td {
   padding: 8px 12px;
-  border-bottom: 1px solid #dcfce7;
+  border-bottom: 1px solid var(--color-success-bg);
   color: var(--color-text-primary);
 }
 
 /* Buy Orders Variante */
 .open-orders-buy {
-  background: linear-gradient(135deg, #eff6ff 0%, #eef2ff 100%);
-  border-color: #bfdbfe;
+  background: linear-gradient(135deg, var(--color-gradient-info-start) 0%, var(--color-gradient-info-end) 100%);
+  border-color: var(--color-info-border);
 }
 
 .open-orders-buy h3 {
-  color: #2563eb;
+  color: var(--color-accent-blue);
 }
 
 .open-orders-buy .open-orders-table th {
-  color: #2563eb;
-  border-bottom-color: #bfdbfe;
+  color: var(--color-accent-blue);
+  border-bottom-color: var(--color-info-border);
 }
 
 .open-orders-buy .open-orders-table td {
-  border-bottom-color: #dbeafe;
+  border-bottom-color: var(--color-badge-blue-bg);
 }
 
 /* ─── Order Status Dot ─── */
@@ -375,7 +375,7 @@
 }
 
 .order-status-dot.open {
-  background: #22c55e;
+  background: var(--color-profit-bright);
   box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.2);
 }
 
@@ -394,7 +394,7 @@
 
 /* ─── Sell Price Warning ─── */
 .order-status-dot.warning {
-  background: #f59e0b;
+  background: var(--color-accent-amber);
   box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.25);
 }
 
@@ -413,12 +413,12 @@
   cursor: help;
 }
 
-.order-row-warning {
-  background: #fffbeb !important;
+.lots-table .order-row-warning {
+  background: var(--color-bg-warning-row);
 }
 
-.order-row-warning:hover {
-  background: #fef3c7 !important;
+.lots-table .order-row-warning:hover {
+  background: var(--color-warning-row-hover);
 }
 
 .sell-order-cell {
@@ -428,7 +428,7 @@
 .btn-create-order {
   padding: 4px 10px;
   background: var(--color-bg-card);
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--color-border-input);
   border-radius: 6px;
   font-size: 11px;
   font-weight: 600;
@@ -439,8 +439,8 @@
 }
 
 .btn-create-order:hover:not(:disabled) {
-  background: #f0fdf4;
-  border-color: #86efac;
+  background: var(--color-gradient-success-start);
+  border-color: var(--color-success-border-light);
   color: var(--color-profit);
 }
 
@@ -463,7 +463,7 @@
 }
 
 .lots-table thead {
-  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+  background: linear-gradient(180deg, var(--color-gradient-section-start) 0%, var(--color-gradient-section-end) 100%);
 }
 
 .lots-table th {
@@ -471,7 +471,7 @@
   text-align: left;
   font-weight: 600;
   color: var(--color-text-secondary);
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--color-border);
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -481,7 +481,7 @@
 .lots-table td {
   padding: 12px 16px;
   border-bottom: 1px solid var(--color-border-light);
-  color: #334155;
+  color: var(--color-text-dark);
 }
 
 .lots-table tbody tr {
@@ -489,15 +489,15 @@
 }
 
 .lots-table tbody tr:hover {
-  background: #f8fafc;
+  background: var(--color-bg-subtle);
 }
 
 .lots-table tbody tr:nth-child(even) {
-  background: #fafbfd;
+  background: var(--color-table-row-even);
 }
 
 .lots-table tbody tr:nth-child(even):hover {
-  background: #f1f5f9;
+  background: var(--color-bg-hover);
 }
 
 /* Last row no border */
@@ -514,7 +514,7 @@
 .import-source-badge {
   display: inline-block;
   padding: 2px 8px;
-  background: #f1f5f9;
+  background: var(--color-bg-muted);
   color: var(--color-text-secondary);
   border: 1px solid var(--color-border);
   border-radius: 4px;
@@ -527,7 +527,7 @@
 .lots-table td.date,
 .lots-table td.time {
   white-space: nowrap;
-  color: #475569;
+  color: var(--color-text-body);
 }
 
 .lots-table td.time {
@@ -564,7 +564,7 @@
 
 /* Recovery price summary card */
 .recovery-card {
-  border-left: 3px solid #dc2626;
+  border-left: 3px solid var(--color-loss);
 }
 
 .recovery-card .recovery-value {
@@ -594,12 +594,12 @@
 }
 
 .status-badge.partial_closed {
-  background: #fef3c7;
-  color: #92400e;
+  background: var(--color-warning-bg);
+  color: var(--color-warning-text);
 }
 
 .status-badge.closed {
-  background: #f1f5f9;
+  background: var(--color-bg-muted);
   color: var(--color-text-secondary);
 }
 
@@ -611,8 +611,8 @@
 }
 
 .lots-table th.sortable:hover {
-  color: #334155;
-  background: #e2e8f0;
+  color: var(--color-text-dark);
+  background: var(--color-border);
 }
 
 .sort-icon {
@@ -623,7 +623,7 @@
 
 .sort-icon.active {
   opacity: 1;
-  color: #6366f1;
+  color: var(--color-accent-pairing);
 }
 
 /* ─── No data ─── */
@@ -638,7 +638,7 @@
 }
 
 .no-data code {
-  background: #f1f5f9;
+  background: var(--color-bg-muted);
   padding: 8px 12px;
   border-radius: 6px;
   font-family: monospace;
@@ -671,31 +671,31 @@
   width: 16px;
   height: 16px;
   cursor: pointer;
-  accent-color: #6366f1;
+  accent-color: var(--color-accent-pairing);
 }
 
 /* ─── Selected Row Highlight ─── */
 .lots-table tbody tr.lot-selected {
-  background: #eef2ff;
+  background: var(--color-bg-selected);
 }
 
 .lots-table tbody tr.lot-selected:hover {
-  background: #e0e7ff;
+  background: var(--color-bg-selected-hover);
 }
 
 /* ─── Pairing Hover Highlight ─── */
 .lots-table tbody tr.lot-highlighted {
-  background: #fef3c7;
-  box-shadow: inset 3px 0 0 #f59e0b;
+  background: var(--color-warning-bg);
+  box-shadow: inset 3px 0 0 var(--color-accent-amber);
 }
 
 .lots-table tbody tr.lot-highlighted:hover {
-  background: #fde68a;
+  background: var(--color-warning-highlight);
 }
 
 .lots-table tbody tr.lot-selected.lot-highlighted {
-  background: #fde68a;
-  box-shadow: inset 3px 0 0 #f59e0b;
+  background: var(--color-warning-highlight);
+  box-shadow: inset 3px 0 0 var(--color-accent-amber);
 }
 
 /* ─── Pairing Action Bar ─── */
@@ -709,9 +709,9 @@
 .btn-pairing-toggle {
   padding: 8px 18px;
   background: var(--color-bg-card);
-  border: 1px solid #818cf8;
+  border: 1px solid var(--color-accent-indigo);
   border-radius: 8px;
-  color: #6366f1;
+  color: var(--color-accent-pairing);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -722,13 +722,13 @@
 }
 
 .btn-pairing-toggle:hover {
-  background: #eef2ff;
+  background: var(--color-bg-selected);
 }
 
 .btn-pairing-toggle.active {
-  background: #6366f1;
+  background: var(--color-accent-pairing);
   color: white;
-  border-color: #6366f1;
+  border-color: var(--color-accent-pairing);
 }
 
 .selection-badge {
@@ -745,7 +745,7 @@
 }
 
 .btn-pairing-toggle:not(.active) .selection-badge {
-  background: #6366f1;
+  background: var(--color-accent-pairing);
   color: white;
 }
 
@@ -767,7 +767,7 @@
 
 .btn-clear-selection:hover {
   border-color: var(--color-text-muted);
-  color: #475569;
+  color: var(--color-text-body);
 }
 
 /* ─── Responsive ─── */
@@ -801,11 +801,11 @@
 
 /* ─── Lot Merge ─── */
 .lot-merge-group {
-  border-left: 3px solid #6366f1;
+  border-left: 3px solid var(--color-accent-pairing);
 }
 
 .btn-merge {
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  background: linear-gradient(135deg, var(--color-gradient-merge-start), var(--color-gradient-merge-end));
   color: white;
   border: none;
   padding: 3px 8px;

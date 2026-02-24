@@ -1,7 +1,7 @@
 /* ─── Pairing Panel Container ─── */
 .pairing-panel {
-  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
-  border: 1px solid #c7d2fe;
+  background: linear-gradient(135deg, var(--color-gradient-section-start) 0%, var(--color-gradient-section-end) 100%);
+  border: 1px solid var(--color-accent-pairing-border);
   border-radius: var(--radius-lg);
   padding: 20px;
   margin-bottom: 20px;
@@ -13,7 +13,7 @@
   display: flex;
   gap: 4px;
   margin-bottom: 16px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--color-border);
   padding-bottom: 12px;
 }
 
@@ -30,14 +30,14 @@
 }
 
 .pairing-tabs button:hover {
-  background: #e0e7ff;
-  color: #4338ca;
+  background: var(--color-bg-selected-hover);
+  color: var(--color-accent-pairing-dark);
 }
 
 .pairing-tabs button.active {
-  background: #6366f1;
+  background: var(--color-accent-pairing);
   color: white;
-  border-color: #6366f1;
+  border-color: var(--color-accent-pairing);
 }
 
 /* ─── Tab Content ─── */
@@ -62,7 +62,7 @@
 
 .pairing-controls .filter-group input[type="number"] {
   padding: 8px 12px;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--color-border-input);
   border-radius: 8px;
   font-size: 13px;
   font-family: inherit;
@@ -74,14 +74,14 @@
 }
 
 .pairing-controls .filter-group input[type="number"]:focus {
-  border-color: #818cf8;
+  border-color: var(--color-accent-indigo);
   box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.15);
 }
 
 .btn-refresh {
   padding: 8px 16px;
   background: var(--color-bg-card);
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--color-border-input);
   border-radius: 8px;
   font-size: 12px;
   font-weight: 500;
@@ -92,7 +92,7 @@
 }
 
 .btn-refresh:hover {
-  background: #f1f5f9;
+  background: var(--color-bg-muted);
   border-color: var(--color-text-muted);
 }
 
@@ -106,26 +106,26 @@
 .pairing-card {
   background: var(--color-bg-card);
   border: 1px solid var(--color-border);
-  border-left: 3px solid #818cf8;
+  border-left: 3px solid var(--color-accent-indigo);
   border-radius: var(--radius-md);
   padding: 16px;
   transition: box-shadow 0.2s;
 }
 
 .pairing-card:hover {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--shadow-sm);
 }
 
 .pairing-card.draft {
-  border-left-color: #818cf8;
+  border-left-color: var(--color-accent-indigo);
 }
 
 .pairing-card.locked {
-  border-left-color: #f59e0b;
+  border-left-color: var(--color-accent-amber);
 }
 
 .pairing-card.executed {
-  border-left-color: #22c55e;
+  border-left-color: var(--color-profit-bright);
   opacity: 0.75;
 }
 
@@ -166,7 +166,7 @@
   gap: 6px;
   margin-bottom: 12px;
   font-size: 13px;
-  color: #475569;
+  color: var(--color-text-body);
 }
 
 .pairing-card-details .label {
@@ -187,7 +187,7 @@
 .lot-chip {
   display: inline-block;
   padding: 2px 8px;
-  background: #f1f5f9;
+  background: var(--color-bg-muted);
   border-radius: 4px;
   font-family: 'SF Mono', 'Fira Code', monospace;
   font-size: 11px;
@@ -200,15 +200,15 @@
   gap: 8px;
   flex-wrap: wrap;
   padding-top: 12px;
-  border-top: 1px solid #f1f5f9;
+  border-top: 1px solid var(--color-border-light);
 }
 
 .btn-simulate {
   padding: 6px 14px;
   background: var(--color-bg-card);
-  border: 1px solid #818cf8;
+  border: 1px solid var(--color-accent-indigo);
   border-radius: 6px;
-  color: #6366f1;
+  color: var(--color-accent-pairing);
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
@@ -216,7 +216,7 @@
 }
 
 .btn-simulate:hover:not(:disabled) {
-  background: #eef2ff;
+  background: var(--color-bg-selected);
 }
 
 .btn-simulate:disabled {
@@ -226,7 +226,7 @@
 
 .btn-create-from-suggestion {
   padding: 6px 14px;
-  background: #6366f1;
+  background: var(--color-accent-pairing);
   border: none;
   border-radius: 6px;
   color: white;
@@ -237,7 +237,7 @@
 }
 
 .btn-create-from-suggestion:hover:not(:disabled) {
-  background: #4f46e5;
+  background: var(--color-accent-pairing-hover);
 }
 
 .btn-create-from-suggestion:disabled {
@@ -247,7 +247,7 @@
 
 .btn-lock {
   padding: 6px 14px;
-  background: #f59e0b;
+  background: var(--color-accent-amber);
   border: none;
   border-radius: 6px;
   color: white;
@@ -258,7 +258,7 @@
 }
 
 .btn-lock:hover:not(:disabled) {
-  background: #d97706;
+  background: var(--color-accent-orderblock);
 }
 
 .btn-lock:disabled {
@@ -269,9 +269,9 @@
 .btn-unlock {
   padding: 6px 14px;
   background: var(--color-bg-card);
-  border: 1px solid #f59e0b;
+  border: 1px solid var(--color-accent-amber);
   border-radius: 6px;
-  color: #d97706;
+  color: var(--color-accent-orderblock);
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
@@ -279,7 +279,7 @@
 }
 
 .btn-unlock:hover:not(:disabled) {
-  background: #fffbeb;
+  background: var(--color-bg-warning-row);
 }
 
 .btn-unlock:disabled {
@@ -289,7 +289,7 @@
 
 .btn-execute {
   padding: 6px 14px;
-  background: #16a34a;
+  background: var(--color-profit);
   border: none;
   border-radius: 6px;
   color: white;
@@ -300,7 +300,7 @@
 }
 
 .btn-execute:hover:not(:disabled) {
-  background: #15803d;
+  background: var(--color-profit-hover);
 }
 
 .btn-execute:disabled {
@@ -311,7 +311,7 @@
 .btn-delete {
   padding: 6px 14px;
   background: var(--color-bg-card);
-  border: 1px solid #fca5a5;
+  border: 1px solid var(--color-error-border-light);
   border-radius: 6px;
   color: var(--color-loss);
   font-size: 12px;
@@ -331,7 +331,7 @@
 
 .executed-label {
   font-size: 12px;
-  color: #22c55e;
+  color: var(--color-profit-bright);
   font-weight: 600;
 }
 
@@ -352,12 +352,12 @@
   font-size: 16px;
 }
 
-.summary-profit .summary-value {
-  color: var(--color-profit) !important;
+.pairing-panel .summary-profit .summary-value {
+  color: var(--color-profit);
 }
 
-.summary-loss .summary-value {
-  color: var(--color-loss) !important;
+.pairing-panel .summary-loss .summary-value {
+  color: var(--color-loss);
 }
 
 .selected-lots-table {
@@ -372,7 +372,7 @@
   text-align: left;
   font-weight: 600;
   color: var(--color-text-secondary);
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--color-border);
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -381,7 +381,7 @@
 .selected-lots-table td {
   padding: 8px 12px;
   border-bottom: 1px solid var(--color-border-light);
-  color: #334155;
+  color: var(--color-text-dark);
 }
 
 .btn-remove-lot {
@@ -396,7 +396,7 @@
 }
 
 .btn-remove-lot:hover {
-  border-color: #fca5a5;
+  border-color: var(--color-error-border-light);
   color: var(--color-loss);
   background: var(--color-error-bg);
 }
@@ -409,7 +409,7 @@
 
 .btn-create-pairing {
   padding: 10px 22px;
-  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+  background: linear-gradient(135deg, var(--color-gradient-pairing-start) 0%, var(--color-gradient-pairing-end) 100%);
   color: white;
   border: none;
   border-radius: 8px;
@@ -443,9 +443,9 @@
 }
 
 .pairing-success {
-  background: #ecfdf5;
-  color: #065f46;
-  border: 1px solid #a7f3d0;
+  background: var(--color-success-bg-light);
+  color: var(--color-success-text-dark);
+  border: 1px solid var(--color-success-border);
 }
 
 .pairing-error {
@@ -517,7 +517,7 @@
 }
 
 .btn-close:hover {
-  color: #475569;
+  color: var(--color-text-body);
 }
 
 /* Simulation Grid */
@@ -529,7 +529,7 @@
 }
 
 .sim-card {
-  background: #f8fafc;
+  background: var(--color-bg-subtle);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   padding: 14px 16px;
@@ -582,7 +582,7 @@
   text-align: left;
   font-weight: 600;
   color: var(--color-text-secondary);
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--color-border);
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -591,7 +591,7 @@
 .affected-lots-table td {
   padding: 8px 12px;
   border-bottom: 1px solid var(--color-border-light);
-  color: #334155;
+  color: var(--color-text-dark);
 }
 
 /* Simulation Hint */
@@ -599,9 +599,9 @@
   margin: 0 0 20px 0;
   padding: 8px 12px;
   font-size: 12px;
-  color: #64748b;
-  background: #f1f5f9;
-  border-left: 3px solid #94a3b8;
+  color: var(--color-text-secondary);
+  background: var(--color-bg-muted);
+  border-left: 3px solid var(--color-text-muted);
   border-radius: 0 6px 6px 0;
 }
 
@@ -610,10 +610,10 @@
   display: flex;
   gap: 24px;
   padding: 12px 16px;
-  background: #f8fafc;
+  background: var(--color-bg-subtle);
   border-radius: 8px;
   font-size: 13px;
-  color: #475569;
+  color: var(--color-text-body);
   margin-bottom: 20px;
 }
 
@@ -624,18 +624,18 @@
 
 .btn-close-sim {
   padding: 10px 24px;
-  background: #f1f5f9;
+  background: var(--color-bg-muted);
   border: 1px solid var(--color-border);
   border-radius: 8px;
   font-size: 13px;
   font-weight: 500;
-  color: #475569;
+  color: var(--color-text-body);
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .btn-close-sim:hover {
-  background: #e2e8f0;
+  background: var(--color-border);
 }
 
 /* ─── Planned Binance Order Card (aggregiert) ─── */
@@ -648,14 +648,14 @@
 }
 
 .planned-order-card.order-exceeds-max {
-  border-color: #fecaca;
+  border-color: var(--color-error-border);
   background: var(--color-error-bg);
 }
 
 .client-order-id-row {
   margin-top: 12px;
   padding-top: 10px;
-  border-top: 1px solid #f1f5f9;
+  border-top: 1px solid var(--color-border-light);
   font-size: 12px;
   color: var(--color-text-secondary);
 }
@@ -683,10 +683,10 @@
   display: flex;
   gap: 24px;
   padding: 12px 16px;
-  background: #f8fafc;
+  background: var(--color-bg-subtle);
   border-radius: 8px;
   font-size: 13px;
-  color: #475569;
+  color: var(--color-text-body);
   margin-bottom: 20px;
 }
 
@@ -695,7 +695,7 @@
 .sell-price-editor {
   margin-bottom: 16px;
   padding: 12px 16px;
-  background: #f8fafc;
+  background: var(--color-bg-subtle);
   border-radius: 8px;
   border: 1px solid var(--color-border);
 }
@@ -706,14 +706,14 @@
   gap: 8px;
   font-size: 13px;
   font-weight: 600;
-  color: #334155;
+  color: var(--color-text-dark);
   margin-bottom: 8px;
 }
 
 .custom-badge {
   font-size: 11px;
   font-weight: 500;
-  background: #6366f1;
+  background: var(--color-accent-pairing);
   color: white;
   padding: 1px 6px;
   border-radius: 4px;
@@ -729,7 +729,7 @@
   flex: 1;
   max-width: 200px;
   padding: 8px 12px;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--color-border-input);
   border-radius: 6px;
   font-size: 14px;
   font-weight: 500;
@@ -737,13 +737,13 @@
 
 .sell-price-input:focus {
   outline: none;
-  border-color: #6366f1;
+  border-color: var(--color-accent-pairing);
   box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
 }
 
 .btn-resimulate {
   padding: 8px 14px;
-  background: #6366f1;
+  background: var(--color-accent-pairing);
   color: white;
   border: none;
   border-radius: 6px;
@@ -753,7 +753,7 @@
 }
 
 .btn-resimulate:hover:not(:disabled) {
-  background: #4f46e5;
+  background: var(--color-accent-pairing-hover);
 }
 
 .btn-resimulate:disabled {
@@ -763,8 +763,8 @@
 
 .btn-reset-price {
   padding: 8px 12px;
-  background: #e2e8f0;
-  color: #475569;
+  background: var(--color-border);
+  color: var(--color-text-body);
   border: none;
   border-radius: 6px;
   font-size: 13px;
@@ -772,7 +772,7 @@
 }
 
 .btn-reset-price:hover {
-  background: #cbd5e1;
+  background: var(--color-scrollbar-thumb);
 }
 
 /* ─── Responsive ─── */

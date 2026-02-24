@@ -22,6 +22,7 @@
   --color-text-dark: #334155;
   --color-text-body: #475569;
   --color-text-inverse: #ffffff;
+  --color-text-placeholder: #9ca3af;
 
   /* ─── Accent Colors ─── */
   --color-accent-navbar-start: #667eea;
@@ -32,6 +33,13 @@
   --color-accent-orderblock: #d97706;
   --color-accent-indigo: #818cf8;
   --color-accent-indigo-light: #eef2ff;
+  --color-accent-amber: #f59e0b;
+  --color-accent-blue: #3b82f6;
+  --color-accent-violet: #8b5cf6;
+  --color-accent-combined: #4f46e5;
+  --color-accent-pairing-hover: #4f46e5;
+  --color-accent-pairing-border: #c7d2fe;
+  --color-accent-pairing-dark: #4338ca;
 
   /* ─── Surface / Background ─── */
   --color-bg-page: #f5f7fa;
@@ -44,6 +52,7 @@
   --color-bg-input: #ffffff;
   --color-bg-disabled: #f9fafb;
   --color-bg-warning-row: #fffbeb;
+  --color-bg-selected-hover: #e0e7ff;
 
   /* ─── Borders ─── */
   --color-border: #e2e8f0;
@@ -53,18 +62,24 @@
 
   /* ─── Feedback: Success ─── */
   --color-success-bg: #dcfce7;
+  --color-success-bg-light: #ecfdf5;
   --color-success-text: #166534;
+  --color-success-text-dark: #065f46;
   --color-success-border: #bbf7d0;
+  --color-success-border-light: #86efac;
 
   /* ─── Feedback: Error ─── */
   --color-error-bg: #fef2f2;
   --color-error-text: #991b1b;
   --color-error-border: #fecaca;
+  --color-error-border-light: #fca5a5;
 
   /* ─── Feedback: Warning ─── */
   --color-warning-bg: #fef3c7;
   --color-warning-text: #92400e;
   --color-warning-border: #fcd34d;
+  --color-warning-highlight: #fde68a;
+  --color-warning-row-hover: #fef3c7;
 
   /* ─── Feedback: Info ─── */
   --color-info-bg: #eff6ff;
@@ -82,6 +97,10 @@
   --color-badge-emerald-text: #065f46;
   --color-badge-slate-bg: #f1f5f9;
   --color-badge-slate-text: #475569;
+  --color-badge-violet-bg: #ede9fe;
+  --color-badge-violet-text: #5b21b6;
+  --color-badge-sky-bg: #e0f2fe;
+  --color-badge-sky-text: #0369a1;
 
   /* ─── Table ─── */
   --color-table-header-bg: #f8fafc;
@@ -95,6 +114,32 @@
   --color-gradient-success-end: #d1fae5;
   --color-gradient-navbar-start: #667eea;
   --color-gradient-navbar-end: #764ba2;
+  --color-gradient-sync-start: #f7931a;
+  --color-gradient-sync-end: #e8850f;
+  --color-gradient-warning-start: #fffbeb;
+  --color-gradient-warning-end: #fef3c7;
+  --color-gradient-ob-start: #d97706;
+  --color-gradient-ob-end: #92400e;
+  --color-gradient-error-start: #dc2626;
+  --color-gradient-error-end: #991b1b;
+  --color-gradient-pairing-start: #6366f1;
+  --color-gradient-pairing-end: #4f46e5;
+  --color-gradient-merge-start: #6366f1;
+  --color-gradient-merge-end: #8b5cf6;
+  --color-gradient-info-start: #eff6ff;
+  --color-gradient-info-end: #eef2ff;
+  --color-gradient-recon-start: #0ea5e9;
+  --color-gradient-recon-end: #0284c7;
+  --color-gradient-action-start: #eef2ff;
+  --color-gradient-action-end: #e0e7ff;
+  --color-gradient-sweep-start: #fef3c7;
+  --color-gradient-sweep-end: #fde68a;
+  --color-gradient-success-badge-start: #dcfce7;
+  --color-gradient-success-badge-end: #bbf7d0;
+  --color-gradient-info-badge-start: #dbeafe;
+  --color-gradient-info-badge-end: #bfdbfe;
+  --color-gradient-error-badge-start: #fef2f2;
+  --color-gradient-error-badge-end: #fecaca;
 
   /* ─── Status / State Colors ─── */
   --color-status-open: #16a34a;
@@ -104,6 +149,23 @@
   --color-status-draft: #6366f1;
   --color-status-locked: #d97706;
   --color-status-executed: #16a34a;
+
+  /* ─── Interactive Variant Colors ─── */
+  --color-profit-hover: #15803d;
+  --color-factor-negative: #f97316;
+  --color-conflict-bg: #fefce8;
+  --color-conflict-border: #fde047;
+  --color-conflict-text: #854d0e;
+  --color-quality-teal-bg: #ccfbf1;
+  --color-quality-teal-text: #0d9488;
+  --color-quality-orange-bg: #fff7ed;
+  --color-quality-orange-text: #ea580c;
+  --color-trigger-orange-text: #c2410c;
+  --color-alert-red-severity-bg: #fee2e2;
+  --color-alert-blue-bg: #eff6ff;
+  --color-alert-blue-border: #3b82f6;
+  --color-alert-blue-info-bg: #dbeafe;
+  --color-history-expanded-bg: #eff6ff;
 
   /* ─── Links & Interactive ─── */
   --color-link: #646cff;
@@ -147,6 +209,7 @@
   --color-text-dark: #cbd5e1;
   --color-text-body: #94a3b8;
   --color-text-inverse: #0f1117;
+  --color-text-placeholder: #4b5563;
 
   /* ─── Accent Colors ─── */
   --color-accent-navbar-start: #1e2030;
@@ -157,6 +220,13 @@
   --color-accent-orderblock: #fbbf24;
   --color-accent-indigo: #818cf8;
   --color-accent-indigo-light: #1e2448;
+  --color-accent-amber: #fbbf24;
+  --color-accent-blue: #60a5fa;
+  --color-accent-violet: #a78bfa;
+  --color-accent-combined: #6366f1;
+  --color-accent-pairing-hover: #6366f1;
+  --color-accent-pairing-border: #3730a3;
+  --color-accent-pairing-dark: #6366f1;
 
   /* ─── Surface / Background ─── */
   --color-bg-page: #0f1117;
@@ -169,6 +239,7 @@
   --color-bg-input: #1e2030;
   --color-bg-disabled: #161822;
   --color-bg-warning-row: #1c1408;
+  --color-bg-selected-hover: #252d5a;
 
   /* ─── Borders ─── */
   --color-border: #2e3348;
@@ -178,18 +249,24 @@
 
   /* ─── Feedback: Success ─── */
   --color-success-bg: #052e16;
+  --color-success-bg-light: #052e16;
   --color-success-text: #22c55e;
+  --color-success-text-dark: #16a34a;
   --color-success-border: #166534;
+  --color-success-border-light: #14532d;
 
   /* ─── Feedback: Error ─── */
   --color-error-bg: #2a0f0f;
   --color-error-text: #ef4444;
   --color-error-border: #991b1b;
+  --color-error-border-light: #7f1d1d;
 
   /* ─── Feedback: Warning ─── */
   --color-warning-bg: #1c1408;
   --color-warning-text: #fbbf24;
   --color-warning-border: #92400e;
+  --color-warning-highlight: #451a03;
+  --color-warning-row-hover: #2d1f05;
 
   /* ─── Feedback: Info ─── */
   --color-info-bg: #0c1929;
@@ -207,6 +284,10 @@
   --color-badge-emerald-text: #34d399;
   --color-badge-slate-bg: #1e293b;
   --color-badge-slate-text: #94a3b8;
+  --color-badge-violet-bg: #2e1065;
+  --color-badge-violet-text: #a78bfa;
+  --color-badge-sky-bg: #0c1929;
+  --color-badge-sky-text: #38bdf8;
 
   /* ─── Table ─── */
   --color-table-header-bg: #1e2030;
@@ -220,6 +301,32 @@
   --color-gradient-success-end: #064e3b;
   --color-gradient-navbar-start: #1e2030;
   --color-gradient-navbar-end: #252838;
+  --color-gradient-sync-start: #f7931a;
+  --color-gradient-sync-end: #c97210;
+  --color-gradient-warning-start: #1c1408;
+  --color-gradient-warning-end: #2d1f05;
+  --color-gradient-ob-start: #d97706;
+  --color-gradient-ob-end: #92400e;
+  --color-gradient-error-start: #dc2626;
+  --color-gradient-error-end: #991b1b;
+  --color-gradient-pairing-start: #4f46e5;
+  --color-gradient-pairing-end: #3730a3;
+  --color-gradient-merge-start: #6366f1;
+  --color-gradient-merge-end: #7c3aed;
+  --color-gradient-info-start: #0c1929;
+  --color-gradient-info-end: #1e2448;
+  --color-gradient-recon-start: #0284c7;
+  --color-gradient-recon-end: #0369a1;
+  --color-gradient-action-start: #1e2448;
+  --color-gradient-action-end: #252d5a;
+  --color-gradient-sweep-start: #451a03;
+  --color-gradient-sweep-end: #451a03;
+  --color-gradient-success-badge-start: #052e16;
+  --color-gradient-success-badge-end: #064e3b;
+  --color-gradient-info-badge-start: #1e3a5f;
+  --color-gradient-info-badge-end: #0c4a6e;
+  --color-gradient-error-badge-start: #2a0f0f;
+  --color-gradient-error-badge-end: #450a0a;
 
   /* ─── Status / State Colors ─── */
   --color-status-open: #22c55e;
@@ -229,6 +336,23 @@
   --color-status-draft: #818cf8;
   --color-status-locked: #fbbf24;
   --color-status-executed: #22c55e;
+
+  /* ─── Interactive Variant Colors ─── */
+  --color-profit-hover: #16a34a;
+  --color-factor-negative: #fb923c;
+  --color-conflict-bg: #1c1408;
+  --color-conflict-border: #854d0e;
+  --color-conflict-text: #fde047;
+  --color-quality-teal-bg: #042f2e;
+  --color-quality-teal-text: #2dd4bf;
+  --color-quality-orange-bg: #1c1408;
+  --color-quality-orange-text: #fb923c;
+  --color-trigger-orange-text: #fb923c;
+  --color-alert-red-severity-bg: #450a0a;
+  --color-alert-blue-bg: #0c1929;
+  --color-alert-blue-border: #0369a1;
+  --color-alert-blue-info-bg: #1e3a5f;
+  --color-history-expanded-bg: #0c1929;
 
   /* ─── Links & Interactive ─── */
   --color-link: #818cf8;
