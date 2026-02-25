@@ -215,6 +215,132 @@
   box-shadow: 0 2px 8px var(--color-shadow-pairing-sm);
 }
 
+/* ─── Alpha Score Section ─── */
+.settings-section-alpha {
+  border-color: var(--color-accent-indigo, #6366f1);
+}
+
+.settings-section-alpha h3 {
+  color: var(--color-accent-indigo, #6366f1);
+}
+
+/* ─── Weight Group ─── */
+.settings-weight-group {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.settings-weight-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-weight-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  min-width: 72px;
+}
+
+.settings-weight-item input[type="number"] {
+  padding: 8px 10px;
+  border: 1px solid var(--color-border-input);
+  border-radius: 8px;
+  font-size: 15px;
+  font-family: inherit;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  background: var(--color-bg-card);
+  transition: border-color 0.2s, box-shadow 0.2s;
+  outline: none;
+  min-height: 40px;
+  width: 80px;
+}
+
+.settings-weight-item input[type="number"]:focus {
+  border-color: var(--color-accent-indigo);
+  box-shadow: 0 0 0 3px var(--color-focus-ring-indigo);
+}
+
+.settings-weight-pct {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-accent-indigo, #6366f1);
+  min-width: 48px;
+  text-align: right;
+}
+
+.settings-weight-note {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+/* ─── Advanced Settings Toggle ─── */
+.settings-advanced-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 0;
+  background: none;
+  border: none;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: color 0.2s;
+  margin-top: 8px;
+  margin-bottom: 4px;
+}
+
+.settings-advanced-toggle:hover {
+  color: var(--color-accent-indigo, #6366f1);
+}
+
+.settings-toggle-arrow {
+  font-size: 10px;
+  transition: transform 0.25s ease;
+  display: inline-block;
+}
+
+.settings-toggle-arrow.open {
+  transform: rotate(180deg);
+}
+
+/* ─── Advanced Content (Collapsible) ─── */
+.settings-advanced-content {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.35s ease;
+}
+
+.settings-advanced-content.open {
+  max-height: 1200px;
+}
+
+/* ─── Reset Button ─── */
+.settings-reset-btn {
+  margin-top: 16px;
+  padding: 8px 20px;
+  background: var(--color-bg-card);
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border-input);
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.settings-reset-btn:hover {
+  border-color: var(--color-text-secondary);
+  color: var(--color-text-primary);
+  background: var(--color-gradient-section-start);
+}
+
 /* ─── Responsive ─── */
 @media (max-width: 768px) {
   .settings {
@@ -228,5 +354,9 @@
 
   .settings-interval-group {
     flex-wrap: wrap;
+  }
+
+  .settings-weight-group {
+    grid-template-columns: 1fr;
   }
 }
