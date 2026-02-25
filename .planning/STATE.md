@@ -5,30 +5,31 @@
 See: .planning/PROJECT.md (updated 2026-02-25)
 
 **Core value:** Ledger-first, deterministisches, auditierbares Cashflow-Tracking und automatisiertes Trading-System
-**Current focus:** Phase 13 — XRPBTC Infrastructure
+**Current focus:** Phase 14 — Multi-Factor Scoring Engine
 
 ## Current Position
 
 Milestone: v3.0 Multi-Factor Omni-Bot
-Phase: 13 of 17 (XRPBTC Infrastructure)
-Plan: 3 of 3 complete
-Status: Phase Complete
-Last activity: 2026-02-25 — Completed 13-03-PLAN.md (Frontend XRPBTC Dual Display + Pairing Isolation)
+Phase: 14 of 17 (Multi-Factor Scoring Engine)
+Plan: 1 of 4 complete
+Status: In Progress
+Last activity: 2026-02-25 — Completed 14-01-PLAN.md (Four Independent Factor Computations)
 
-Progress: [██████░░░░] 20%
+Progress: [██████░░░░] 25%
 
 ## Performance Metrics
 
 **Velocity (all milestones):**
-- Total plans completed: 32 (8 v1.0 + 9 v1.1 + 12 v2.0 + 3 v3.0)
+- Total plans completed: 33 (8 v1.0 + 9 v1.1 + 12 v2.0 + 4 v3.0)
 - Average duration: 3.2min
-- Total execution time: 117min
+- Total execution time: 121min
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
 | 13-01 | Symbol Registry + Migration + Domain | 4min | 2 | 6 |
 | 13-02 | Sync Pipeline + Pairing/Order Guards | 4min | 2 | 6 |
 | 13-03 | Frontend Dual Display + Pairing Isolation | 5min | 2 | 9 |
+| 14-01 | Four Independent Factor Computations (TDD) | 4min | 1 | 2 |
 
 ## Accumulated Context
 
@@ -50,6 +51,12 @@ v1.0 decision log archived in milestones/v1.0-phases/ SUMMARY.md files.
 - Frontend XRPBTC: amber pill (#f7931a), dual BTC/EUR display, pairing/order UI hidden, low-liquidity notice
 - Live BTCEUR price from WebSocket for EUR conversion of BTC-quoted pair P&L (useWebSocket().prices['BTCEUR'])
 - Phase 13 complete: full XRPBTC infrastructure (backend + frontend)
+- Alpha Score domain module (14-01): pure Decimal factor computations -- no numpy, no float
+- Four factors: Z-Score Mean Reversion, Lead-Lag Momentum, Orderbook Imbalance, Funding Rate Score
+- Lead-Lag uses 5-candle divergence * cross-correlation (threshold 0.3), not raw correlation
+- Funding rate BTC divergence weighted at 30% of base contrarian signal
+- Pearson correlation in pure Decimal with zero-variance guards
+- All sub-scores clamped to [-5, +5], warmup quality for insufficient data
 
 ### Pending Todos
 
@@ -62,5 +69,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-25
-Stopped at: Completed 13-03-PLAN.md (Phase 13 complete)
+Stopped at: Completed 14-01-PLAN.md
 Resume file: None

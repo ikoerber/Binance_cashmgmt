@@ -16,10 +16,10 @@ Requirements for this milestone. Each maps to roadmap phases.
 
 ### Scoring Engine
 
-- [ ] **SCORE-01**: System computes Z-Score Mean Reversion on XRP/BTC ratio with configurable rolling window (default 60 periods)
-- [ ] **SCORE-02**: System computes Lead-Lag Momentum by detecting BTC price movements that XRP has not yet followed (cross-correlation with rolling window)
-- [ ] **SCORE-03**: System computes Orderbook Imbalance from Binance depth data (bid/ask volume differential within 1% of mid-price)
-- [ ] **SCORE-04**: System computes Funding Rate score from existing OKX data (reuses SentimentDataService cache)
+- [x] **SCORE-01**: System computes Z-Score Mean Reversion on XRP/BTC ratio with configurable rolling window (default 60 periods)
+- [x] **SCORE-02**: System computes Lead-Lag Momentum by detecting BTC price movements that XRP has not yet followed (cross-correlation with rolling window)
+- [x] **SCORE-03**: System computes Orderbook Imbalance from Binance depth data (bid/ask volume differential within 1% of mid-price)
+- [x] **SCORE-04**: System computes Funding Rate score from existing OKX data (reuses SentimentDataService cache)
 - [ ] **SCORE-05**: System computes Global Alpha Score (-5 to +5) as weighted sum of 4 factors (Z-Score 40%, Lead-Lag 30%, Imbalance 20%, Funding 10%)
 - [ ] **SCORE-06**: User can configure Alpha Score weights and trade threshold (default ±3.0) via Settings
 - [ ] **SCORE-07**: Alpha Score gracefully degrades when data sources are unavailable (partial score with quality indicator)
@@ -109,10 +109,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | INFRA-02 | Phase 13 | Complete |
 | INFRA-03 | Phase 13 | Complete |
 | INFRA-04 | Phase 13 | Complete |
-| SCORE-01 | Phase 14 | Pending |
-| SCORE-02 | Phase 14 | Pending |
-| SCORE-03 | Phase 14 | Pending |
-| SCORE-04 | Phase 14 | Pending |
+| SCORE-01 | Phase 14 | Complete |
+| SCORE-02 | Phase 14 | Complete |
+| SCORE-03 | Phase 14 | Complete |
+| SCORE-04 | Phase 14 | Complete |
 | SCORE-05 | Phase 14 | Pending |
 | SCORE-06 | Phase 14 | Pending |
 | SCORE-07 | Phase 14 | Pending |
