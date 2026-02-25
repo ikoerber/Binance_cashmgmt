@@ -45,7 +45,7 @@ See: `.planning/milestones/v2.0-ROADMAP.md` for full details
 
 </details>
 
-### 🚧 v3.0 Multi-Factor Omni-Bot (In Progress)
+### v3.0 Multi-Factor Omni-Bot (In Progress)
 
 **Milestone Goal:** Build a multi-factor scoring engine for BTC/EUR and XRP/EUR with backtesting and dry-run mode, laying the foundation for automated trading.
 
@@ -66,11 +66,12 @@ See: `.planning/milestones/v2.0-ROADMAP.md` for full details
   2. User can trigger Binance sync for XRPBTC and sees newly imported fills as trade lots
   3. XRPBTC lots display break-even and P&L in EUR (converted via historical BTC/EUR rate at fill time), not in BTC
   4. XRPBTC lots never appear in pairing suggestions for EUR-denominated pairs (BTCEUR, ETHEUR, XRPEUR)
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 13-01: TBD
-- [ ] 13-02: TBD
+- [ ] 13-01-PLAN.md — Backend foundation: Symbol Registry + Migration + Domain + Lot serialization
+- [ ] 13-02-PLAN.md — Sync pipeline EUR conversion + Pairing/Order API guards + Backfill fix
+- [ ] 13-03-PLAN.md — Frontend: Symbol selector, dual BTC/EUR display, pairing isolation, dashboard
 
 ### Phase 14: Multi-Factor Scoring Engine
 **Goal**: Users can view a real-time Alpha Score (-5 to +5) composed of four independent quantitative factors, plus ATR-adaptive trailing stop levels
@@ -154,7 +155,7 @@ Phases execute in numeric order: 13 → 14 → 15 → 16 → 17
 | 10. CSS Variable Foundation | v2.0 | 3/3 | Complete | 2026-02-24 |
 | 11. Dark Mode Activation + Charts | v2.0 | 4/4 | Complete | 2026-02-24 |
 | 12. Navigation Restructure + Dashboard | v2.0 | 2/2 | Complete | 2026-02-25 |
-| 13. XRPBTC Infrastructure | v3.0 | 0/? | Not started | - |
+| 13. XRPBTC Infrastructure | v3.0 | 0/3 | Not started | - |
 | 14. Multi-Factor Scoring Engine | v3.0 | 0/? | Not started | - |
 | 15. Backtesting Engine | v3.0 | 0/? | Not started | - |
 | 16. Dry-Run Mode + Bot Dashboard | v3.0 | 0/? | Not started | - |
