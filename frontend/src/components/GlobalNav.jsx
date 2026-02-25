@@ -6,7 +6,7 @@
  * Rechts: Settings-Link
  */
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { getAllSymbols, getPairLabel } from '../utils/symbolRegistry';
+import { getAllSymbols, getPairLabel, isEurQuoted } from '../utils/symbolRegistry';
 
 /**
  * Beim Symbol-Wechsel: Sub-Page beibehalten.
@@ -49,7 +49,7 @@ const GlobalNav = () => {
           {getAllSymbols().map(sym => (
             <button
               key={sym}
-              className={`symbol-pill ${sym === currentSymbol ? 'active' : ''}`}
+              className={`symbol-pill ${sym === currentSymbol ? 'active' : ''} ${!isEurQuoted(sym) ? 'btc-quoted' : ''}`}
               onClick={() => handleSymbolClick(sym)}
             >
               {getPairLabel(sym)}

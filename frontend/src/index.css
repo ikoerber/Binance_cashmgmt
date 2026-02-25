@@ -28,6 +28,7 @@
   --color-accent-navbar-start: #667eea;
   --color-accent-navbar-end: #764ba2;
   --color-accent-sync: #f7931a;
+  --color-btc-accent: #f7931a;
   --color-accent-pairing: #6366f1;
   --color-accent-recon: #0ea5e9;
   --color-accent-orderblock: #d97706;
@@ -284,6 +285,7 @@
   --color-accent-navbar-start: #1e2030;
   --color-accent-navbar-end: #252838;
   --color-accent-sync: #f7931a;
+  --color-btc-accent: #fbbf24;
   --color-accent-pairing: #818cf8;
   --color-accent-recon: #38bdf8;
   --color-accent-orderblock: #fbbf24;
@@ -521,6 +523,33 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+}
+
+/* ─── Low Liquidity Notice (BTC-quoted pairs) ─── */
+.low-liquidity-notice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: var(--color-warning-bg);
+  border: 1px solid var(--color-warning-border);
+  border-radius: var(--radius-md);
+  margin-bottom: 16px;
+  font-size: 13px;
+  color: var(--color-warning-text);
+}
+
+.low-liquidity-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  background: var(--color-btc-accent);
+  color: #1e293b;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
 button {

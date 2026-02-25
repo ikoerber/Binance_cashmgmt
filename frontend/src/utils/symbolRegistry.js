@@ -9,6 +9,7 @@ export const KNOWN_PAIRS = {
   BTCEUR: { symbol: 'BTCEUR', base: 'BTC', quote: 'EUR', baseDecimals: 8, label: 'BTC/EUR' },
   ETHEUR: { symbol: 'ETHEUR', base: 'ETH', quote: 'EUR', baseDecimals: 5, label: 'ETH/EUR' },
   XRPEUR: { symbol: 'XRPEUR', base: 'XRP', quote: 'EUR', baseDecimals: 2, label: 'XRP/EUR' },
+  XRPBTC: { symbol: 'XRPBTC', base: 'XRP', quote: 'BTC', baseDecimals: 2, label: 'XRP/BTC' },
 };
 
 export const parseSymbol = (symbol) => KNOWN_PAIRS[symbol];
@@ -23,8 +24,14 @@ export const getAllSymbols = () => Object.keys(KNOWN_PAIRS);
 
 export const getQuoteAsset = (symbol) => KNOWN_PAIRS[symbol]?.quote ?? 'EUR';
 
-export const getQuoteDecimals = () => 2;
+export const getQuoteDecimals = (symbol) => KNOWN_PAIRS[symbol]?.quote === 'BTC' ? 8 : 2;
 
 export const getQuoteLabel = (symbol) => KNOWN_PAIRS[symbol]?.quote ?? 'EUR';
 
 export const getBaseAsset = (symbol) => KNOWN_PAIRS[symbol]?.base ?? null;
+
+export const isEurQuoted = (symbol) => KNOWN_PAIRS[symbol]?.quote === 'EUR';
+
+export const isPairingEnabled = (symbol) => isEurQuoted(symbol);
+
+export const isOrderCreationEnabled = (symbol) => isEurQuoted(symbol);

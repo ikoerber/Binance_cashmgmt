@@ -140,6 +140,24 @@ code {
   border-color: white;
 }
 
+/* BTC-quoted pair pill (amber accent) */
+.symbol-pill.btc-quoted {
+  border-color: var(--color-btc-accent);
+  color: var(--color-btc-accent);
+  background: rgba(247, 147, 26, 0.1);
+}
+
+.symbol-pill.btc-quoted:hover {
+  background: rgba(247, 147, 26, 0.25);
+  color: #fff;
+}
+
+.symbol-pill.btc-quoted.active {
+  background: var(--color-btc-accent);
+  color: #1e293b;
+  border-color: var(--color-btc-accent);
+}
+
 /* Live Price */
 .navbar-content {
   display: flex;
