@@ -51,17 +51,39 @@ Ledger-first, deterministisches, auditierbares Cashflow-Tracking und automatisie
 
 <!-- Current scope. Building toward these. -->
 
-(None — planning next milestone)
+- [ ] XRPBTC re-added to Symbol Registry + Binance Sync (analysis + trading, no cross-pair pairing)
+- [ ] Multi-Factor Scoring Engine: Z-Score Mean Reversion (40%), Lead-Lag Momentum (30%), Orderbook Imbalance (20%), Funding Rate (10%) → Alpha Score (-5 to +5)
+- [ ] ATR-Adaptive Trailing for exit management (dynamic trailing stops)
+- [ ] Purpose-built Backtesting Engine (24-month simulation, benchmark vs HODL, Sharpe/drawdown metrics)
+- [ ] Dry-Run Mode (real-time signals, logged decisions, no real orders)
+- [ ] Combined Score Integration (Alpha Score feeds into existing Combined Score)
+- [ ] Bot Dashboard (new 4th nav section: Trading/Analyse/Bot/Admin)
 
 ### Out of Scope
 
 <!-- Explicit boundaries. Includes reasoning to prevent re-adding. -->
 
-- Auto-Order Automation (Trigger-basiert) — Separater Milestone
+- Auto-Order Automation (Trigger-basiert) — Separater Milestone (nach Omni-Bot Live-Execution)
+- Live Execution (Auto-Placing Orders) — Follow-up nach Backtesting + Dry-Run validiert
+- German Tax Veto (365-Tage Haltefrist) — Deferred bis Live Execution Milestone
+- Cross-Pair Pairing fuer XRPBTC — Removed in v2.0, nicht wieder eingefuehrt
 - Hardening: Monitoring + WebSocket-Recovery — WebSocket-Hardening spaeter
 - Frontend-Tests (Vitest) — Separater Milestone
 - Light/Dark Toggle — Dark-only in v2.0, Toggle kann spaeter ergaenzt werden
 - Responsive/Mobile Layout — Desktop-fokussiert
+
+## Current Milestone: v3.0 Multi-Factor Omni-Bot
+
+**Goal:** Build a multi-factor scoring engine for BTC/EUR and XRP/EUR with backtesting and dry-run mode, laying the foundation for automated trading.
+
+**Target features:**
+- XRPBTC re-addition (Symbol Registry + Sync, no cross-pair pairing)
+- Multi-Factor Scoring Engine (4 factors → Alpha Score -5 to +5)
+- ATR-Adaptive Trailing (dynamic exit management)
+- Purpose-built Backtesting Engine (24-month, benchmark vs HODL)
+- Dry-Run Mode (real-time signals, no orders)
+- Combined Score Integration (Alpha Score as additional signal)
+- Bot Dashboard (new 4th nav area)
 
 ## Context
 
@@ -124,4 +146,4 @@ Frontend: Dark Mode (dark-only, FOWT-safe), 3-Bereichs-Navigation (Trading/Analy
 | Dashboard als Default-Landing-Page pro Symbol | Trading-Empfehlung sofort sichtbar statt Lot-Liste | ✓ Good — Index-Redirect von /lots zu /dashboard |
 
 ---
-*Last updated: 2026-02-25 after v2.0 milestone*
+*Last updated: 2026-02-25 after v3.0 milestone start*

@@ -5,15 +5,15 @@
 See: .planning/PROJECT.md (updated 2026-02-25)
 
 **Core value:** Ledger-first, deterministisches, auditierbares Cashflow-Tracking und automatisiertes Trading-System
-**Current focus:** Planning next milestone
+**Current focus:** v3.0 Multi-Factor Omni-Bot
 
 ## Current Position
 
-Milestone: v2.0 Frontend Redesign + EUR-Fokus — SHIPPED
-Phase: —
+Milestone: v3.0 Multi-Factor Omni-Bot
+Phase: Not started (defining requirements)
 Plan: —
-Status: Milestone complete, planning next
-Last activity: 2026-02-25 — v2.0 archived
+Status: Defining requirements
+Last activity: 2026-02-25 — Milestone v3.0 started
 
 ## Performance Metrics
 
@@ -39,5 +39,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-25
-Stopped at: v2.0 milestone archived. Ready for /gsd:new-milestone.
+Stopped at: v3.0 milestone started, defining requirements.
 Resume file: None
