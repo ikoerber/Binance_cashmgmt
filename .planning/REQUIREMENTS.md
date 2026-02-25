@@ -9,9 +9,9 @@ Requirements for this milestone. Each maps to roadmap phases.
 
 ### XRPBTC Infrastructure
 
-- [ ] **INFRA-01**: User can see XRPBTC as available trading pair in Symbol Registry and frontend symbol selector
+- [x] **INFRA-01**: User can see XRPBTC as available trading pair in Symbol Registry and frontend symbol selector
 - [ ] **INFRA-02**: User can sync XRPBTC fills from Binance and create lots from them
-- [ ] **INFRA-03**: XRPBTC lots display correct EUR-denominated break-even and P&L (via historical BTC/EUR rate at fill time)
+- [x] **INFRA-03**: XRPBTC lots display correct EUR-denominated break-even and P&L (via historical BTC/EUR rate at fill time)
 - [ ] **INFRA-04**: XRPBTC lots are excluded from EUR-pair pairing suggestions (no cross-pair pairing)
 
 ### Scoring Engine
@@ -105,9 +105,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| INFRA-01 | Phase 13 | Pending |
+| INFRA-01 | Phase 13 | Complete |
 | INFRA-02 | Phase 13 | Pending |
-| INFRA-03 | Phase 13 | Pending |
+| INFRA-03 | Phase 13 | Complete |
 | INFRA-04 | Phase 13 | Pending |
 | SCORE-01 | Phase 14 | Pending |
 | SCORE-02 | Phase 14 | Pending |
