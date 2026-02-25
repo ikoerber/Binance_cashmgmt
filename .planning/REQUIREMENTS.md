@@ -1,0 +1,117 @@
+# Requirements: BTC/EUR Cashflow-Management — v3.0 Multi-Factor Omni-Bot
+
+**Defined:** 2026-02-25
+**Core Value:** Ledger-first, deterministisches, auditierbares Cashflow-Tracking und automatisiertes Trading-System
+
+## v3.0 Requirements
+
+Requirements for this milestone. Each maps to roadmap phases.
+
+### XRPBTC Infrastructure
+
+- [ ] **INFRA-01**: User can see XRPBTC as available trading pair in Symbol Registry and frontend symbol selector
+- [ ] **INFRA-02**: User can sync XRPBTC fills from Binance and create lots from them
+- [ ] **INFRA-03**: XRPBTC lots display correct EUR-denominated break-even and P&L (via historical BTC/EUR rate at fill time)
+- [ ] **INFRA-04**: XRPBTC lots are excluded from EUR-pair pairing suggestions (no cross-pair pairing)
+
+### Scoring Engine
+
+- [ ] **SCORE-01**: System computes Z-Score Mean Reversion on XRP/BTC ratio with configurable rolling window (default 60 periods)
+- [ ] **SCORE-02**: System computes Lead-Lag Momentum by detecting BTC price movements that XRP has not yet followed (cross-correlation with rolling window)
+- [ ] **SCORE-03**: System computes Orderbook Imbalance from Binance depth data (bid/ask volume differential within 1% of mid-price)
+- [ ] **SCORE-04**: System computes Funding Rate score from existing OKX data (reuses SentimentDataService cache)
+- [ ] **SCORE-05**: System computes Global Alpha Score (-5 to +5) as weighted sum of 4 factors (Z-Score 40%, Lead-Lag 30%, Imbalance 20%, Funding 10%)
+- [ ] **SCORE-06**: User can configure Alpha Score weights and trade threshold (default ±3.0) via Settings
+- [ ] **SCORE-07**: Alpha Score gracefully degrades when data sources are unavailable (partial score with quality indicator)
+- [ ] **SCORE-08**: Alpha Score returns warmup status during cold start (MIN_WINDOW_SIZE guard, no extreme values)
+- [ ] **SCORE-09**: System detects market regime (trending vs mean-reverting) and adjusts Z-Score factor weight accordingly
+
+### Exit Management
+
+- [ ] **EXIT-01**: System computes ATR-Adaptive Trailing stop distances (ATR×2 for BTC, ATR×3 for XRP, configurable multipliers)
+- [ ] **EXIT-02**: Trailing stops freeze during data gaps (WebSocket disconnect) and resume after N consecutive fresh data points
+
+### Backtesting
+
+- [ ] **BT-01**: User can run backtests over configurable time period (up to 24 months) for any supported symbol
+- [ ] **BT-02**: Backtest computes performance metrics: net return, Sharpe ratio, max drawdown, trade count, win rate
+- [ ] **BT-03**: Backtest compares results against buy-and-hold benchmark (50/50 BTC/XRP HODL)
+- [ ] **BT-04**: Backtest includes realistic transaction costs (configurable fee rate, slippage modeling)
+- [ ] **BT-05**: Backtest results are persisted as immutable snapshots (config + metrics + trades)
+- [ ] **BT-06**: User can view backtest history with expandable run details
+- [ ] **BT-07**: User can run parameter sweep (grid search over Z-Score lookback, weights, thresholds) with CSV export
+
+### Dry-Run Mode
+
+- [ ] **DRY-01**: User can activate dry-run mode that computes real-time signals without placing actual orders
+- [ ] **DRY-02**: Dry-run logs every decision with full context (all 4 factor scores, Alpha Score, trailing stop levels, prices, action, reason)
+- [ ] **DRY-03**: Dry-run tracks virtual portfolio (positions, P&L) in separate tables from production ledger
+- [ ] **DRY-04**: User can view dry-run decision log with filtering (date range, action type, symbol)
+- [ ] **DRY-05**: Dry-run mode has NO access to order-placing functionality (structural prevention, not flag-based)
+
+### Combined Score Integration
+
+- [ ] **COMB-01**: Alpha Score feeds into Combined Score as optional 3rd signal (backward-compatible: when unavailable, existing 60/40 weights unchanged)
+- [ ] **COMB-02**: Combined Score dashboard shows Alpha Score contribution when available (factor breakdown in details)
+
+### Bot Dashboard
+
+- [ ] **BOT-01**: New "Bot" section in navigation (4th area: Trading/Analyse/Bot/Admin)
+- [ ] **BOT-02**: Bot dashboard shows current Alpha Score with factor breakdown (visual bars per factor)
+- [ ] **BOT-03**: Bot dashboard shows signal history (recent Alpha Score values over time, chart)
+- [ ] **BOT-04**: Bot dashboard shows dry-run status (active/inactive, current virtual positions, virtual P&L)
+- [ ] **BOT-05**: Bot dashboard shows backtest results (most recent run summary, link to full history)
+- [ ] **BOT-06**: Bot dashboard shows regime indicator (trending/mean-reverting with confidence)
+
+## Future Requirements
+
+Deferred to follow-up milestones. Tracked but not in current roadmap.
+
+### Live Execution
+
+- **EXEC-01**: System places real Binance orders based on Alpha Score signals
+- **EXEC-02**: Circuit breakers (max daily loss, max position size, kill switch)
+- **EXEC-03**: Order execution with existing TAKE_PROFIT_LIMIT pattern
+
+### Tax Optimization
+
+- **TAX-01**: German 365-day holding period check before automated sells
+- **TAX-02**: Tax simulation in backtesting (26.375% Abgeltungssteuer + Soli)
+- **TAX-03**: Tax-free gain tracking per lot
+
+### Advanced Features
+
+- **ADV-01**: Conviction-weighted position sizing (Alpha Score intensity modulates size)
+- **ADV-02**: Signal correlation monitoring (factor agreement as confidence multiplier)
+- **ADV-03**: Telegram/Discord notifications for signal events
+
+## Out of Scope
+
+Explicitly excluded. Documented to prevent scope creep.
+
+| Feature | Reason |
+|---------|--------|
+| Live order execution | Requires hardening milestone (circuit breakers, max loss limits). Ship dry-run first. |
+| Machine learning optimization | Overfits on 24-month dataset. Grid search sufficient at this data scale. |
+| Sub-second signal computation | 0.1% maker/taker fees make sub-second timing negligible. 1-5s refresh sufficient. |
+| Multiple strategy profiles | Single-user app, one active config. Backtest sweep for comparison. |
+| Auto-adjusting factor weights | Online learning is unstable in financial markets. Manual tuning via Settings. |
+| Cross-pair pairing for XRPBTC | Removed in v2.0, complexity not justified for analysis-only re-addition. |
+| Tax simulation in v3.0 | Deferred to live execution milestone where tax compliance is critical. |
+
+## Traceability
+
+Which phases cover which requirements. Updated during roadmap creation.
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| (populated by roadmapper) | | |
+
+**Coverage:**
+- v3.0 requirements: 27 total
+- Mapped to phases: 0
+- Unmapped: 27
+
+---
+*Requirements defined: 2026-02-25*
+*Last updated: 2026-02-25 after initial definition*
