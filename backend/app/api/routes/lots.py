@@ -19,7 +19,7 @@ from app.services.lot_service import (
 )
 from app.services.binance import BinanceService
 from app.api.dependencies import get_binance_service
-from app.symbol_registry import is_known_symbol, KNOWN_PAIRS
+from app.symbol_registry import is_known_symbol, KNOWN_PAIRS, is_order_creation_enabled
 
 router = APIRouter(prefix="/api/lots", tags=["lots"])
 
@@ -225,11 +225,24 @@ def toggle_auto_order(
         Updated Lot
     """
     try:
+        # Guard: Auto-Order nur fuer EUR-quoted Pairs (da Sell Orders nur fuer EUR-Pairs)
+        from app.db.models import TradeLotDB
+        lot_db = db.query(TradeLotDB).filter(
+            TradeLotDB.id == lot_id, TradeLotDB.user_id == user_id
+        ).first()
+        if lot_db and not is_order_creation_enabled(lot_db.symbol):
+            raise HTTPException(
+                status_code=400,
+                detail="Auto-Order ist fuer BTC-Paare deaktiviert",
+            )
+
         lot = update_auto_order(db, user_id, lot_id, enabled)
         return {
             "message": f"Auto-order {'enabled' if enabled else 'disabled'} for lot {lot_id}",
             "lot": lot,
         }
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception:

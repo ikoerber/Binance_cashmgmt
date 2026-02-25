@@ -27,6 +27,7 @@ from app.db.models import (
     UserSettingsDB,
 )
 from app.services.lot_service import _lot_db_to_domain
+from app.symbol_registry import is_pairing_enabled
 
 
 def get_pairing_suggestions(
@@ -49,6 +50,10 @@ def get_pairing_suggestions(
     Returns:
         Liste von Pairing-Vorschlaegen
     """
+    # Guard: Pairing nur fuer EUR-quoted Pairs
+    if not is_pairing_enabled(symbol):
+        return []
+
     lots_db = (
         db.query(TradeLotDB)
         .filter(
@@ -232,6 +237,10 @@ def create_pairing(
     Raises:
         ValueError: Wenn Lots nicht existieren oder qty unzureichend
     """
+    # Guard: Pairing nur fuer EUR-quoted Pairs
+    if not is_pairing_enabled(symbol):
+        raise ValueError("Pairing ist fuer BTC-Paare deaktiviert")
+
     # Validierung mit Row-Level Lock: Verhindert Race Conditions bei
     # konkurrierenden Pairing-Erstellungen auf denselben Lots.
     lot_ids = [item["lot_id"] for item in items]
@@ -256,6 +265,9 @@ def create_pairing(
     # Symbol aus erstem Lot ableiten (falls nicht explizit uebergeben)
     if locked_lots:
         symbol = locked_lots[0].symbol
+        # Re-check guard with actual lot symbol
+        if not is_pairing_enabled(symbol):
+            raise ValueError("Pairing ist fuer BTC-Paare deaktiviert")
 
     # Erstelle Pairing
     pairing_id = str(uuid.uuid4())
@@ -383,6 +395,10 @@ def lock_pairing(db: Session, user_id: str, pairing_id: str) -> dict:
     if not pairing_db:
         raise ValueError(f"Pairing {pairing_id} not found")
 
+    # Guard: Pairing nur fuer EUR-quoted Pairs
+    if not is_pairing_enabled(pairing_db.symbol):
+        raise ValueError("Pairing ist fuer BTC-Paare deaktiviert")
+
     if pairing_db.status != PairingStatusEnum.DRAFT:
         raise ValueError(f"Pairing {pairing_id} is not in DRAFT status")
 
@@ -463,6 +479,10 @@ def execute_pairing(db: Session, user_id: str, pairing_id: str) -> dict:
 
     if not pairing_db:
         raise ValueError(f"Pairing {pairing_id} not found")
+
+    # Guard: Pairing nur fuer EUR-quoted Pairs
+    if not is_pairing_enabled(pairing_db.symbol):
+        raise ValueError("Pairing ist fuer BTC-Paare deaktiviert")
 
     if pairing_db.status != PairingStatusEnum.LOCKED:
         raise ValueError(f"Pairing {pairing_id} is not in LOCKED status")

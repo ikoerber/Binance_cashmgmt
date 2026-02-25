@@ -14,14 +14,23 @@ import useLotsData from '../hooks/useLotsData';
 import useNotification from '../hooks/useNotification';
 import { useSymbol } from '../contexts/SymbolContext';
 import { useUser } from '../contexts/UserContext';
-import { formatNumber, formatQuote, formatBase, formatDate, formatTime } from '../utils/formatters';
+import { formatNumber, formatQuote, formatBase, formatEUR, formatDate, formatTime } from '../utils/formatters';
+import { isEurQuoted, isPairingEnabled, isOrderCreationEnabled, getPairLabel } from '../utils/symbolRegistry';
+import { useWebSocket } from '../contexts/WebSocketContext';
 import './LotsTable.css';
 
 const LotsTable = () => {
   const { userId } = useUser();
   const { symbol: activeSymbol, marketPrice } = useSymbol();
+  const { prices } = useWebSocket();
   const queryClient = useQueryClient();
   const { message: syncMessage, showMessage, dismissMessage } = useNotification(8000);
+
+  const isEurPair = isEurQuoted(activeSymbol);
+  const canPair = isPairingEnabled(activeSymbol);
+  const canCreateOrders = isOrderCreationEnabled(activeSymbol);
+  // Live BTCEUR price for EUR conversion of BTC-quoted pair P&L
+  const liveBtcEurPrice = prices['BTCEUR'] || 0;
 
   // Pairing state
   const [selectedLotIds, setSelectedLotIds] = useState(new Set());
@@ -209,31 +218,33 @@ const LotsTable = () => {
         showClosed={filters.showClosed} setShowClosed={filters.setShowClosed}
       />
 
-      {/* Pairing Action Bar */}
-      <div className="pairing-action-bar">
-        <button
-          className={`btn-pairing-toggle ${pairingPanelOpen ? 'active' : ''}`}
-          onClick={() => setPairingPanelOpen(!pairingPanelOpen)}
-        >
-          {pairingPanelOpen ? 'Pairing schließen' : 'Pairing'}
+      {/* Pairing Action Bar (hidden for non-EUR pairs) */}
+      {canPair && (
+        <div className="pairing-action-bar">
+          <button
+            className={`btn-pairing-toggle ${pairingPanelOpen ? 'active' : ''}`}
+            onClick={() => setPairingPanelOpen(!pairingPanelOpen)}
+          >
+            {pairingPanelOpen ? 'Pairing schließen' : 'Pairing'}
+            {selectedLotIds.size > 0 && (
+              <span className="selection-badge">{selectedLotIds.size}</span>
+            )}
+          </button>
           {selectedLotIds.size > 0 && (
-            <span className="selection-badge">{selectedLotIds.size}</span>
+            <>
+              <span className="selection-info">
+                {selectedLotIds.size} Lot{selectedLotIds.size !== 1 ? 's' : ''} ausgewählt
+              </span>
+              <button className="btn-clear-selection" onClick={clearSelection}>
+                Auswahl aufheben
+              </button>
+            </>
           )}
-        </button>
-        {selectedLotIds.size > 0 && (
-          <>
-            <span className="selection-info">
-              {selectedLotIds.size} Lot{selectedLotIds.size !== 1 ? 's' : ''} ausgewählt
-            </span>
-            <button className="btn-clear-selection" onClick={clearSelection}>
-              Auswahl aufheben
-            </button>
-          </>
-        )}
-      </div>
+        </div>
+      )}
 
-      {/* Pairing Panel */}
-      {pairingPanelOpen && (
+      {/* Pairing Panel (hidden for non-EUR pairs) */}
+      {canPair && pairingPanelOpen && (
         <PairingPanel
           selectedLots={selectedLots}
           onClearSelection={clearSelection}
@@ -254,14 +265,16 @@ const LotsTable = () => {
           <table className="lots-table">
             <thead>
               <tr>
-                <th className="checkbox-col">
-                  <input
-                    type="checkbox"
-                    checked={selectedLotIds.size > 0 && lots.filter(l => l.status !== 'CLOSED').every(l => selectedLotIds.has(l.id))}
-                    onChange={(e) => e.target.checked ? selectAllVisible() : clearSelection()}
-                    title="Alle auswählen"
-                  />
-                </th>
+                {canPair && (
+                  <th className="checkbox-col">
+                    <input
+                      type="checkbox"
+                      checked={selectedLotIds.size > 0 && lots.filter(l => l.status !== 'CLOSED').every(l => selectedLotIds.has(l.id))}
+                      onChange={(e) => e.target.checked ? selectAllVisible() : clearSelection()}
+                      title="Alle auswählen"
+                    />
+                  </th>
+                )}
                 <th>Order Nr.</th>
                 <th className="sortable" onClick={() => toggleSort('date')}>
                   Datum
@@ -292,17 +305,22 @@ const LotsTable = () => {
 
                 return (
                   <tr key={lot.id} className={`${selectedLotIds.has(lot.id) ? 'lot-selected' : ''} ${highlightedLotIds.has(lot.id) ? 'lot-highlighted' : ''} ${mergeGroupByLotId[lot.id] ? 'lot-merge-group' : ''}`}>
-                    <td className="checkbox-col">
-                      {lot.status !== 'CLOSED' && (
-                        <input
-                          type="checkbox"
-                          checked={selectedLotIds.has(lot.id)}
-                          onChange={() => toggleLotSelection(lot.id)}
-                        />
-                      )}
-                    </td>
+                    {canPair && (
+                      <td className="checkbox-col">
+                        {lot.status !== 'CLOSED' && (
+                          <input
+                            type="checkbox"
+                            checked={selectedLotIds.has(lot.id)}
+                            onChange={() => toggleLotSelection(lot.id)}
+                          />
+                        )}
+                      </td>
+                    )}
                     <td className="order-id">
-                      {lot.binance_order_id || (lot.import_source === 'trading_bots_csv' ? <span className="import-source-badge">Bot-Import</span> : '–')}
+                      {lot.binance_order_id || (lot.import_source === 'trading_bots_csv' ? <span className="import-source-badge">Bot-Import</span> : '\u2013')}
+                      <span className={`pair-badge ${!isEurQuoted(lot.symbol || activeSymbol) ? 'pair-badge-btc' : ''}`}>
+                        {getPairLabel(lot.symbol || activeSymbol)}
+                      </span>
                       {mergeGroupByLotId[lot.id] && (
                         <button
                           className="btn-merge"
@@ -329,8 +347,18 @@ const LotsTable = () => {
                     <td className="time">{formatTime(lot.created_at)}</td>
                     <td>{formatBase(lot.qty_base_initial, activeSymbol)}</td>
                     <td>{formatBase(lot.qty_base_open, activeSymbol)}</td>
-                    <td>{formatQuote(lot.cost_quote, activeSymbol)}</td>
-                    <td>{formatQuote(lot.break_even, activeSymbol)}</td>
+                    <td>
+                      {formatQuote(lot.cost_quote, activeSymbol)}
+                      {!isEurPair && lot.cost_eur != null && (
+                        <span className="eur-equivalent"> / {formatEUR(parseFloat(lot.cost_eur))}</span>
+                      )}
+                    </td>
+                    <td>
+                      {formatQuote(lot.break_even, activeSymbol)}
+                      {!isEurPair && lot.break_even_eur != null && (
+                        <span className="eur-equivalent"> / {formatEUR(parseFloat(lot.break_even_eur))}</span>
+                      )}
+                    </td>
                     <td className="sell-order-cell">
                       {orderByLotId[lot.id] ? (
                         <span className={`order-indicator ${parseFloat(orderByLotId[lot.id].price) <= marketPrice ? 'order-below-market' : ''}`}>
@@ -342,7 +370,7 @@ const LotsTable = () => {
                             </span>
                           )}
                         </span>
-                      ) : lot.status !== 'CLOSED' ? (
+                      ) : lot.status !== 'CLOSED' && canCreateOrders ? (
                         <button
                           className="btn-create-order"
                           onClick={() => {
@@ -362,6 +390,9 @@ const LotsTable = () => {
                     <td className={isProfitable ? 'profit' : 'loss'}>
                       <div className="pnl-cell">
                         <span className="pnl-amount">{formatQuote(unrealizedPnl, activeSymbol)}</span>
+                        {!isEurPair && liveBtcEurPrice > 0 && (
+                          <span className="eur-equivalent">{formatEUR(unrealizedPnl * liveBtcEurPrice)}</span>
+                        )}
                         <span className="pnl-pct">{unrealizedPnlPct >= 0 ? '+' : ''}{formatNumber(unrealizedPnlPct, 2)}%</span>
                       </div>
                     </td>

@@ -12,7 +12,7 @@ from app.services.order_service import OrderService
 from app.services.order_tracking_service import OrderTrackingService
 from app.services.binance import BinanceService
 from app.api.dependencies import get_binance_service
-from app.symbol_registry import is_known_symbol, KNOWN_PAIRS
+from app.symbol_registry import is_known_symbol, KNOWN_PAIRS, is_order_creation_enabled
 
 router = APIRouter(prefix="/api/orders", tags=["orders"])
 
@@ -59,6 +59,19 @@ def create_order_for_lot(
         Order-Details
     """
     try:
+        # Guard: Sell Orders nur fuer EUR-quoted Pairs
+        from app.db.models import TradeLotDB
+        lot_db = db.query(TradeLotDB).filter(
+            TradeLotDB.id == lot_id, TradeLotDB.user_id == user_id
+        ).first()
+        if not lot_db:
+            raise HTTPException(status_code=404, detail="Lot nicht gefunden")
+        if not is_order_creation_enabled(lot_db.symbol):
+            raise HTTPException(
+                status_code=400,
+                detail="Manuelle Sell Orders sind fuer BTC-Paare deaktiviert",
+            )
+
         try:
             target_margin = Decimal(target_margin_pct)
             fee_buffer = Decimal(fee_buffer_pct)
@@ -74,6 +87,8 @@ def create_order_for_lot(
         )
 
         return result
+    except HTTPException:
+        raise
     except ValueError as e:
         logger.warning("Order creation validation error for user=%s, lot=%s: %s", user_id, lot_id, e)
         raise HTTPException(status_code=400, detail="Order-Erstellung fehlgeschlagen. Bitte Parameter pruefen.")

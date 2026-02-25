@@ -11,13 +11,18 @@ import { useSymbol } from '../contexts/SymbolContext';
 import { useUser } from '../contexts/UserContext';
 import { useQuery } from '@tanstack/react-query';
 import { getSettings } from '../api/client';
-import { formatQuote, formatBase, formatNumber } from '../utils/formatters';
+import { formatQuote, formatBase, formatNumber, formatEUR } from '../utils/formatters';
+import { isEurQuoted } from '../utils/symbolRegistry';
+import { useWebSocket } from '../contexts/WebSocketContext';
 
 const DEFAULT_FEE_RATE = 0.001; // 0.1% Binance Spot Fee Fallback
 
 const LotSummaryCards = ({ openCostSum, filteredOpenQtySum, totalOpenQty, depotPnl }) => {
   const { userId } = useUser();
   const { symbol: activeSymbol, marketPrice } = useSymbol();
+  const { prices } = useWebSocket();
+  const isEurPair = isEurQuoted(activeSymbol);
+  const liveBtcEurPrice = prices['BTCEUR'] || 0;
 
   const { data: settings } = useQuery({
     queryKey: ['settings', userId],
@@ -39,7 +44,12 @@ const LotSummaryCards = ({ openCostSum, filteredOpenQtySum, totalOpenQty, depotP
     <div className="lots-summary">
       <div className="summary-card">
         <span className="summary-label">Kosten offene Positionen</span>
-        <span className="summary-value">{formatQuote(openCostSum, activeSymbol)}</span>
+        <span className="summary-value">
+          {formatQuote(openCostSum, activeSymbol)}
+          {!isEurPair && liveBtcEurPrice > 0 && (
+            <span className="eur-equivalent"> / {formatEUR(openCostSum * liveBtcEurPrice)}</span>
+          )}
+        </span>
       </div>
       <div className="summary-card">
         <span className="summary-label">Menge Offen (gefiltert)</span>
@@ -48,7 +58,12 @@ const LotSummaryCards = ({ openCostSum, filteredOpenQtySum, totalOpenQty, depotP
       {recoveryPrice !== null && (
         <div className="summary-card recovery-card">
           <span className="summary-label">Erholungspreis</span>
-          <span className="summary-value recovery-value">{formatQuote(recoveryPrice, activeSymbol)}</span>
+          <span className="summary-value recovery-value">
+            {formatQuote(recoveryPrice, activeSymbol)}
+            {!isEurPair && liveBtcEurPrice > 0 && (
+              <span className="eur-equivalent"> / {formatEUR(recoveryPrice * liveBtcEurPrice)}</span>
+            )}
+          </span>
           <span className="summary-sub">
             +{formatNumber(((recoveryPrice / marketPrice) - 1) * 100, 1)}% über Markt | Deficit: {formatQuote(Math.abs(depotPnl), activeSymbol)}
           </span>

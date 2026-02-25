@@ -6,7 +6,7 @@ import { getPortfolio, getDailyPerformance } from '../api/client';
 import { useSymbol } from '../contexts/SymbolContext';
 import { useUser } from '../contexts/UserContext';
 import { formatNumber, formatQuote, formatBase } from '../utils/formatters';
-import { getBaseLabel, getQuoteLabel } from '../utils/symbolRegistry';
+import { getBaseLabel, getQuoteLabel, isEurQuoted } from '../utils/symbolRegistry';
 import CombinedScoreWidget from './CombinedScoreWidget';
 import './Dashboard.css';
 
@@ -49,6 +49,14 @@ const Dashboard = () => {
 
       {/* Combined Score Hero Widget */}
       <CombinedScoreWidget />
+
+      {/* Low Liquidity Notice for BTC-quoted pairs */}
+      {!isEurQuoted(activeSymbol) && (
+        <div className="low-liquidity-notice">
+          <span className="low-liquidity-badge">Low Liquidity</span>
+          <span>BTC-Paar -- eingeschraenkte Liquiditaet, kein Pairing/Orders</span>
+        </div>
+      )}
 
       {/* Depot-Übersicht: Eingezahlt → Bestand → Performance */}
       <div className="depot-flow">

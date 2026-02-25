@@ -799,6 +799,34 @@
   }
 }
 
+/* ─── Pair Badge ─── */
+.pair-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  margin-left: 6px;
+  background: var(--color-bg-muted);
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  font-family: inherit;
+  letter-spacing: 0.2px;
+  vertical-align: middle;
+}
+
+.pair-badge-btc {
+  background: var(--color-badge-amber-bg);
+  color: var(--color-badge-amber-text);
+  border-color: var(--color-warning-border);
+}
+
+/* ─── EUR Equivalent (dual display for BTC-quoted pairs) ─── */
+.eur-equivalent {
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
 /* ─── Lot Merge ─── */
 .lot-merge-group {
   border-left: 3px solid var(--color-accent-pairing);

@@ -8,7 +8,7 @@ from typing import Optional, List
 from pydantic import BaseModel
 
 from app.db.database import get_db
-from app.symbol_registry import is_known_symbol, KNOWN_PAIRS
+from app.symbol_registry import is_known_symbol, KNOWN_PAIRS, is_pairing_enabled
 
 logger = logging.getLogger(__name__)
 from app.services.pairing_service import (
@@ -79,6 +79,16 @@ def get_suggestions(
     """
     if not is_known_symbol(symbol):
         raise HTTPException(status_code=400, detail=f"Unbekanntes Symbol: {symbol}. Bekannt: {list(KNOWN_PAIRS.keys())}")
+
+    # Guard: Pairing nur fuer EUR-quoted Pairs
+    if not is_pairing_enabled(symbol):
+        return {
+            "suggestions": [],
+            "count": 0,
+            "market_price": str(market_price),
+            "threshold_pct": str(threshold_pct),
+            "symbol": symbol,
+        }
 
     _validate_market_price(market_price)
     try:
@@ -187,6 +197,10 @@ def create_pairing_endpoint(
     if not is_known_symbol(request.symbol):
         raise HTTPException(status_code=400, detail=f"Unbekanntes Symbol: {request.symbol}. Bekannt: {list(KNOWN_PAIRS.keys())}")
 
+    # Guard: Pairing nur fuer EUR-quoted Pairs
+    if not is_pairing_enabled(request.symbol):
+        raise HTTPException(status_code=400, detail="Pairing ist fuer BTC-Paare deaktiviert")
+
     try:
         items = [{"lot_id": item.lot_id, "qty_base": Decimal(str(item.qty_base))} for item in request.items]
         threshold = Decimal(str(request.threshold_pct))
@@ -290,12 +304,19 @@ def lock_pairing_endpoint(
         Updated pairing
     """
     try:
+        # Guard: Pairing-Symbol pruefen
+        pairing_domain = get_pairing_by_id(db, user_id, pairing_id)
+        if pairing_domain and not is_pairing_enabled(pairing_domain.symbol):
+            raise HTTPException(status_code=400, detail="Pairing ist fuer BTC-Paare deaktiviert")
+
         pairing = lock_pairing(db, user_id, pairing_id)
 
         return {
             "status": "locked",
             "pairing": pairing
         }
+    except HTTPException:
+        raise
     except ValueError as e:
         logger.warning("Pairing validation failed for user=%s: %s", user_id, e)
         raise HTTPException(status_code=400, detail=str(e))
@@ -358,6 +379,11 @@ def execute_pairing_endpoint(
     """
     _validate_market_price(market_price)
     try:
+        # Guard: Pairing-Symbol pruefen
+        pairing_domain = get_pairing_by_id(db, user_id, pairing_id)
+        if pairing_domain and not is_pairing_enabled(pairing_domain.symbol):
+            raise HTTPException(status_code=400, detail="Pairing ist fuer BTC-Paare deaktiviert")
+
         market_price_decimal = Decimal(str(market_price))
         fee_buffer_decimal = Decimal(str(fee_buffer_pct))
         custom_price_decimal = Decimal(str(custom_sell_price)) if custom_sell_price is not None else None
@@ -372,6 +398,8 @@ def execute_pairing_endpoint(
         )
 
         return result
+    except HTTPException:
+        raise
     except ValueError as e:
         logger.warning("Pairing validation failed for user=%s: %s", user_id, e)
         raise HTTPException(status_code=400, detail=str(e))
@@ -398,12 +426,19 @@ def delete_pairing_endpoint(
         Deletion confirmation
     """
     try:
+        # Guard: Pairing-Symbol pruefen
+        pairing_domain = get_pairing_by_id(db, user_id, pairing_id)
+        if pairing_domain and not is_pairing_enabled(pairing_domain.symbol):
+            raise HTTPException(status_code=400, detail="Pairing ist fuer BTC-Paare deaktiviert")
+
         delete_pairing(db, user_id, pairing_id)
 
         return {
             "status": "deleted",
             "pairing_id": pairing_id
         }
+    except HTTPException:
+        raise
     except ValueError as e:
         logger.warning("Pairing validation failed for user=%s: %s", user_id, e)
         raise HTTPException(status_code=400, detail=str(e))
