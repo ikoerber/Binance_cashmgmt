@@ -536,6 +536,22 @@ class UserSettingsDB(Base):
         Numeric(precision=20, scale=2), nullable=True
     )  # Default handled in service: Decimal("1.00")
 
+    # Alpha Score Settings
+    alpha_score_interval = Column(String, nullable=True)  # "5m"|"15m"|"1h", default "15m"
+    alpha_score_weight_zscore = Column(Numeric(precision=5, scale=2), nullable=True)  # Default 40
+    alpha_score_weight_leadlag = Column(Numeric(precision=5, scale=2), nullable=True)  # Default 30
+    alpha_score_weight_imbalance = Column(Numeric(precision=5, scale=2), nullable=True)  # Default 20
+    alpha_score_weight_funding = Column(Numeric(precision=5, scale=2), nullable=True)  # Default 10
+    alpha_score_threshold = Column(Numeric(precision=5, scale=2), nullable=True)  # Default 3.0
+    alpha_score_zscore_window = Column(Numeric(precision=5, scale=0), nullable=True)  # Default 60
+    alpha_score_leadlag_window = Column(Numeric(precision=5, scale=0), nullable=True)  # Default 30
+    alpha_score_hurst_lookback = Column(Numeric(precision=5, scale=0), nullable=True)  # Default 100
+    alpha_score_hurst_trending = Column(Numeric(precision=5, scale=4), nullable=True)  # Default 0.55
+    alpha_score_hurst_reverting = Column(Numeric(precision=5, scale=4), nullable=True)  # Default 0.45
+    alpha_score_atr_mult_btc = Column(Numeric(precision=5, scale=2), nullable=True)  # Default 2.0
+    alpha_score_atr_mult_xrp = Column(Numeric(precision=5, scale=2), nullable=True)  # Default 3.0
+    alpha_score_stop_resume_n = Column(Numeric(precision=3, scale=0), nullable=True)  # Default 5
+
     created_at = Column(DateTime, nullable=False, default=_utcnow)
     updated_at = Column(DateTime, nullable=False, default=_utcnow, onupdate=_utcnow)
 
