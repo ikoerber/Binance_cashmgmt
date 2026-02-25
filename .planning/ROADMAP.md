@@ -49,7 +49,7 @@ See: `.planning/milestones/v2.0-ROADMAP.md` for full details
 
 **Milestone Goal:** Build a multi-factor scoring engine for BTC/EUR and XRP/EUR with backtesting and dry-run mode, laying the foundation for automated trading.
 
-- [ ] **Phase 13: XRPBTC Infrastructure** - Re-add XRPBTC to Symbol Registry and Sync with EUR-denominated P&L (no cross-pair pairing)
+- [x] **Phase 13: XRPBTC Infrastructure** - Re-add XRPBTC to Symbol Registry and Sync with EUR-denominated P&L (no cross-pair pairing) (completed 2026-02-25)
 - [ ] **Phase 14: Multi-Factor Scoring Engine** - Four quantitative factors composing into Alpha Score (-5 to +5) with ATR-adaptive trailing exits
 - [ ] **Phase 15: Backtesting Engine** - Walk-forward simulation over 24 months with Sharpe ratio, drawdown, and HODL benchmark comparison
 - [ ] **Phase 16: Dry-Run Mode + Bot Dashboard** - Real-time paper trading with decision logging, virtual portfolio, and unified Bot navigation section
@@ -155,7 +155,7 @@ Phases execute in numeric order: 13 → 14 → 15 → 16 → 17
 | 10. CSS Variable Foundation | v2.0 | 3/3 | Complete | 2026-02-24 |
 | 11. Dark Mode Activation + Charts | v2.0 | 4/4 | Complete | 2026-02-24 |
 | 12. Navigation Restructure + Dashboard | v2.0 | 2/2 | Complete | 2026-02-25 |
-| 13. XRPBTC Infrastructure | 2/3 | In Progress|  | - |
+| 13. XRPBTC Infrastructure | 3/3 | Complete   | 2026-02-25 | - |
 | 14. Multi-Factor Scoring Engine | v3.0 | 0/? | Not started | - |
 | 15. Backtesting Engine | v3.0 | 0/? | Not started | - |
 | 16. Dry-Run Mode + Bot Dashboard | v3.0 | 0/? | Not started | - |
