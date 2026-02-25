@@ -94,8 +94,12 @@ def create_trade_lot_from_buy_fill(
                 fill_event.id, fill_event.fee_amount, fill_event.fee_asset,
             )
 
-    # EUR Cost Basis: All remaining pairs are EUR-quoted, so cost_eur = cost_quote
-    computed_cost_eur = cost_quote
+    # EUR Cost Basis: conditional on quote asset
+    if quote_asset == "EUR":
+        computed_cost_eur = cost_quote
+    else:
+        # BTC-quoted: cost_eur will be set by service layer after fetching historical BTC/EUR rate
+        computed_cost_eur = None
 
     lot = TradeLot(
         id=f"lot_{fill_event.id}",

@@ -96,6 +96,7 @@ class TradeLot:
 
     cost_quote: Decimal  # Gesamtkosten in Quote-Currency (inkl. Fees)
     cost_eur: Optional[Decimal] = None  # EUR-equivalent Kosten
+    quote_to_eur_rate: Optional[Decimal] = None  # Conversion rate: quote asset -> EUR (1.0 for EUR-quoted, BTC/EUR rate for BTC-quoted)
 
     status: LotStatus = LotStatus.OPEN
     target_margin_pct: Optional[Decimal] = None  # Lot-spezifische Zielmarge

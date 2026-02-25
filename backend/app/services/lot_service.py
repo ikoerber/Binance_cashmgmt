@@ -223,6 +223,8 @@ def create_lot_from_buy_fill(
         cost_eur=lot_domain.cost_eur,
         status=LotStatusEnum[lot_domain.status.value],
         target_margin_pct=lot_domain.target_margin_pct,
+        # EUR-quoted lots: rate = 1.0; BTC-quoted: None (set by sync_service after rate fetch)
+        quote_to_eur_rate=Decimal("1") if lot_domain.cost_eur is not None else None,
     )
 
     db.add(lot_db)
@@ -948,6 +950,7 @@ def _lot_db_to_dict(lot_db: TradeLotDB, db: Session = None, fill_event=None) -> 
             if lot_db.cost_eur is not None and lot_db.qty_base_initial
             else None
         ),
+        "quote_to_eur_rate": str(lot_db.quote_to_eur_rate) if lot_db.quote_to_eur_rate else None,
         "status": lot_db.status.value,
         "target_margin_pct": (
             str(lot_db.target_margin_pct) if lot_db.target_margin_pct else None
@@ -968,6 +971,7 @@ def _lot_db_to_domain(lot_db: TradeLotDB) -> DomainLot:
         qty_base_open=lot_db.qty_base_open,
         cost_quote=lot_db.cost_quote,
         cost_eur=lot_db.cost_eur,
+        quote_to_eur_rate=lot_db.quote_to_eur_rate,
         status=LotStatus[lot_db.status.value],
         target_margin_pct=lot_db.target_margin_pct,
         symbol=lot_db.symbol,
