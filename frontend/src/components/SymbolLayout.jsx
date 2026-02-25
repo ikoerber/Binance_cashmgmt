@@ -26,10 +26,20 @@ const SymbolLayout = () => {
       {/* Tier-2: Sub-Navigation + Live-Preis */}
       <div className="symbol-subnav">
         <div className="subnav-links">
-          <NavLink to={`/s/${symbol}/lots`}>TradeLots</NavLink>
-          <NavLink to={`/s/${symbol}/combined`}>Combined Score</NavLink>
-          <NavLink to={`/s/${symbol}/orderblock`}>Orderblock</NavLink>
-          <NavLink to={`/s/${symbol}/reconciliation`}>Reconciliation</NavLink>
+          <div className="subnav-group">
+            <span className="subnav-group-label">Trading</span>
+            <NavLink to={`/s/${symbol}/dashboard`}>Dashboard</NavLink>
+            <NavLink to={`/s/${symbol}/lots`}>TradeLots</NavLink>
+          </div>
+          <div className="subnav-group">
+            <span className="subnav-group-label">Analyse</span>
+            <NavLink to={`/s/${symbol}/combined`}>Combined Score</NavLink>
+            <NavLink to={`/s/${symbol}/orderblock`}>Orderblocks</NavLink>
+          </div>
+          <div className="subnav-group">
+            <span className="subnav-group-label">Admin</span>
+            <NavLink to={`/s/${symbol}/reconciliation`}>Reconciliation</NavLink>
+          </div>
         </div>
         <div className={`live-price ${isFlashing ? 'price-flash' : ''}`}>
           {priceLoading ? (

@@ -5,6 +5,7 @@ import Reconciliation from './components/Reconciliation';
 import Settings from './components/Settings';
 import Orderblock from './components/Orderblock';
 import CombinedScore from './components/CombinedScore';
+import Dashboard from './components/Dashboard';
 import Overview from './components/Overview';
 import SymbolLayout from './components/SymbolLayout';
 import GlobalNav from './components/GlobalNav';
@@ -41,7 +42,8 @@ function AppContent() {
       <Routes>
         <Route path="/" element={<Overview />} />
         <Route path="/s/:symbol" element={<SymbolLayout />}>
-          <Route index element={<Navigate to="lots" replace />} />
+          <Route index element={<Navigate to="dashboard" replace />} />
+          <Route path="dashboard" element={<Dashboard />} />
           <Route path="lots" element={<LotsTable />} />
           <Route path="combined" element={<CombinedScore />} />
           <Route path="orderblock" element={<Orderblock />} />
@@ -55,6 +57,7 @@ function AppContent() {
 
       <footer className="app-footer">
         <span>Cashflow Management v0.1.0</span>
+        <a href="/docs" target="_blank" rel="noopener noreferrer" className="footer-link">API Docs</a>
         {serverIpData?.ip && (
           <span className="footer-ip">Server IP: {serverIpData.ip}</span>
         )}
