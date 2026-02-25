@@ -196,6 +196,42 @@ code {
   color: white;
 }
 
+/* Sub-nav group containers */
+.subnav-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.subnav-group + .subnav-group {
+  margin-left: 12px;
+  padding-left: 16px;
+  border-left: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.subnav-group-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-text-muted);
+  opacity: 0.6;
+  margin-right: 4px;
+}
+
+/* Footer API docs link */
+.footer-link {
+  color: var(--color-text-muted);
+  text-decoration: none;
+  font-size: 12px;
+  transition: color 0.2s;
+}
+
+.footer-link:hover {
+  color: var(--color-text-secondary);
+  text-decoration: underline;
+}
+
 .symbol-subnav .live-price {
   background: rgba(255, 255, 255, 0.08);
   color: white;
