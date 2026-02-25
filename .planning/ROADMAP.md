@@ -102,11 +102,11 @@ Plans:
   3. API Docs ist nicht mehr in der Navbar (Link ggf. im Footer oder Settings)
   4. Alte URLs (z.B. `/s/:symbol/combined`) leiten korrekt auf die neue Struktur um — keine 404s fuer Bookmarks
   5. Browser-Navigation (Zurueck/Vorwaerts) funktioniert korrekt zwischen allen Bereichen und Symbolen
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 12-01: TBD
-- [ ] 12-02: TBD
+- [ ] 12-01-PLAN.md — Create CombinedScoreWidget and embed in per-symbol Dashboard
+- [ ] 12-02-PLAN.md — 3-area sub-navigation, router restructure, API docs footer link
 
 ## Progress
 
@@ -123,4 +123,4 @@ Plans:
 | 9. XRPBTC Removal | v2.0 | 3/3 | Complete | 2026-02-23 |
 | 10. CSS Variable Foundation | v2.0 | 3/3 | Complete | 2026-02-24 |
 | 11. Dark Mode Activation + Charts | v2.0 | Complete    | 2026-02-24 | 2026-02-24 |
-| 12. Navigation Restructure + Dashboard | v2.0 | 0/? | Not started | - |
+| 12. Navigation Restructure + Dashboard | v2.0 | 0/2 | Not started | - |
