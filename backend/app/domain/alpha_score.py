@@ -10,7 +10,7 @@ Vier unabhaengige quantitative Faktor-Berechnungen fuer den Alpha Score (-5 bis 
 Alle Berechnungen verwenden Decimal (kein float).
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from decimal import Decimal, ROUND_HALF_UP
 from typing import List, Optional, Tuple
 
