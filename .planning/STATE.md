@@ -5,24 +5,24 @@
 See: .planning/PROJECT.md (updated 2026-02-23)
 
 **Core value:** Ledger-first, deterministisches, auditierbares Cashflow-Tracking und automatisiertes Trading-System
-**Current focus:** v2.0 Frontend Redesign + EUR-Fokus — Phase 12 in progress (Navigation Restructure + Dashboard)
+**Current focus:** v2.0 Frontend Redesign + EUR-Fokus — Phase 12 COMPLETE (Navigation Restructure + Dashboard)
 
 ## Current Position
 
 Milestone: v2.0 Frontend Redesign + EUR-Fokus
 Phase: 12 of 12 (Navigation Restructure + Dashboard)
-Plan: 1 of 2
-Status: Plan 01 complete
-Last activity: 2026-02-25 — Plan 01 complete (CombinedScoreWidget + Dashboard integration)
+Plan: 2 of 2
+Status: Phase 12 COMPLETE -- all plans executed
+Last activity: 2026-02-25 — Plan 02 complete (3-area sub-nav + Dashboard routing + footer API docs)
 
-Progress: [#########-] 93%
+Progress: [##########] 100%
 
 ## Performance Metrics
 
 **Velocity (previous milestones):**
-- Total plans completed: 28 (8 v1.0 + 9 v1.1 + 11 v2.0)
-- Average duration: 3.3min
-- Total execution time: 102min
+- Total plans completed: 29 (8 v1.0 + 9 v1.1 + 12 v2.0)
+- Average duration: 3.2min
+- Total execution time: 104min
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
@@ -37,6 +37,7 @@ Progress: [#########-] 93%
 | 11-dark-mode-activation-charts | 03 | 3min | 2 | 6 |
 | 11-dark-mode-activation-charts | 04 | 2min | 2 | 2 |
 | 12-navigation-restructure-dashboard | 01 | 2min | 2 | 4 |
+| 12-navigation-restructure-dashboard | 02 | 2min | 2 | 3 |
 
 ## Accumulated Context
 
@@ -84,6 +85,10 @@ v1.0 decision log archived in milestones/v1.0-phases/ SUMMARY.md files.
 - 12-01: CombinedScoreWidget uses identical queryKey as CombinedScore.jsx for TanStack Query cache deduplication
 - 12-01: Widget CSS classes use widget-* prefix to avoid collision with combined-* classes from CombinedScore.css
 
+- 12-02: 3 navigation groups: Trading (Dashboard, TradeLots), Analyse (Combined Score, Orderblocks), Admin (Reconciliation)
+- 12-02: Index redirect changed from /lots to /dashboard -- Dashboard is now the default landing page per symbol
+- 12-02: API Docs link placed in footer (not navbar) to keep primary navigation uncluttered
+
 ### Key Context for v2.0
 
 - XRPBTC removal: Historical DB data preserved (Ledger-first). Only code paths removed.
@@ -97,6 +102,8 @@ v1.0 decision log archived in milestones/v1.0-phases/ SUMMARY.md files.
 - PHASE 11 COMPLETE: All 4 plans done (3 original + 1 gap closure). Dark theme activated, all chart libraries (lightweight-charts + Recharts) converted, zero hardcoded hex in chart components. CombinedScore hero banner uses theme-aware ACTION_COLOR_MAP, Overview PieChart Tooltip has dark contentStyle.
 - Research confidence: HIGH across all 4 phases. No phases need additional research.
 - NAV-02 COMPLETE: CombinedScoreWidget hero banner embedded in per-symbol Dashboard above depot-flow KPIs. Shared TanStack cache key with CombinedScore.jsx.
+- PHASE 12 COMPLETE: All 2 plans done. 3-area sub-nav (Trading/Analyse/Admin), Dashboard as default landing page, footer API docs link. All NAV requirements fulfilled (NAV-01 through NAV-04).
+- MILESTONE v2.0 COMPLETE: All 12 phases executed (09 XRPBTC removal, 10 CSS variables, 11 dark mode, 12 navigation + dashboard). 29 total plans across all milestones.
 
 ### Pending Todos
 
@@ -109,5 +116,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-25
-Stopped at: Completed 12-01-PLAN.md (CombinedScoreWidget + Dashboard integration). Next: Plan 02 (navigation restructure + routing)
+Stopped at: Completed 12-02-PLAN.md (3-area sub-nav + Dashboard routing). Phase 12 COMPLETE. Milestone v2.0 COMPLETE.
 Resume file: None

@@ -39,7 +39,7 @@ See: `.planning/milestones/v1.1-ROADMAP.md` for full details
 - [x] **Phase 9: XRPBTC Removal** - Alle XRPBTC Code-Pfade aus Backend und Frontend entfernen (historische DB-Daten bleiben)
 - [x] **Phase 10: CSS Variable Foundation** - Alle hardcoded Farbwerte durch CSS Custom Properties ersetzen (kein visueller Unterschied) (completed 2026-02-24)
 - [x] **Phase 11: Dark Mode Activation + Charts** - Dunkles Theme aktivieren, Chart-Bibliotheken integrieren, FOWT verhindern (completed 2026-02-24)
-- [ ] **Phase 12: Navigation Restructure + Dashboard** - 3-Bereichs-Navigation, Combined Score ins Dashboard, API Docs entfernen
+- [x] **Phase 12: Navigation Restructure + Dashboard** - 3-Bereichs-Navigation, Combined Score ins Dashboard, API Docs entfernen (completed 2026-02-25)
 
 ## Phase Details
 
@@ -123,4 +123,4 @@ Plans:
 | 9. XRPBTC Removal | v2.0 | 3/3 | Complete | 2026-02-23 |
 | 10. CSS Variable Foundation | v2.0 | 3/3 | Complete | 2026-02-24 |
 | 11. Dark Mode Activation + Charts | v2.0 | Complete    | 2026-02-24 | 2026-02-24 |
-| 12. Navigation Restructure + Dashboard | 1/2 | In Progress|  | - |
+| 12. Navigation Restructure + Dashboard | 2/2 | Complete   | 2026-02-25 | - |
