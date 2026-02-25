@@ -2,22 +2,11 @@
 
 ## What This Is
 
-BTC/EUR Cashflow-Management & Automation App fuer Binance Spot Trading. Ledger-basiertes, deterministisches, auditierbares Cashflow-Tracking und automatisiertes Trading-System. Unterstuetzt BTCEUR, ETHEUR und XRPEUR Paare mit EUR als einzigem Quote-Asset.
+BTC/EUR Cashflow-Management & Automation App fuer Binance Spot Trading. Ledger-basiertes, deterministisches, auditierbares Cashflow-Tracking und automatisiertes Trading-System. Unterstuetzt BTCEUR, ETHEUR und XRPEUR Paare mit EUR als einzigem Quote-Asset. Dark Mode Frontend mit 3-Bereichs-Navigation (Trading/Analyse/Admin) und integrierter Combined Score Handlungsempfehlung im Dashboard.
 
 ## Core Value
 
 Ledger-first, deterministisches, auditierbares Cashflow-Tracking und automatisiertes Trading-System fuer EUR-denominierte Spot-Paare.
-
-## Current Milestone: v2.0 Frontend Redesign + EUR-Fokus
-
-**Goal:** Frontend komplett neugestalten (Dark Mode, 3-Bereichs-Navigation, Combined Score ins Dashboard) und XRPBTC-Support entfernen — nur noch EUR-Paare.
-
-**Target features:**
-- XRPBTC komplett entfernen (Backend + Frontend, Symbol Registry, Cross-Pair Routing, BTC-Quote-Logik)
-- Navigation von 7 Tabs auf 3 Bereiche reduzieren: Trading (Dashboard + Combined Score + Lots + Pairing), Orderblocks, Admin (Reconciliation + Settings)
-- Dark Mode Theme (Trading-App-Optik)
-- Combined Score ins Dashboard integrieren (statt eigene Seite)
-- API Docs aus Navbar entfernen
 
 ## Requirements
 
@@ -52,50 +41,50 @@ Ledger-first, deterministisches, auditierbares Cashflow-Tracking und automatisie
 - ✓ Alert-System: Persistent AlertBanner im Frontend, Dismiss/Bulk-Dismiss, strukturierte JSON-Logs (ALERT_EVENT/RECONCILIATION_RUN) — v1.1
 - ✓ Reconciliation-Historie: Expandierbare Run-Details mit Alerts im Frontend — v1.1
 - ✓ Konfigurierbare Reconciliation-Toleranzen (Base/Quote) in Settings — v1.1
+- ✓ XRPBTC aus Symbol Registry, Backend und Frontend entfernt — v2.0
+- ✓ 3-Bereichs-Navigation (Trading/Analyse/Admin) — v2.0
+- ✓ Dark Mode Theme (Dark-only, FOWT-safe, alle Chart-Bibliotheken) — v2.0
+- ✓ Combined Score Hero-Widget ins Dashboard integriert — v2.0
+- ✓ API Docs aus Navbar entfernt (Footer-Link) — v2.0
 
 ### Active
 
 <!-- Current scope. Building toward these. -->
 
-- [ ] XRPBTC aus Symbol Registry, Backend und Frontend entfernen
-- [ ] Navigation auf 3 Bereiche: Trading, Orderblocks, Admin
-- [ ] Dark Mode Theme fuer gesamtes Frontend
-- [ ] Combined Score ins Dashboard integrieren
-- [ ] API Docs aus Navbar entfernen
+(None — planning next milestone)
 
 ### Out of Scope
 
 <!-- Explicit boundaries. Includes reasoning to prevent re-adding. -->
 
-- Generisches Cross-Pair fuer alle Assets — Erstmal nur XRP, andere Assets (ETH/BTC etc.) bei Bedarf spaeter
-- Aggregierte Portfolio-View pro Base-Asset — Frontend Overview macht das bereits, kein Backend-Endpoint noetig
-- Auto BTC→EUR Konvertierung nach XRPBTC Sell — Separate Trading-Entscheidung
 - Auto-Order Automation (Trigger-basiert) — Separater Milestone
-- Hardening: Monitoring + WebSocket-Recovery — v1.1 fokussiert auf REST-Resilience und Sync, WebSocket-Hardening spaeter
+- Hardening: Monitoring + WebSocket-Recovery — WebSocket-Hardening spaeter
 - Frontend-Tests (Vitest) — Separater Milestone
-- listPairings base_asset Frontend-Filter — v2 Enhancement (Badges anzeigen funktioniert ohne Filter)
+- Light/Dark Toggle — Dark-only in v2.0, Toggle kann spaeter ergaenzt werden
+- Responsive/Mobile Layout — Desktop-fokussiert
 
 ## Context
 
 Shipped v1.0 mit 8.035 neuen Zeilen ueber 50 Dateien (4 Phasen, 8 Plaene, 13 Tasks).
 Shipped v1.1 mit 6.054 neuen Zeilen ueber 52 Dateien (4 Phasen, 9 Plaene, 17 Tasks).
+Shipped v2.0 mit 9.387 neuen Zeilen ueber 93 Dateien (4 Phasen, 12 Plaene, 24 Tasks).
 Tech Stack: Python 3 + FastAPI, SQLAlchemy 2, Alembic, React 19, TanStack Query.
-633+ Backend-Tests, Frontend-Build sauber.
+655+ Backend-Tests, Frontend-Build sauber.
 
-Symbol Registry kennt aktuell 4 Pairs: BTCEUR, ETHEUR, XRPEUR, XRPBTC. v2.0 entfernt XRPBTC — nur noch EUR-quoted Pairs. Historische Kursumrechnung (Klines API) wird fuer BNB-Fee-Konvertierung verwendet.
+Symbol Registry kennt 3 EUR-Pairs: BTCEUR, ETHEUR, XRPEUR. XRPBTC in v2.0 entfernt (historische DB-Daten erhalten). Historische Kursumrechnung (Klines API) wird fuer BNB-Fee-Konvertierung verwendet.
 
 API-Schicht hat exponentiellen Backoff mit Retry-After Support, konfigurierbare Timeouts, strukturierte Fehlerklassifikation. Sync liefert per-Fill Ergebnisse (PROCESSED/FAILED/SKIPPED_FIFO). Auto-Reconciliation nach jedem Sync mit Threshold-Alerts. AlertBanner persistent im Frontend, Reconciliation-Historie mit expandierbaren Run-Details.
 
-Frontend aktuell: 7 Top-Level Tabs (Dashboard, TradeLots, Combined Score, Orderblocks, Reconciliation, Settings, API Docs). Plain CSS, Light Mode, Purple-Gradient Navbar. v2.0 redesigned zu 3 Bereichen mit Dark Mode.
+Frontend: Dark Mode (dark-only, FOWT-safe), 3-Bereichs-Navigation (Trading/Analyse/Admin), Combined Score Widget im Dashboard, Plain CSS mit 79+ CSS Custom Properties. Dashboard ist Default-Landing-Page pro Symbol. API Docs im Footer.
 
-### Known Tech Debt (v1.0)
-- backfill_cost_eur.py verwendet float() statt Decimal fuer SQL-Writes
-- Single-Pairing GET Endpoint liefert routing_decision_json nicht (List-Endpoint tut es)
-- EUR P&L Normalisierung bei Fill-Zeit nutzt btceur_price vom Routing-Zeitpunkt (akzeptierte Approximation)
-- Phase 1 hat kein VERIFICATION.md (vor Einfuehrung des Verify-Steps ausgefuehrt)
-
-### Known Tech Debt (v1.1)
-- ROADMAP.md Plan-Checkboxen fuer Phase 5/6/8 nicht alle markiert (nur Phase 7 hat [x]) — rein kosmetisch, alle SUMMARYs vorhanden
+### Known Tech Debt
+- backfill_cost_eur.py verwendet float() statt Decimal fuer SQL-Writes (v1.0)
+- Single-Pairing GET Endpoint liefert routing_decision_json nicht (v1.0)
+- getQuoteDecimals(symbol) wird mit ignoriertem Argument aufgerufen (v2.0)
+- XRPEUR price_precision=4 Backend vs getQuoteDecimals()=2 Frontend (pre-existing)
+- orderblockHelpers.jsx hardcoded Fallback-Gradients (unerreichbar im Normalbetrieb) (v2.0)
+- Keine Frontend-Tests (Vitest geplant)
+- Pytest ResourceWarning: 52 unclosed database connections in Test-Fixtures (v2.0 Code Review)
 
 ## Constraints
 
@@ -126,10 +115,13 @@ Frontend aktuell: 7 Top-Level Tabs (Dashboard, TradeLots, Combined Score, Orderb
 | AlertBanner mit 30s Polling (nicht WebSocket) | Konsistent mit CombinedScore Pattern, einfach | ✓ Good — WebSocket-Push in v2 |
 | Tolerance Inputs als type=text | Decimal-Praezision per Projekt-Konvention | ✓ Good — Backend validiert via Decimal |
 
-| XRPBTC komplett entfernen | Nur EUR-Paare, vereinfacht Codebase (kein Cross-Pair Routing, kein Satoshi-Encoding, kein BTC-Quote) | — Pending |
-| 3-Bereichs-Navigation statt 7 Tabs | Weniger kognitive Last, logische Gruppierung (Trading/Orderblocks/Admin) | — Pending |
-| Dark Mode statt Light Mode | Trading-App-Konvention, bessere Lesbarkeit bei laengerer Nutzung | — Pending |
-| Combined Score ins Dashboard | Zentrale Handlungsempfehlung gehoert zur Trading-Uebersicht, nicht auf eigene Seite | — Pending |
+| XRPBTC komplett entfernen | Nur EUR-Paare, vereinfacht Codebase (kein Cross-Pair Routing, kein Satoshi-Encoding, kein BTC-Quote) | ✓ Good — 6 DB-Spalten, 4 Testdateien entfernt, historische Daten erhalten |
+| 3-Bereichs-Navigation statt 7 Tabs | Weniger kognitive Last, logische Gruppierung (Trading/Analyse/Admin) | ✓ Good — "Analyse" statt "Orderblocks" als Gruppenlabel (Combined Score + Orderblocks) |
+| Dark Mode (dark-only) statt Light Mode | Trading-App-Konvention, bessere Lesbarkeit bei laengerer Nutzung | ✓ Good — FOWT-safe, 440+ Hex-Werte konvertiert, beide Chart-Libs theme-aware |
+| Combined Score ins Dashboard | Zentrale Handlungsempfehlung gehoert zur Trading-Uebersicht, nicht auf eigene Seite | ✓ Good — CombinedScoreWidget mit TanStack Cache-Sharing |
+| CSS Custom Properties statt hardcoded Hex | Vorbereitung Dark Mode + zukuenftiges Theming | ✓ Good — 79+ semantische Tokens, zero hardcoded Hex in 12 CSS-Dateien |
+| useChartTheme als zentraler Chart-Theme-Hook | Einheitlicher Zugriff auf CSS-Variablen fuer lightweight-charts + Recharts | ✓ Good — getComputedStyle-basiert, 74 Chart-Farbwerte konvertiert |
+| Dashboard als Default-Landing-Page pro Symbol | Trading-Empfehlung sofort sichtbar statt Lot-Liste | ✓ Good — Index-Redirect von /lots zu /dashboard |
 
 ---
-*Last updated: 2026-02-23 after v2.0 milestone start*
+*Last updated: 2026-02-25 after v2.0 milestone*

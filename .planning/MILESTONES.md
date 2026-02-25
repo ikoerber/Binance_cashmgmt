@@ -34,3 +34,20 @@
 
 ---
 
+
+## v2.0 Frontend Redesign + EUR-Fokus (Shipped: 2026-02-25)
+
+**Phases completed:** 4 phases, 12 plans, 24 tasks
+**Timeline:** 3 days (2026-02-23 → 2026-02-25)
+**Lines:** +9,387 / -2,983 across 93 files
+
+**Key accomplishments:**
+- XRPBTC completely removed — Backend, Frontend, Alembic migration (6 DB columns dropped), test cleanup (4 files deleted). Only EUR-quoted pairs remain (BTCEUR, ETHEUR, XRPEUR)
+- CSS Custom Property system — 440+ hardcoded hex values converted to semantic CSS variables across all 12 CSS files. Dark mode palette with WCAG AA contrast
+- Dark Mode activated — Dark-only theme with FOWT-safe blocking script. Both chart libraries (lightweight-charts + Recharts) fully theme-aware via useChartTheme hook
+- 3-area navigation — Sub-nav reorganized from flat 5 tabs to Trading/Analyse/Admin groups. Dashboard as default landing page per symbol
+- Combined Score hero widget — CombinedScoreWidget embedded in Dashboard showing action recommendation + score bar. TanStack Query cache sharing with full CombinedScore page
+- API Docs relocated to footer — Primary navigation decluttered
+
+---
+
