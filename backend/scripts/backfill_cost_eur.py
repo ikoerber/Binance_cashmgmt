@@ -102,7 +102,7 @@ def get_historical_price(symbol: str, timestamp_str: str) -> Decimal:
 def main():
     parser = argparse.ArgumentParser(description="Backfill cost_eur for BTC-quoted lots")
     parser.add_argument("--commit", action="store_true", help="Tatsaechlich in DB schreiben")
-    parser.add_argument("--db", choices=["pg", "sqlite"], default="pg", help="Welche DB (default: pg)")
+    parser.add_argument("--db", choices=["pg", "sqlite"], default="sqlite", help="Welche DB (default: sqlite)")
     args = parser.parse_args()
 
     if args.db == "pg":
@@ -111,7 +111,7 @@ def main():
             logger.error("DATABASE_URL nicht gesetzt")
             sys.exit(1)
     else:
-        db_url = "sqlite:///./cashmgnt.db"
+        db_url = os.getenv("DB_URL", "sqlite:///./cashmgnt.db")
 
     logger.info("DB: %s", db_url[:50] + "...")
     logger.info("Mode: %s", "COMMIT" if args.commit else "DRY-RUN")
@@ -194,7 +194,7 @@ def main():
                             quote_to_eur_rate = :rate
                         WHERE id = :lot_id
                     """),
-                    {"cost_eur": float(cost_eur), "rate": float(btceur_rate), "lot_id": lot_id},
+                    {"cost_eur": str(cost_eur), "rate": str(btceur_rate), "lot_id": lot_id},
                 )
 
             logger.info(

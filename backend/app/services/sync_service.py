@@ -20,8 +20,8 @@ from app.services.lot_service import create_lot_from_buy_fill, process_sell_fill
 from app.domain.models import LedgerEvent, TradeSide, EventType
 from app.domain.sync_result import SyncResult, FillResult, FillOutcome
 from app.utils.fee_conversion import compute_fee_quote_value
-from app.db.models import LedgerEventDB, EventTypeEnum, EventSourceEnum, TradeSideEnum
-from app.symbol_registry import get_base_asset, get_quote_asset
+from app.db.models import LedgerEventDB, EventTypeEnum, EventSourceEnum, TradeSideEnum, TradeLotDB
+from app.symbol_registry import get_base_asset, get_quote_asset, is_eur_quoted
 
 
 def persist_ledger_event(
@@ -45,7 +45,7 @@ def persist_ledger_event(
         Persistiertes LedgerEventDB
     """
     event_db = LedgerEventDB(
-        id=event.id,
+        id=f"{user_id}_{event.id}",
         user_id=user_id,
         type=EventTypeEnum[event.type.value],
         timestamp=event.timestamp,
@@ -148,12 +148,23 @@ class SyncService:
         allocations_count = 0
         fill_results: List[FillResult] = []
 
+        # Minuten-Cache fuer historische BTC/EUR Raten (non-EUR-quoted pairs)
+        btceur_minute_cache: Dict[str, Decimal] = {}
+
         # Phase 1: Alle Buy-Lots erstellen
         for event_db, fill_rates, original_fill in created_events:
             if event_db.side == TradeSideEnum.BUY:
                 try:
                     create_lot_from_buy_fill(db, user_id, event_db.id, fill_rates)
                     new_lots_count += 1
+
+                    # Fuer non-EUR-quoted Pairs: Historische BTC/EUR Rate abrufen
+                    # und cost_eur + quote_to_eur_rate auf dem Lot setzen
+                    if not is_eur_quoted(symbol):
+                        self._enrich_lot_with_eur_rate(
+                            db, event_db, symbol, btceur_minute_cache
+                        )
+
                     fill_results.append(FillResult(
                         source_id=original_fill.source_id,
                         fill_id=event_db.id,
@@ -394,6 +405,80 @@ class SyncService:
                 per_fill_rates[fill.id] = {asset: minute_cache[cache_key]}
 
         return per_fill_rates
+
+    def _enrich_lot_with_eur_rate(
+        self,
+        db: Session,
+        event_db: LedgerEventDB,
+        symbol: str,
+        minute_cache: Dict[str, Decimal],
+    ) -> None:
+        """
+        Fuer non-EUR-quoted Pairs: Holt historische BTC/EUR Rate und setzt
+        cost_eur + quote_to_eur_rate auf dem Lot.
+
+        Verwendet Minuten-Cache um redundante API-Calls zu vermeiden.
+        Graceful Fallback: Bei Fehler wird nur gewarnt, Lot bleibt mit
+        cost_eur=None (kann spaeter via Backfill-Script nachgeholt werden).
+
+        Args:
+            db: Database Session
+            event_db: Das LedgerEvent des Buy-Fills
+            symbol: Trading Pair (z.B. "XRPBTC")
+            minute_cache: Cache fuer (minute_key -> btceur_rate)
+        """
+        from app.services.binance_public_client import get_binance_public_client
+
+        # Lot fuer diesen Fill finden
+        lot_db = (
+            db.query(TradeLotDB)
+            .filter(TradeLotDB.created_from_fill_id == event_db.id)
+            .first()
+        )
+        if not lot_db:
+            logger.warning(
+                "No lot found for fill %s during EUR rate enrichment", event_db.id
+            )
+            return
+
+        fill_timestamp = event_db.timestamp
+        minute_key = fill_timestamp.strftime("%Y-%m-%d %H:%M")
+
+        if minute_key not in minute_cache:
+            try:
+                client = get_binance_public_client()
+                ts_ms = int(fill_timestamp.timestamp() * 1000)
+                klines = client.get_klines("BTCEUR", "1m", limit=1, start_time=ts_ms)
+                if klines:
+                    btceur_rate = Decimal(str(klines[0][4]))  # Close price
+                    minute_cache[minute_key] = btceur_rate
+                    logger.info(
+                        "Historical BTCEUR rate at %s: %s (for %s fill %s)",
+                        minute_key, btceur_rate, symbol, event_db.id,
+                    )
+                else:
+                    logger.warning(
+                        "No BTCEUR kline data at %s for fill %s. "
+                        "cost_eur will remain None (backfill later).",
+                        minute_key, event_db.id,
+                    )
+                    return
+            except Exception as e:
+                logger.warning(
+                    "Failed to fetch historical BTCEUR rate at %s for fill %s: %s. "
+                    "cost_eur will remain None (backfill later).",
+                    minute_key, event_db.id, e,
+                )
+                return
+
+        if minute_key in minute_cache:
+            btceur_rate = minute_cache[minute_key]
+            lot_db.cost_eur = lot_db.cost_quote * btceur_rate
+            lot_db.quote_to_eur_rate = btceur_rate
+            logger.info(
+                "Lot %s: cost_eur = %s * %s = %s",
+                lot_db.id, lot_db.cost_quote, btceur_rate, lot_db.cost_eur,
+            )
 
     def _persist_ledger_event(
         self,
