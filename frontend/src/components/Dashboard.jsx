@@ -7,6 +7,7 @@ import { useSymbol } from '../contexts/SymbolContext';
 import { useUser } from '../contexts/UserContext';
 import { formatNumber, formatQuote, formatBase } from '../utils/formatters';
 import { getBaseLabel, getQuoteLabel } from '../utils/symbolRegistry';
+import CombinedScoreWidget from './CombinedScoreWidget';
 import './Dashboard.css';
 
 // Preis auf 50 EUR runden, damit der queryKey nicht bei jedem Tick wechselt
@@ -45,6 +46,9 @@ const Dashboard = () => {
   return (
     <div className="dashboard">
       <h1>{getBaseLabel(activeSymbol)}/{getQuoteLabel(activeSymbol)} Portfolio Dashboard</h1>
+
+      {/* Combined Score Hero Widget */}
+      <CombinedScoreWidget />
 
       {/* Depot-Übersicht: Eingezahlt → Bestand → Performance */}
       <div className="depot-flow">

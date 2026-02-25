@@ -72,6 +72,11 @@
   color: var(--color-loss);
 }
 
+/* ─── Combined Score Widget spacing ─── */
+.dashboard .combined-widget {
+  margin-bottom: 24px;
+}
+
 /* ─── Depot-Flow (Eingezahlt → EUR + BTC = Performance) ─── */
 .depot-flow {
   display: flex;
