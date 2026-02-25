@@ -11,22 +11,23 @@ See: .planning/PROJECT.md (updated 2026-02-25)
 
 Milestone: v3.0 Multi-Factor Omni-Bot
 Phase: 13 of 17 (XRPBTC Infrastructure)
-Plan: 1 of 3 complete
+Plan: 2 of 3 complete
 Status: Executing
-Last activity: 2026-02-25 — Completed 13-01-PLAN.md (Symbol Registry + Migration + Domain Logic)
+Last activity: 2026-02-25 — Completed 13-02-PLAN.md (Sync Pipeline EUR Conversion + Pairing/Order Guards)
 
-Progress: [███░░░░░░░] 7%
+Progress: [████░░░░░░] 13%
 
 ## Performance Metrics
 
 **Velocity (all milestones):**
-- Total plans completed: 30 (8 v1.0 + 9 v1.1 + 12 v2.0 + 1 v3.0)
+- Total plans completed: 31 (8 v1.0 + 9 v1.1 + 12 v2.0 + 2 v3.0)
 - Average duration: 3.2min
-- Total execution time: 108min
+- Total execution time: 112min
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
 | 13-01 | Symbol Registry + Migration + Domain | 4min | 2 | 6 |
+| 13-02 | Sync Pipeline + Pairing/Order Guards | 4min | 2 | 6 |
 
 ## Accumulated Context
 
@@ -42,6 +43,9 @@ v1.0 decision log archived in milestones/v1.0-phases/ SUMMARY.md files.
 - Only quote_to_eur_rate re-added (not pairing columns) -- pairing disabled for XRPBTC
 - Existing Combined Score is user-calibrated -- Alpha Score integration must be last phase
 - numpy 2.2.6 is the only new backend dependency (Decimal boundary pattern: Decimal in, numpy compute, Decimal out)
+- Sync pipeline enriches XRPBTC lots with historical BTC/EUR rate (minute-cached, graceful fallback to cost_eur=None)
+- Three-layer pairing/order isolation: symbol_registry -> service guard -> API route guard
+- Backfill script fixed: Decimal precision (no float), default DB=sqlite
 
 ### Pending Todos
 
@@ -54,5 +58,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-25
-Stopped at: Completed 13-01-PLAN.md
+Stopped at: Completed 13-02-PLAN.md
 Resume file: None
