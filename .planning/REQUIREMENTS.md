@@ -105,13 +105,47 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| (populated by roadmapper) | | |
+| INFRA-01 | Phase 13 | Pending |
+| INFRA-02 | Phase 13 | Pending |
+| INFRA-03 | Phase 13 | Pending |
+| INFRA-04 | Phase 13 | Pending |
+| SCORE-01 | Phase 14 | Pending |
+| SCORE-02 | Phase 14 | Pending |
+| SCORE-03 | Phase 14 | Pending |
+| SCORE-04 | Phase 14 | Pending |
+| SCORE-05 | Phase 14 | Pending |
+| SCORE-06 | Phase 14 | Pending |
+| SCORE-07 | Phase 14 | Pending |
+| SCORE-08 | Phase 14 | Pending |
+| SCORE-09 | Phase 14 | Pending |
+| EXIT-01 | Phase 14 | Pending |
+| EXIT-02 | Phase 14 | Pending |
+| BT-01 | Phase 15 | Pending |
+| BT-02 | Phase 15 | Pending |
+| BT-03 | Phase 15 | Pending |
+| BT-04 | Phase 15 | Pending |
+| BT-05 | Phase 15 | Pending |
+| BT-06 | Phase 15 | Pending |
+| BT-07 | Phase 15 | Pending |
+| DRY-01 | Phase 16 | Pending |
+| DRY-02 | Phase 16 | Pending |
+| DRY-03 | Phase 16 | Pending |
+| DRY-04 | Phase 16 | Pending |
+| DRY-05 | Phase 16 | Pending |
+| BOT-01 | Phase 16 | Pending |
+| BOT-02 | Phase 16 | Pending |
+| BOT-03 | Phase 16 | Pending |
+| BOT-04 | Phase 16 | Pending |
+| BOT-05 | Phase 16 | Pending |
+| BOT-06 | Phase 16 | Pending |
+| COMB-01 | Phase 17 | Pending |
+| COMB-02 | Phase 17 | Pending |
 
 **Coverage:**
-- v3.0 requirements: 27 total
-- Mapped to phases: 0
-- Unmapped: 27
+- v3.0 requirements: 35 total
+- Mapped to phases: 35
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-02-25*
-*Last updated: 2026-02-25 after initial definition*
+*Last updated: 2026-02-25 after roadmap creation (traceability populated)*
