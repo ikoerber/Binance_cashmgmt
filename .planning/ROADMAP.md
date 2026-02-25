@@ -123,4 +123,4 @@ Plans:
 | 9. XRPBTC Removal | v2.0 | 3/3 | Complete | 2026-02-23 |
 | 10. CSS Variable Foundation | v2.0 | 3/3 | Complete | 2026-02-24 |
 | 11. Dark Mode Activation + Charts | v2.0 | Complete    | 2026-02-24 | 2026-02-24 |
-| 12. Navigation Restructure + Dashboard | v2.0 | 0/2 | Not started | - |
+| 12. Navigation Restructure + Dashboard | 1/2 | In Progress|  | - |

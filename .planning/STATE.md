@@ -5,24 +5,24 @@
 See: .planning/PROJECT.md (updated 2026-02-23)
 
 **Core value:** Ledger-first, deterministisches, auditierbares Cashflow-Tracking und automatisiertes Trading-System
-**Current focus:** v2.0 Frontend Redesign + EUR-Fokus — Phase 11 complete (incl. gap closure), Phase 12 next
+**Current focus:** v2.0 Frontend Redesign + EUR-Fokus — Phase 12 in progress (Navigation Restructure + Dashboard)
 
 ## Current Position
 
 Milestone: v2.0 Frontend Redesign + EUR-Fokus
-Phase: 11 of 12 (Dark Mode Activation + Charts)
-Plan: 4 of 4
-Status: Phase complete
-Last activity: 2026-02-24 — Plan 04 complete (gap closure: CombinedScore action_color + Overview tooltip)
+Phase: 12 of 12 (Navigation Restructure + Dashboard)
+Plan: 1 of 2
+Status: Plan 01 complete
+Last activity: 2026-02-25 — Plan 01 complete (CombinedScoreWidget + Dashboard integration)
 
-Progress: [########=-] 86%
+Progress: [#########-] 93%
 
 ## Performance Metrics
 
 **Velocity (previous milestones):**
-- Total plans completed: 27 (8 v1.0 + 9 v1.1 + 10 v2.0)
-- Average duration: 3.4min
-- Total execution time: 100min
+- Total plans completed: 28 (8 v1.0 + 9 v1.1 + 11 v2.0)
+- Average duration: 3.3min
+- Total execution time: 102min
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
@@ -36,6 +36,7 @@ Progress: [########=-] 86%
 | 11-dark-mode-activation-charts | 02 | 2min | 1 | 1 |
 | 11-dark-mode-activation-charts | 03 | 3min | 2 | 6 |
 | 11-dark-mode-activation-charts | 04 | 2min | 2 | 2 |
+| 12-navigation-restructure-dashboard | 01 | 2min | 2 | 4 |
 
 ## Accumulated Context
 
@@ -80,6 +81,9 @@ v1.0 decision log archived in milestones/v1.0-phases/ SUMMARY.md files.
 - 11-04: ACTION_COLOR_MAP uses German CombinedAction.value strings as keys (Aggressiv kaufen, Kaufen, etc.) matching backend enum
 - 11-04: Backend action_color field remains in API response for external consumers -- frontend-only change
 
+- 12-01: CombinedScoreWidget uses identical queryKey as CombinedScore.jsx for TanStack Query cache deduplication
+- 12-01: Widget CSS classes use widget-* prefix to avoid collision with combined-* classes from CombinedScore.css
+
 ### Key Context for v2.0
 
 - XRPBTC removal: Historical DB data preserved (Ledger-first). Only code paths removed.
@@ -92,6 +96,7 @@ v1.0 decision log archived in milestones/v1.0-phases/ SUMMARY.md files.
 - DARK-05 COMPLETE: Recharts charts + CombinedScore + orderblockHelpers all theme-aware -- 49 hex values replaced via useChartTheme.
 - PHASE 11 COMPLETE: All 4 plans done (3 original + 1 gap closure). Dark theme activated, all chart libraries (lightweight-charts + Recharts) converted, zero hardcoded hex in chart components. CombinedScore hero banner uses theme-aware ACTION_COLOR_MAP, Overview PieChart Tooltip has dark contentStyle.
 - Research confidence: HIGH across all 4 phases. No phases need additional research.
+- NAV-02 COMPLETE: CombinedScoreWidget hero banner embedded in per-symbol Dashboard above depot-flow KPIs. Shared TanStack cache key with CombinedScore.jsx.
 
 ### Pending Todos
 
@@ -103,6 +108,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-24
-Stopped at: Completed 11-04-PLAN.md (gap closure: CombinedScore action_color + Overview tooltip). Phase 11 fully complete. Next: Phase 12
+Last session: 2026-02-25
+Stopped at: Completed 12-01-PLAN.md (CombinedScoreWidget + Dashboard integration). Next: Plan 02 (navigation restructure + routing)
 Resume file: None

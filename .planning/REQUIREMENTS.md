@@ -28,7 +28,7 @@ Requirements for v2.0 Frontend Redesign + EUR-Fokus. Each maps to roadmap phases
 ### Navigation
 
 - [ ] **NAV-01**: 3-Bereichs-Navigation implementieren (Trading, Orderblocks, Admin)
-- [ ] **NAV-02**: Combined Score Hero-Widget ins Dashboard integrieren
+- [x] **NAV-02**: Combined Score Hero-Widget ins Dashboard integrieren
 - [ ] **NAV-03**: API Docs aus Navbar entfernen (Footer-Link oder versteckt)
 - [ ] **NAV-04**: Router-Struktur anpassen (alte URLs redirecten)
 
@@ -82,7 +82,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DARK-05 | Phase 11 | Complete |
 | DARK-06 | Phase 11 | Complete |
 | NAV-01 | Phase 12 | Pending |
-| NAV-02 | Phase 12 | Pending |
+| NAV-02 | Phase 12 | Complete |
 | NAV-03 | Phase 12 | Pending |
 | NAV-04 | Phase 12 | Pending |
 
