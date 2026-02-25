@@ -200,6 +200,9 @@ class TradeLotDB(Base):
     cost_eur = Column(
         Numeric(precision=20, scale=10), nullable=True
     )  # EUR-equivalent Kosten
+    quote_to_eur_rate = Column(
+        Numeric(precision=20, scale=10), nullable=True
+    )  # Conversion rate from quote asset to EUR (1.0 for EUR-quoted, BTC/EUR rate for BTC-quoted)
 
     status = Column(SQLEnum(LotStatusEnum), nullable=False, default=LotStatusEnum.OPEN)
     target_margin_pct = Column(Numeric(precision=10, scale=6), nullable=True)

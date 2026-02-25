@@ -21,6 +21,7 @@ KNOWN_PAIRS = {
     "BTCEUR": TradingPair("BTCEUR", "BTC", "EUR", 8, 2, "BTC/EUR"),
     "ETHEUR": TradingPair("ETHEUR", "ETH", "EUR", 5, 2, "ETH/EUR"),
     "XRPEUR": TradingPair("XRPEUR", "XRP", "EUR", 2, 4, "XRP/EUR"),
+    "XRPBTC": TradingPair("XRPBTC", "XRP", "BTC", 2, 8, "XRP/BTC"),
 }
 
 
@@ -61,3 +62,18 @@ def get_min_base_precision(symbol: str) -> Decimal:
 def is_known_symbol(symbol: str) -> bool:
     """Prüft ob ein Symbol bekannt ist."""
     return symbol in KNOWN_PAIRS
+
+
+def is_eur_quoted(symbol: str) -> bool:
+    """Returns True if the pair's quote asset is EUR."""
+    return parse_symbol(symbol).quote_asset == "EUR"
+
+
+def is_pairing_enabled(symbol: str) -> bool:
+    """Pairing is only available for EUR-quoted pairs."""
+    return is_eur_quoted(symbol)
+
+
+def is_order_creation_enabled(symbol: str) -> bool:
+    """Manual sell order creation only for EUR-quoted pairs."""
+    return is_eur_quoted(symbol)
