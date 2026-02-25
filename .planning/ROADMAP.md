@@ -83,12 +83,13 @@ Plans:
   3. When one or more data sources are unavailable, Alpha Score still returns a partial result with a quality indicator showing which factors are missing
   4. During cold start (insufficient data), API returns a warmup status instead of extreme or misleading values
   5. User can view ATR-adaptive trailing stop distances for each symbol, and trailing stops freeze during data gaps and resume after fresh data arrives
-**Plans**: TBD
+**Plans**: 4 plans
 
 Plans:
-- [ ] 14-01: TBD
-- [ ] 14-02: TBD
-- [ ] 14-03: TBD
+- [ ] 14-01-PLAN.md — TDD: Pure domain factor computations (Z-Score, Lead-Lag, Orderbook Imbalance, Funding Rate)
+- [ ] 14-02-PLAN.md — Settings migration + backend/frontend Alpha Score configuration
+- [ ] 14-03-PLAN.md — TDD: Hurst regime detection + Alpha Score aggregation + Trailing stop state machine
+- [ ] 14-04-PLAN.md — Data service singleton + API routes + warmup/degradation wiring
 
 ### Phase 15: Backtesting Engine
 **Goal**: Users can validate Alpha Score signal quality through historical simulation with performance metrics and benchmark comparison
@@ -156,7 +157,7 @@ Phases execute in numeric order: 13 → 14 → 15 → 16 → 17
 | 11. Dark Mode Activation + Charts | v2.0 | 4/4 | Complete | 2026-02-24 |
 | 12. Navigation Restructure + Dashboard | v2.0 | 2/2 | Complete | 2026-02-25 |
 | 13. XRPBTC Infrastructure | 3/3 | Complete    | 2026-02-25 | - |
-| 14. Multi-Factor Scoring Engine | v3.0 | 0/? | Not started | - |
+| 14. Multi-Factor Scoring Engine | v3.0 | 0/4 | Not started | - |
 | 15. Backtesting Engine | v3.0 | 0/? | Not started | - |
 | 16. Dry-Run Mode + Bot Dashboard | v3.0 | 0/? | Not started | - |
 | 17. Combined Score Integration | v3.0 | 0/? | Not started | - |
