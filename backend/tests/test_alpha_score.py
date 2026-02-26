@@ -437,3 +437,412 @@ class TestAlphaFactorScore:
             quality="warmup",
         )
         assert score.description == ""
+
+
+# ---------------------------------------------------------------------------
+# Hurst Exponent (R/S Analysis)
+# ---------------------------------------------------------------------------
+
+from app.domain.alpha_score import (
+    HurstResult,
+    RegimeInfo,
+    AlphaScoreResult,
+    TrailingStopState,
+    compute_hurst_rs,
+    compute_regime_adjusted_weights,
+    compute_alpha_score,
+    compute_atr_standalone,
+    update_trailing_stop,
+)
+from datetime import datetime, timezone
+
+
+class TestHurstRS:
+    """Tests for compute_hurst_rs()."""
+
+    def test_random_walk_hurst_near_half(self):
+        """Shuffled/random data should produce H near 0.5."""
+        import random
+        random.seed(42)
+        # Random walk: cumsum of random steps
+        prices = []
+        p = Decimal("100")
+        for _ in range(200):
+            step = Decimal(str(random.choice([-1, 1]))) * Decimal("0.5")
+            p += step
+            prices.append(p)
+        result = compute_hurst_rs(prices)
+        assert isinstance(result, HurstResult)
+        # Random walk H should be roughly 0.4-0.6
+        assert Decimal("0.3") <= result.hurst <= Decimal("0.7")
+
+    def test_trending_data_hurst_above_threshold(self):
+        """Persistent trending data should produce H > 0.45 (not mean-reverting)."""
+        import random
+        random.seed(99)
+        # Trending walk: cumulative sum with positive drift
+        prices = []
+        p = Decimal("100")
+        for _ in range(500):
+            # Strong persistent drift: +0.5 base, small noise
+            step = Decimal("0.5") + Decimal(str(round(random.gauss(0, 0.1), 4)))
+            p += step
+            prices.append(p)
+        result = compute_hurst_rs(prices)
+        # Persistent trending data should NOT be classified as mean_reverting
+        assert result.regime in ("trending", "transitional")
+
+    def test_mean_reverting_data_hurst_below_threshold(self):
+        """Oscillating data should produce H < 0.5."""
+        prices = []
+        for i in range(200):
+            # Alternating pattern: strongly mean-reverting
+            if i % 2 == 0:
+                prices.append(Decimal("100") + Decimal(str(i % 5)))
+            else:
+                prices.append(Decimal("110") - Decimal(str(i % 5)))
+        result = compute_hurst_rs(prices)
+        assert result.hurst < Decimal("0.55")
+
+    def test_insufficient_data_default(self):
+        """Less than min_window*2 data points -> H=0.5, confidence=0."""
+        prices = [Decimal("100")] * 15
+        result = compute_hurst_rs(prices, min_window=10)
+        assert result.hurst == Decimal("0.5")
+        assert result.regime == "transitional"
+        assert result.confidence == Decimal("0")
+
+    def test_constant_series_default(self):
+        """All same price -> H=0.5, confidence=0."""
+        prices = [Decimal("100")] * 200
+        result = compute_hurst_rs(prices)
+        assert result.hurst == Decimal("0.5")
+        assert result.confidence == Decimal("0")
+
+    def test_result_types_decimal(self):
+        """All numeric fields should be Decimal."""
+        prices = [Decimal("100") + Decimal(str(i)) for i in range(200)]
+        result = compute_hurst_rs(prices)
+        assert isinstance(result.hurst, Decimal)
+        assert isinstance(result.confidence, Decimal)
+        assert isinstance(result.data_points, int)
+
+    def test_regime_labels(self):
+        """Regime should be one of the three valid labels."""
+        prices = [Decimal("100") + Decimal(str(i)) for i in range(200)]
+        result = compute_hurst_rs(prices)
+        assert result.regime in ("trending", "mean_reverting", "transitional")
+
+
+# ---------------------------------------------------------------------------
+# Regime-Adjusted Weights
+# ---------------------------------------------------------------------------
+
+class TestRegimeAdjustedWeights:
+    """Tests for compute_regime_adjusted_weights()."""
+
+    def test_mean_reverting_weights_unchanged(self):
+        """H <= 0.45 -> weights unchanged from base."""
+        base = {"zscore": Decimal("0.40"), "leadlag": Decimal("0.30"),
+                "imbalance": Decimal("0.20"), "funding": Decimal("0.10")}
+        result = compute_regime_adjusted_weights(base, Decimal("0.40"))
+        assert result["zscore"] == Decimal("0.40")
+        assert result["leadlag"] == Decimal("0.30")
+
+    def test_boundary_045_weights_unchanged(self):
+        """H = 0.45 -> weights unchanged (boundary)."""
+        base = {"zscore": Decimal("0.40"), "leadlag": Decimal("0.30"),
+                "imbalance": Decimal("0.20"), "funding": Decimal("0.10")}
+        result = compute_regime_adjusted_weights(base, Decimal("0.45"))
+        assert result["zscore"] == Decimal("0.40")
+
+    def test_trending_zscore_zero(self):
+        """H >= 0.55 -> Z-Score weight = 0, freed weight redistributed."""
+        base = {"zscore": Decimal("0.40"), "leadlag": Decimal("0.30"),
+                "imbalance": Decimal("0.20"), "funding": Decimal("0.10")}
+        result = compute_regime_adjusted_weights(base, Decimal("0.55"))
+        assert result["zscore"] == Decimal("0")
+
+    def test_trending_redistribution_ratios(self):
+        """H >= 0.55 -> freed weight distributed 60/30/10."""
+        base = {"zscore": Decimal("0.40"), "leadlag": Decimal("0.30"),
+                "imbalance": Decimal("0.20"), "funding": Decimal("0.10")}
+        result = compute_regime_adjusted_weights(base, Decimal("0.60"))
+        freed = Decimal("0.40")  # Full zscore weight freed
+        assert abs(result["leadlag"] - (Decimal("0.30") + freed * Decimal("0.60"))) < Decimal("0.01")
+        assert abs(result["imbalance"] - (Decimal("0.20") + freed * Decimal("0.30"))) < Decimal("0.01")
+        assert abs(result["funding"] - (Decimal("0.10") + freed * Decimal("0.10"))) < Decimal("0.01")
+
+    def test_transitional_050_half_reduction(self):
+        """H = 0.50 -> Z-Score reduced by 50% of base, freed weight redistributed."""
+        base = {"zscore": Decimal("0.40"), "leadlag": Decimal("0.30"),
+                "imbalance": Decimal("0.20"), "funding": Decimal("0.10")}
+        result = compute_regime_adjusted_weights(base, Decimal("0.50"))
+        # 50% between 0.45 and 0.55, so 50% reduction
+        expected_zscore = Decimal("0.20")  # 0.40 * 0.5
+        assert abs(result["zscore"] - expected_zscore) < Decimal("0.01")
+
+    def test_weights_sum_to_one(self):
+        """Weights must always sum to 1.0."""
+        base = {"zscore": Decimal("0.40"), "leadlag": Decimal("0.30"),
+                "imbalance": Decimal("0.20"), "funding": Decimal("0.10")}
+        for h_val in ["0.35", "0.45", "0.48", "0.50", "0.52", "0.55", "0.65"]:
+            result = compute_regime_adjusted_weights(base, Decimal(h_val))
+            total = sum(result.values())
+            assert abs(total - Decimal("1.0")) < Decimal("0.001"), \
+                f"H={h_val}: weights sum to {total}"
+
+    def test_clamped_beyond_thresholds(self):
+        """H = 0.70 -> same result as 0.55 (clamped at threshold)."""
+        base = {"zscore": Decimal("0.40"), "leadlag": Decimal("0.30"),
+                "imbalance": Decimal("0.20"), "funding": Decimal("0.10")}
+        r55 = compute_regime_adjusted_weights(base, Decimal("0.55"))
+        r70 = compute_regime_adjusted_weights(base, Decimal("0.70"))
+        for k in base:
+            assert abs(r55[k] - r70[k]) < Decimal("0.001")
+
+
+# ---------------------------------------------------------------------------
+# Alpha Score Composite
+# ---------------------------------------------------------------------------
+
+class TestAlphaScoreComposite:
+    """Tests for compute_alpha_score()."""
+
+    def _make_factors(self, sub_scores, qualities=None):
+        """Helper to build AlphaFactorScore list."""
+        names = ["zscore", "leadlag", "imbalance", "funding"]
+        weights = [Decimal("0.40"), Decimal("0.30"), Decimal("0.20"), Decimal("0.10")]
+        if qualities is None:
+            qualities = ["live"] * 4
+        factors = []
+        for i, name in enumerate(names):
+            factors.append(AlphaFactorScore(
+                name=name,
+                sub_score=Decimal(str(sub_scores[i])),
+                raw_value=None,
+                weight=weights[i],
+                base_weight=weights[i],
+                quality=qualities[i],
+            ))
+        return factors
+
+    def test_weighted_sum_correct(self):
+        """Weighted sum of sub_scores should produce correct composite score."""
+        factors = self._make_factors([3, 2, 1, 1])
+        regime = RegimeInfo(hurst=Decimal("0.5"), regime="transitional",
+                            confidence=Decimal("0.8"), zscore_weight_pct=Decimal("40"))
+        result = compute_alpha_score(factors, regime)
+        assert isinstance(result, AlphaScoreResult)
+        # Weighted sum: 3*0.4 + 2*0.3 + 1*0.2 + 1*0.1 = 1.2 + 0.6 + 0.2 + 0.1 = 2.1
+        assert abs(result.score - Decimal("2.1")) < Decimal("0.1")
+
+    def test_long_signal(self):
+        """Score >= threshold -> LONG."""
+        factors = self._make_factors([5, 4, 3, 2])
+        regime = RegimeInfo(hurst=Decimal("0.5"), regime="transitional",
+                            confidence=Decimal("0.8"), zscore_weight_pct=Decimal("40"))
+        result = compute_alpha_score(factors, regime, threshold=Decimal("3.0"))
+        assert result.trade_signal == "LONG"
+
+    def test_short_signal(self):
+        """Score <= -threshold -> SHORT."""
+        factors = self._make_factors([-5, -4, -3, -2])
+        regime = RegimeInfo(hurst=Decimal("0.5"), regime="transitional",
+                            confidence=Decimal("0.8"), zscore_weight_pct=Decimal("40"))
+        result = compute_alpha_score(factors, regime, threshold=Decimal("3.0"))
+        assert result.trade_signal == "SHORT"
+
+    def test_neutral_signal(self):
+        """Score between -threshold and +threshold -> NEUTRAL."""
+        factors = self._make_factors([1, 0.5, 0, -0.5])
+        regime = RegimeInfo(hurst=Decimal("0.5"), regime="transitional",
+                            confidence=Decimal("0.8"), zscore_weight_pct=Decimal("40"))
+        result = compute_alpha_score(factors, regime, threshold=Decimal("3.0"))
+        assert result.trade_signal == "NEUTRAL"
+
+    def test_quality_full(self):
+        """All 4 live -> quality='full'."""
+        factors = self._make_factors([1, 1, 1, 1])
+        regime = RegimeInfo(hurst=Decimal("0.5"), regime="transitional",
+                            confidence=Decimal("0.8"), zscore_weight_pct=Decimal("40"))
+        result = compute_alpha_score(factors, regime)
+        assert result.quality == "full"
+        assert result.active_factors == 4
+
+    def test_quality_partial(self):
+        """3 live, 1 unavailable -> quality='partial'."""
+        factors = self._make_factors([1, 1, 1, 0], ["live", "live", "live", "unavailable"])
+        regime = RegimeInfo(hurst=Decimal("0.5"), regime="transitional",
+                            confidence=Decimal("0.8"), zscore_weight_pct=Decimal("40"))
+        result = compute_alpha_score(factors, regime)
+        assert result.quality == "partial"
+        assert result.active_factors == 3
+
+    def test_quality_degraded(self):
+        """1-2 live -> quality='degraded'."""
+        factors = self._make_factors([1, 0, 0, 0],
+                                     ["live", "unavailable", "unavailable", "warmup"])
+        regime = RegimeInfo(hurst=Decimal("0.5"), regime="transitional",
+                            confidence=Decimal("0.8"), zscore_weight_pct=Decimal("40"))
+        result = compute_alpha_score(factors, regime)
+        assert result.quality == "degraded"
+
+    def test_quality_warmup(self):
+        """All warmup -> quality='warmup', score=0."""
+        factors = self._make_factors([0, 0, 0, 0],
+                                     ["warmup", "warmup", "warmup", "warmup"])
+        regime = RegimeInfo(hurst=Decimal("0.5"), regime="transitional",
+                            confidence=Decimal("0"), zscore_weight_pct=Decimal("40"))
+        result = compute_alpha_score(factors, regime)
+        assert result.quality == "warmup"
+        assert result.score == Decimal("0")
+
+    def test_score_clamped(self):
+        """Score clamped to [-5, +5]."""
+        factors = self._make_factors([5, 5, 5, 5])
+        regime = RegimeInfo(hurst=Decimal("0.5"), regime="transitional",
+                            confidence=Decimal("0.8"), zscore_weight_pct=Decimal("40"))
+        result = compute_alpha_score(factors, regime)
+        assert Decimal("-5") <= result.score <= Decimal("5")
+
+
+# ---------------------------------------------------------------------------
+# ATR Standalone
+# ---------------------------------------------------------------------------
+
+class TestATRStandalone:
+    """Tests for compute_atr_standalone() (Wilder's Smoothing)."""
+
+    def test_basic_atr(self):
+        """ATR should compute correctly for simple data."""
+        candles = []
+        for i in range(20):
+            candles.append({
+                "high": Decimal("110") + Decimal(str(i)),
+                "low": Decimal("90") + Decimal(str(i)),
+                "close": Decimal("100") + Decimal(str(i)),
+            })
+        result = compute_atr_standalone(candles, period=14)
+        assert result is not None
+        assert isinstance(result, Decimal)
+        assert result > Decimal("0")
+
+    def test_insufficient_candles(self):
+        """Fewer than period+1 candles -> None."""
+        candles = [{"high": Decimal("110"), "low": Decimal("90"),
+                     "close": Decimal("100")}] * 10
+        result = compute_atr_standalone(candles, period=14)
+        assert result is None
+
+    def test_empty_candles(self):
+        """Empty candle list -> None."""
+        result = compute_atr_standalone([], period=14)
+        assert result is None
+
+
+# ---------------------------------------------------------------------------
+# Trailing Stop State Machine
+# ---------------------------------------------------------------------------
+
+class TestTrailingStop:
+    """Tests for update_trailing_stop()."""
+
+    def _make_state(self, direction="long", stop_level=None, frozen=False,
+                    fresh_count=0, resume_threshold=5):
+        return TrailingStopState(
+            symbol="BTCEUR",
+            stop_level=stop_level,
+            atr_value=None,
+            atr_distance=None,
+            direction=direction,
+            frozen=frozen,
+            frozen_since=datetime(2026, 1, 1, tzinfo=timezone.utc) if frozen else None,
+            fresh_data_count=fresh_count,
+            resume_threshold=resume_threshold,
+            last_price=None,
+            last_updated=None,
+        )
+
+    def test_long_price_rises_stop_ratchets_up(self):
+        """Long position: price rises -> stop should move up."""
+        state = self._make_state(stop_level=Decimal("95"), direction="long")
+        now = datetime(2026, 2, 1, tzinfo=timezone.utc)
+        new_state = update_trailing_stop(
+            state, Decimal("110"), Decimal("5"), Decimal("2"), True, now
+        )
+        # Stop should be at least price - ATR*mult = 110 - 10 = 100
+        assert new_state.stop_level >= Decimal("95")
+        assert new_state.stop_level is not None
+
+    def test_long_price_drops_stop_holds(self):
+        """Long position: price drops -> stop should NOT move down."""
+        state = self._make_state(stop_level=Decimal("100"), direction="long")
+        now = datetime(2026, 2, 1, tzinfo=timezone.utc)
+        new_state = update_trailing_stop(
+            state, Decimal("95"), Decimal("5"), Decimal("2"), True, now
+        )
+        assert new_state.stop_level == Decimal("100")  # Held at original
+
+    def test_short_price_drops_stop_ratchets_down(self):
+        """Short position: price drops -> stop moves down."""
+        state = self._make_state(stop_level=Decimal("110"), direction="short")
+        now = datetime(2026, 2, 1, tzinfo=timezone.utc)
+        new_state = update_trailing_stop(
+            state, Decimal("90"), Decimal("5"), Decimal("2"), True, now
+        )
+        # Stop should be at most price + ATR*mult = 90 + 10 = 100
+        assert new_state.stop_level <= Decimal("110")
+
+    def test_freeze_on_stale_data(self):
+        """data_is_fresh=False -> frozen=True, stop unchanged."""
+        state = self._make_state(stop_level=Decimal("100"), direction="long")
+        now = datetime(2026, 2, 1, tzinfo=timezone.utc)
+        new_state = update_trailing_stop(
+            state, Decimal("120"), Decimal("5"), Decimal("2"), False, now
+        )
+        assert new_state.frozen is True
+        assert new_state.stop_level == Decimal("100")
+
+    def test_resume_after_n_fresh(self):
+        """5 consecutive fresh data points -> unfrozen."""
+        state = self._make_state(stop_level=Decimal("100"), direction="long",
+                                  frozen=True, fresh_count=4, resume_threshold=5)
+        now = datetime(2026, 2, 1, tzinfo=timezone.utc)
+        new_state = update_trailing_stop(
+            state, Decimal("120"), Decimal("5"), Decimal("2"), True, now
+        )
+        assert new_state.frozen is False
+        assert new_state.fresh_data_count >= 5
+
+    def test_resume_counter_resets_on_stale(self):
+        """4 fresh then 1 stale -> counter resets."""
+        state = self._make_state(stop_level=Decimal("100"), direction="long",
+                                  frozen=True, fresh_count=4, resume_threshold=5)
+        now = datetime(2026, 2, 1, tzinfo=timezone.utc)
+        new_state = update_trailing_stop(
+            state, Decimal("120"), Decimal("5"), Decimal("2"), False, now
+        )
+        assert new_state.frozen is True
+        assert new_state.fresh_data_count == 0
+
+    def test_initial_state_sets_stop(self):
+        """First update (stop_level=None) -> sets initial stop."""
+        state = self._make_state(stop_level=None, direction="long")
+        now = datetime(2026, 2, 1, tzinfo=timezone.utc)
+        new_state = update_trailing_stop(
+            state, Decimal("100"), Decimal("5"), Decimal("2"), True, now
+        )
+        assert new_state.stop_level is not None
+        # For long: stop = price - ATR * mult = 100 - 10 = 90
+        assert new_state.stop_level == Decimal("90")
+
+    def test_immutable_state_transition(self):
+        """update_trailing_stop should return new state, not mutate input."""
+        state = self._make_state(stop_level=Decimal("100"), direction="long")
+        now = datetime(2026, 2, 1, tzinfo=timezone.utc)
+        new_state = update_trailing_stop(
+            state, Decimal("120"), Decimal("5"), Decimal("2"), True, now
+        )
+        assert state.stop_level == Decimal("100")  # Original unchanged
+        assert new_state is not state
