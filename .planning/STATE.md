@@ -11,16 +11,16 @@ See: .planning/PROJECT.md (updated 2026-02-25)
 
 Milestone: v3.0 Multi-Factor Omni-Bot
 Phase: 14 of 17 (Multi-Factor Scoring Engine)
-Plan: 2 of 4 complete
+Plan: 3 of 4 complete
 Status: In Progress
-Last activity: 2026-02-25 — Completed 14-02-PLAN.md (Alpha Score Settings Pipeline)
+Last activity: 2026-02-26 — Completed 14-03-PLAN.md (Hurst Regime + Aggregation + Trailing Stops)
 
-Progress: [██████████░░░░░░░░░░] 50%
+Progress: [███████████████░░░░░] 75%
 
 ## Performance Metrics
 
 **Velocity (all milestones):**
-- Total plans completed: 34 (8 v1.0 + 9 v1.1 + 12 v2.0 + 5 v3.0)
+- Total plans completed: 35 (8 v1.0 + 9 v1.1 + 12 v2.0 + 6 v3.0)
 - Average duration: 3.2min
 - Total execution time: 121min
 
@@ -31,6 +31,7 @@ Progress: [██████████░░░░░░░░░░] 50%
 | 13-03 | Frontend Dual Display + Pairing Isolation | 5min | 2 | 9 |
 | 14-01 | Four Independent Factor Computations (TDD) | 4min | 1 | 2 |
 | 14-02 | Alpha Score Settings Pipeline | 5min | 2 | 5 |
+| 14-03 | Hurst Regime + Aggregation + Trailing Stops (TDD) | 5min | 1 | 2 |
 
 ## Accumulated Context
 
@@ -61,6 +62,10 @@ v1.0 decision log archived in milestones/v1.0-phases/ SUMMARY.md files.
 - Alpha Score Settings (14-02): 14 alpha_score_* columns, weight auto-normalization, essential/advanced UI layout
 - Settings validation: weights 0-100, threshold 0.1-5.0, windows 10-500, Hurst 0-1, ATR 0.5-10
 - Indigo accent for Alpha Score settings section, collapsible advanced toggle
+- Hurst R/S (14-03): regime detection (trending/mean-reverting/transitional), float only for log-log regression
+- Regime-adjusted weights: gradual blend 0.45-0.55, freed Z-Score weight redistributed 60/30/10
+- Alpha Score composite: weighted aggregation, renormalization, LONG/SHORT/NEUTRAL signals, quality levels
+- Trailing stop: ratchet + ATR floor, freeze on stale data, resume after N fresh points, immutable state
 
 ### Pending Todos
 
