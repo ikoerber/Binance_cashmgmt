@@ -83,7 +83,7 @@ class AlphaScoreDataService:
 
         # Caches
         self._kline_cache: Dict[str, CachedValue] = {}  # "{symbol}_{interval}"
-        self._depth_cache: Dict[str, CachedValue] = {}   # symbol
+        self._depth_cache: Dict[str, CachedValue] = {}  # symbol
         self._funding_cache: Dict[str, CachedValue] = {}  # inst_id
 
         # Orderbook EMA history (last N imbalance ratios per symbol)
@@ -116,8 +116,12 @@ class AlphaScoreDataService:
         zscore_window = int(settings.get("alpha_score_zscore_window", 60))
         leadlag_window = int(settings.get("alpha_score_leadlag_window", 30))
         hurst_lookback = int(settings.get("alpha_score_hurst_lookback", 100))
-        hurst_trending = Decimal(str(settings.get("alpha_score_hurst_trending", "0.55")))
-        hurst_reverting = Decimal(str(settings.get("alpha_score_hurst_reverting", "0.45")))
+        hurst_trending = Decimal(
+            str(settings.get("alpha_score_hurst_trending", "0.55"))
+        )
+        hurst_reverting = Decimal(
+            str(settings.get("alpha_score_hurst_reverting", "0.45"))
+        )
         atr_mult_btc = Decimal(str(settings.get("alpha_score_atr_mult_btc", "2.0")))
         atr_mult_xrp = Decimal(str(settings.get("alpha_score_atr_mult_xrp", "3.0")))
         resume_n = int(settings.get("alpha_score_stop_resume_n", 5))
@@ -132,10 +136,18 @@ class AlphaScoreDataService:
         w_sum = w_zscore + w_leadlag + w_imbalance + w_funding
         if w_sum > 0:
             base_weights = {
-                "zscore": (w_zscore / w_sum).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP),
-                "leadlag": (w_leadlag / w_sum).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP),
-                "imbalance": (w_imbalance / w_sum).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP),
-                "funding": (w_funding / w_sum).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP),
+                "zscore": (w_zscore / w_sum).quantize(
+                    Decimal("0.0001"), rounding=ROUND_HALF_UP
+                ),
+                "leadlag": (w_leadlag / w_sum).quantize(
+                    Decimal("0.0001"), rounding=ROUND_HALF_UP
+                ),
+                "imbalance": (w_imbalance / w_sum).quantize(
+                    Decimal("0.0001"), rounding=ROUND_HALF_UP
+                ),
+                "funding": (w_funding / w_sum).quantize(
+                    Decimal("0.0001"), rounding=ROUND_HALF_UP
+                ),
             }
         else:
             base_weights = {
@@ -193,7 +205,9 @@ class AlphaScoreDataService:
 
         # Extract close prices
         xrpbtc_closes = [Decimal(str(k[4])) for k in xrpbtc_klines]
-        btceur_closes = [Decimal(str(k[4])) for k in btceur_klines] if btceur_klines else []
+        btceur_closes = (
+            [Decimal(str(k[4])) for k in btceur_klines] if btceur_klines else []
+        )
 
         # 4. Compute Z-Score
         zscore_quality = "unavailable"
@@ -213,13 +227,19 @@ class AlphaScoreDataService:
             if btceur_closes and xrpbtc_closes:
                 # Compute returns
                 btc_returns = [
-                    (btceur_closes[i] - btceur_closes[i - 1]) / btceur_closes[i - 1]
-                    if btceur_closes[i - 1] != 0 else Decimal("0")
+                    (
+                        (btceur_closes[i] - btceur_closes[i - 1]) / btceur_closes[i - 1]
+                        if btceur_closes[i - 1] != 0
+                        else Decimal("0")
+                    )
                     for i in range(1, len(btceur_closes))
                 ]
                 xrp_returns = [
-                    (xrpbtc_closes[i] - xrpbtc_closes[i - 1]) / xrpbtc_closes[i - 1]
-                    if xrpbtc_closes[i - 1] != 0 else Decimal("0")
+                    (
+                        (xrpbtc_closes[i] - xrpbtc_closes[i - 1]) / xrpbtc_closes[i - 1]
+                        if xrpbtc_closes[i - 1] != 0
+                        else Decimal("0")
+                    )
                     for i in range(1, len(xrpbtc_closes))
                 ]
                 leadlag_result = compute_leadlag_momentum(
@@ -273,7 +293,9 @@ class AlphaScoreDataService:
                 funding_rate=xrp_funding,
                 btc_funding=btc_funding,
             )
-            funding_quality = xrp_funding_quality if xrp_funding is not None else "unavailable"
+            funding_quality = (
+                xrp_funding_quality if xrp_funding is not None else "unavailable"
+            )
         except Exception as e:
             logger.warning("Funding Rate Fehler: %s", e)
 
@@ -286,9 +308,9 @@ class AlphaScoreDataService:
         )
 
         # Build regime info
-        zscore_weight_pct = (adjusted_weights.get("zscore", Decimal("0")) * Decimal("100")).quantize(
-            Decimal("0.01"), rounding=ROUND_HALF_UP
-        )
+        zscore_weight_pct = (
+            adjusted_weights.get("zscore", Decimal("0")) * Decimal("100")
+        ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         regime_info = RegimeInfo(
             hurst=hurst_result.hurst,
             regime=hurst_result.regime,
@@ -300,48 +322,60 @@ class AlphaScoreDataService:
         factors: List[AlphaFactorScore] = []
 
         # Z-Score
-        factors.append(AlphaFactorScore(
-            name="zscore",
-            sub_score=zscore_result.sub_score if zscore_result else Decimal("0"),
-            raw_value=zscore_result.zscore if zscore_result else None,
-            weight=adjusted_weights.get("zscore", Decimal("0")),
-            base_weight=base_weights.get("zscore", Decimal("0")),
-            quality=zscore_quality,
-            description="Z-Score Mean Reversion on XRP/BTC ratio",
-        ))
+        factors.append(
+            AlphaFactorScore(
+                name="zscore",
+                sub_score=zscore_result.sub_score if zscore_result else Decimal("0"),
+                raw_value=zscore_result.zscore if zscore_result else None,
+                weight=adjusted_weights.get("zscore", Decimal("0")),
+                base_weight=base_weights.get("zscore", Decimal("0")),
+                quality=zscore_quality,
+                description="Z-Score Mean Reversion on XRP/BTC ratio",
+            )
+        )
 
         # Lead-Lag
-        factors.append(AlphaFactorScore(
-            name="leadlag",
-            sub_score=leadlag_result.sub_score if leadlag_result else Decimal("0"),
-            raw_value=leadlag_result.best_correlation if leadlag_result else None,
-            weight=adjusted_weights.get("leadlag", Decimal("0")),
-            base_weight=base_weights.get("leadlag", Decimal("0")),
-            quality=leadlag_quality,
-            description="Lead-Lag Momentum (BTC leads XRP)",
-        ))
+        factors.append(
+            AlphaFactorScore(
+                name="leadlag",
+                sub_score=leadlag_result.sub_score if leadlag_result else Decimal("0"),
+                raw_value=leadlag_result.best_correlation if leadlag_result else None,
+                weight=adjusted_weights.get("leadlag", Decimal("0")),
+                base_weight=base_weights.get("leadlag", Decimal("0")),
+                quality=leadlag_quality,
+                description="Lead-Lag Momentum (BTC leads XRP)",
+            )
+        )
 
         # Orderbook Imbalance
-        factors.append(AlphaFactorScore(
-            name="imbalance",
-            sub_score=orderbook_result.sub_score if orderbook_result else Decimal("0"),
-            raw_value=orderbook_result.imbalance_ratio if orderbook_result else None,
-            weight=adjusted_weights.get("imbalance", Decimal("0")),
-            base_weight=base_weights.get("imbalance", Decimal("0")),
-            quality=orderbook_quality,
-            description="Orderbook Imbalance (bid/ask volume)",
-        ))
+        factors.append(
+            AlphaFactorScore(
+                name="imbalance",
+                sub_score=(
+                    orderbook_result.sub_score if orderbook_result else Decimal("0")
+                ),
+                raw_value=(
+                    orderbook_result.imbalance_ratio if orderbook_result else None
+                ),
+                weight=adjusted_weights.get("imbalance", Decimal("0")),
+                base_weight=base_weights.get("imbalance", Decimal("0")),
+                quality=orderbook_quality,
+                description="Orderbook Imbalance (bid/ask volume)",
+            )
+        )
 
         # Funding Rate
-        factors.append(AlphaFactorScore(
-            name="funding",
-            sub_score=funding_result.sub_score if funding_result else Decimal("0"),
-            raw_value=funding_result.raw_rate if funding_result else None,
-            weight=adjusted_weights.get("funding", Decimal("0")),
-            base_weight=base_weights.get("funding", Decimal("0")),
-            quality=funding_quality,
-            description="Funding Rate Score (OKX, contrarian)",
-        ))
+        factors.append(
+            AlphaFactorScore(
+                name="funding",
+                sub_score=funding_result.sub_score if funding_result else Decimal("0"),
+                raw_value=funding_result.raw_rate if funding_result else None,
+                weight=adjusted_weights.get("funding", Decimal("0")),
+                base_weight=base_weights.get("funding", Decimal("0")),
+                quality=funding_quality,
+                description="Funding Rate Score (OKX, contrarian)",
+            )
+        )
 
         # 11. Compute composite Alpha Score
         alpha_result = compute_alpha_score(
@@ -390,15 +424,29 @@ class AlphaScoreDataService:
         result: Dict[str, dict] = {}
         for symbol, state in stops_copy.items():
             result[symbol] = {
-                "stop_level": str(state.stop_level) if state.stop_level is not None else None,
-                "atr_value": str(state.atr_value) if state.atr_value is not None else None,
-                "atr_distance": str(state.atr_distance) if state.atr_distance is not None else None,
+                "stop_level": (
+                    str(state.stop_level) if state.stop_level is not None else None
+                ),
+                "atr_value": (
+                    str(state.atr_value) if state.atr_value is not None else None
+                ),
+                "atr_distance": (
+                    str(state.atr_distance) if state.atr_distance is not None else None
+                ),
                 "direction": state.direction,
                 "frozen": state.frozen,
-                "frozen_since": state.frozen_since.isoformat() if state.frozen_since else None,
-                "data_points_needed": max(0, state.resume_threshold - state.fresh_data_count),
-                "last_price": str(state.last_price) if state.last_price is not None else None,
-                "last_updated": state.last_updated.isoformat() if state.last_updated else None,
+                "frozen_since": (
+                    state.frozen_since.isoformat() if state.frozen_since else None
+                ),
+                "data_points_needed": max(
+                    0, state.resume_threshold - state.fresh_data_count
+                ),
+                "last_price": (
+                    str(state.last_price) if state.last_price is not None else None
+                ),
+                "last_updated": (
+                    state.last_updated.isoformat() if state.last_updated else None
+                ),
             }
 
         return {"stops": result}
@@ -528,11 +576,15 @@ class AlphaScoreDataService:
             smoothed_result = dc_replace(
                 result,
                 sub_score=ema_sub_score,
-                imbalance_ratio=ema_ratio.quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP),
+                imbalance_ratio=ema_ratio.quantize(
+                    Decimal("0.0001"), rounding=ROUND_HALF_UP
+                ),
             )
 
             with self._lock:
-                self._depth_cache[symbol] = CachedValue(smoothed_result, now, DEPTH_CACHE_TTL)
+                self._depth_cache[symbol] = CachedValue(
+                    smoothed_result, now, DEPTH_CACHE_TTL
+                )
 
             return smoothed_result, "live"
 
@@ -550,9 +602,7 @@ class AlphaScoreDataService:
 
     # --- OKX Funding Rate (own cache, NOT SentimentDataService) ---
 
-    def _get_funding_rate(
-        self, now: datetime, inst_id: str
-    ) -> tuple:
+    def _get_funding_rate(self, now: datetime, inst_id: str) -> tuple:
         """
         Holt OKX Funding Rate mit eigenem Cache.
 
@@ -617,18 +667,29 @@ class AlphaScoreDataService:
 
         # Compute portfolio correlation for stop tightening
         correlation_factor = Decimal("1")  # Default: no tightening
-        if btceur_closes and xrpbtc_closes and len(btceur_closes) > leadlag_window and len(xrpbtc_closes) > leadlag_window:
+        if (
+            btceur_closes
+            and xrpbtc_closes
+            and len(btceur_closes) > leadlag_window
+            and len(xrpbtc_closes) > leadlag_window
+        ):
             try:
                 btc_rets = [
-                    (btceur_closes[i] - btceur_closes[i - 1]) / btceur_closes[i - 1]
-                    if btceur_closes[i - 1] != 0 else Decimal("0")
+                    (
+                        (btceur_closes[i] - btceur_closes[i - 1]) / btceur_closes[i - 1]
+                        if btceur_closes[i - 1] != 0
+                        else Decimal("0")
+                    )
                     for i in range(1, len(btceur_closes))
                 ]
                 # For XRP/EUR correlation, we need XRP movement in EUR terms
                 # Use XRPBTC returns as proxy (correlated with XRPEUR)
                 xrp_rets = [
-                    (xrpbtc_closes[i] - xrpbtc_closes[i - 1]) / xrpbtc_closes[i - 1]
-                    if xrpbtc_closes[i - 1] != 0 else Decimal("0")
+                    (
+                        (xrpbtc_closes[i] - xrpbtc_closes[i - 1]) / xrpbtc_closes[i - 1]
+                        if xrpbtc_closes[i - 1] != 0
+                        else Decimal("0")
+                    )
                     for i in range(1, len(xrpbtc_closes))
                 ]
                 # Use last leadlag_window returns for rolling correlation
