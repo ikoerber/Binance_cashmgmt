@@ -11,16 +11,16 @@ See: .planning/PROJECT.md (updated 2026-02-25)
 
 Milestone: v3.0 Multi-Factor Omni-Bot
 Phase: 14 of 17 (Multi-Factor Scoring Engine)
-Plan: 1 of 4 complete
+Plan: 2 of 4 complete
 Status: In Progress
-Last activity: 2026-02-25 — Completed 14-01-PLAN.md (Four Independent Factor Computations)
+Last activity: 2026-02-25 — Completed 14-02-PLAN.md (Alpha Score Settings Pipeline)
 
-Progress: [██████░░░░] 25%
+Progress: [██████████░░░░░░░░░░] 50%
 
 ## Performance Metrics
 
 **Velocity (all milestones):**
-- Total plans completed: 33 (8 v1.0 + 9 v1.1 + 12 v2.0 + 4 v3.0)
+- Total plans completed: 34 (8 v1.0 + 9 v1.1 + 12 v2.0 + 5 v3.0)
 - Average duration: 3.2min
 - Total execution time: 121min
 
@@ -30,6 +30,7 @@ Progress: [██████░░░░] 25%
 | 13-02 | Sync Pipeline + Pairing/Order Guards | 4min | 2 | 6 |
 | 13-03 | Frontend Dual Display + Pairing Isolation | 5min | 2 | 9 |
 | 14-01 | Four Independent Factor Computations (TDD) | 4min | 1 | 2 |
+| 14-02 | Alpha Score Settings Pipeline | 5min | 2 | 5 |
 
 ## Accumulated Context
 
@@ -57,6 +58,9 @@ v1.0 decision log archived in milestones/v1.0-phases/ SUMMARY.md files.
 - Funding rate BTC divergence weighted at 30% of base contrarian signal
 - Pearson correlation in pure Decimal with zero-variance guards
 - All sub-scores clamped to [-5, +5], warmup quality for insufficient data
+- Alpha Score Settings (14-02): 14 alpha_score_* columns, weight auto-normalization, essential/advanced UI layout
+- Settings validation: weights 0-100, threshold 0.1-5.0, windows 10-500, Hurst 0-1, ATR 0.5-10
+- Indigo accent for Alpha Score settings section, collapsible advanced toggle
 
 ### Pending Todos
 
