@@ -11,18 +11,18 @@ See: .planning/PROJECT.md (updated 2026-02-25)
 
 Milestone: v3.0 Multi-Factor Omni-Bot
 Phase: 14 of 17 (Multi-Factor Scoring Engine)
-Plan: 3 of 4 complete
-Status: In Progress
-Last activity: 2026-02-26 — Completed 14-03-PLAN.md (Hurst Regime + Aggregation + Trailing Stops)
+Plan: 4 of 4 complete
+Status: Complete
+Last activity: 2026-02-26 — Completed 14-04-PLAN.md (Data Service + API Routes)
 
-Progress: [███████████████░░░░░] 75%
+Progress: [████████████████████] 100%
 
 ## Performance Metrics
 
 **Velocity (all milestones):**
-- Total plans completed: 35 (8 v1.0 + 9 v1.1 + 12 v2.0 + 6 v3.0)
+- Total plans completed: 36 (8 v1.0 + 9 v1.1 + 12 v2.0 + 7 v3.0)
 - Average duration: 3.2min
-- Total execution time: 121min
+- Total execution time: 126min
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
@@ -32,6 +32,7 @@ Progress: [███████████████░░░░░] 75%
 | 14-01 | Four Independent Factor Computations (TDD) | 4min | 1 | 2 |
 | 14-02 | Alpha Score Settings Pipeline | 5min | 2 | 5 |
 | 14-03 | Hurst Regime + Aggregation + Trailing Stops (TDD) | 5min | 1 | 2 |
+| 14-04 | Data Service + API Routes | 5min | 2 | 3 |
 
 ## Accumulated Context
 
@@ -66,6 +67,14 @@ v1.0 decision log archived in milestones/v1.0-phases/ SUMMARY.md files.
 - Regime-adjusted weights: gradual blend 0.45-0.55, freed Z-Score weight redistributed 60/30/10
 - Alpha Score composite: weighted aggregation, renormalization, LONG/SHORT/NEUTRAL signals, quality levels
 - Trailing stop: ratchet + ATR floor, freeze on stale data, resume after N fresh points, immutable state
+- AlphaScoreDataService (14-04): singleton with mixed refresh cadences (candle-driven vs real-time)
+- EMA-smoothed orderbook imbalance (alpha=0.4, 5 snapshots) reduces point-in-time noise
+- Own OKX funding rate cache (not shared with SentimentDataService, avoids cross-service coupling)
+- Portfolio-aware stop tightening: correlation > 0.7 triggers up to 15% ATR distance reduction
+- XRPEUR trailing stop from XRPBTC ATR * BTCEUR price (no extra API call)
+- GET /api/alpha-score/{user_id}/score: full Alpha Score with factor breakdown and regime info
+- GET /api/alpha-score/{user_id}/trailing-stops: per-symbol stop levels with freeze/resume state
+- Phase 14 complete: all SCORE-01 through SCORE-09 and EXIT-01/EXIT-02 requirements met
 
 ### Pending Todos
 
@@ -77,6 +86,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-25
-Stopped at: Completed 14-01-PLAN.md
+Last session: 2026-02-26
+Stopped at: Completed 14-04-PLAN.md (Phase 14 complete)
 Resume file: None

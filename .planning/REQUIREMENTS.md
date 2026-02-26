@@ -22,8 +22,8 @@ Requirements for this milestone. Each maps to roadmap phases.
 - [x] **SCORE-04**: System computes Funding Rate score from existing OKX data (reuses SentimentDataService cache)
 - [ ] **SCORE-05**: System computes Global Alpha Score (-5 to +5) as weighted sum of 4 factors (Z-Score 40%, Lead-Lag 30%, Imbalance 20%, Funding 10%)
 - [ ] **SCORE-06**: User can configure Alpha Score weights and trade threshold (default ±3.0) via Settings
-- [ ] **SCORE-07**: Alpha Score gracefully degrades when data sources are unavailable (partial score with quality indicator)
-- [ ] **SCORE-08**: Alpha Score returns warmup status during cold start (MIN_WINDOW_SIZE guard, no extreme values)
+- [x] **SCORE-07**: Alpha Score gracefully degrades when data sources are unavailable (partial score with quality indicator)
+- [x] **SCORE-08**: Alpha Score returns warmup status during cold start (MIN_WINDOW_SIZE guard, no extreme values)
 - [ ] **SCORE-09**: System detects market regime (trending vs mean-reverting) and adjusts Z-Score factor weight accordingly
 
 ### Exit Management
@@ -115,8 +115,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SCORE-04 | Phase 14 | Complete |
 | SCORE-05 | Phase 14 | Pending |
 | SCORE-06 | Phase 14 | Pending |
-| SCORE-07 | Phase 14 | Pending |
-| SCORE-08 | Phase 14 | Pending |
+| SCORE-07 | Phase 14 | Complete |
+| SCORE-08 | Phase 14 | Complete |
 | SCORE-09 | Phase 14 | Pending |
 | EXIT-01 | Phase 14 | Pending |
 | EXIT-02 | Phase 14 | Pending |
