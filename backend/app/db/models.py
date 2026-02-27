@@ -504,6 +504,56 @@ class BacktestRunDB(Base):
     __table_args__ = (Index("idx_backtest_user_symbol", "user_id", "symbol"),)
 
 
+class AlphaBacktestRunDB(Base):
+    """
+    Alpha Backtest Run - Immutable snapshot of Alpha Score backtest results.
+
+    Separate from BacktestRunDB (Orderblock backtests) to avoid confusion.
+    """
+
+    __tablename__ = "alpha_backtest_runs"
+
+    id = Column(String, primary_key=True)  # "abt_{uuid_hex[:12]}"
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    symbol = Column(String, nullable=False)  # "BTCEUR" | "XRPEUR"
+    interval = Column(String, nullable=False)  # "5m" | "15m" | "1h"
+
+    data_start = Column(DateTime, nullable=False)
+    data_end = Column(DateTime, nullable=False)
+    candle_count = Column(Numeric(precision=10, scale=0), nullable=False)
+    initial_capital = Column(Numeric(precision=20, scale=2), nullable=False)
+
+    # Key metrics (queryable without JSON parsing)
+    net_return_pct = Column(Numeric(precision=20, scale=4), nullable=True)
+    sharpe_ratio = Column(Numeric(precision=10, scale=4), nullable=True)
+    max_drawdown_pct = Column(Numeric(precision=10, scale=4), nullable=True)
+    trade_count = Column(Numeric(precision=10, scale=0), nullable=True)
+    win_rate = Column(Numeric(precision=10, scale=4), nullable=True)
+    total_fees = Column(Numeric(precision=20, scale=8), nullable=True)
+    total_slippage = Column(Numeric(precision=20, scale=8), nullable=True)
+
+    # Benchmark
+    benchmark_return_pct = Column(Numeric(precision=20, scale=4), nullable=True)
+    excess_return_pct = Column(Numeric(precision=20, scale=4), nullable=True)
+
+    # Sweep reference (NULL for single runs)
+    sweep_id = Column(String, nullable=True)
+
+    # JSON blobs
+    config_json = Column(JSON, nullable=False)
+    metrics_json = Column(JSON, nullable=False)
+    trades_json = Column(JSON, nullable=False)
+    equity_curve_json = Column(JSON, nullable=False)  # [{t, equity, benchmark, drawdown_pct}]
+    monthly_returns_json = Column(JSON, nullable=True)  # [{year, month, return_pct}]
+
+    created_at = Column(DateTime, nullable=False, default=_utcnow)
+
+    __table_args__ = (
+        Index("idx_alpha_bt_user_symbol", "user_id", "symbol"),
+        Index("idx_alpha_bt_sweep", "sweep_id"),
+    )
+
+
 class UserSettingsDB(Base):
     """
     User Settings - Konfigurierbare Parameter pro User
