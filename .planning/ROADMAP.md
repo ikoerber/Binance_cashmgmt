@@ -159,6 +159,6 @@ Phases execute in numeric order: 13 → 14 → 15 → 16 → 17
 | 12. Navigation Restructure + Dashboard | v2.0 | 2/2 | Complete | 2026-02-25 |
 | 13. XRPBTC Infrastructure | 3/3 | Complete    | 2026-02-25 | - |
 | 14. Multi-Factor Scoring Engine | 4/4 | Complete    | 2026-02-26 | - |
-| 15. Backtesting Engine | 4/4 | Complete   | 2026-02-27 | - |
+| 15. Backtesting Engine | 4/4 | Complete    | 2026-02-27 | - |
 | 16. Dry-Run Mode + Bot Dashboard | v3.0 | 0/? | Not started | - |
 | 17. Combined Score Integration | v3.0 | 0/? | Not started | - |
