@@ -1,8 +1,9 @@
 /**
  * CombinedScore - Combined Score Dashboard
  *
- * Vereint MacroSignal (Richtung, 60%) und Sentiment (Sizing, 40%)
+ * Vereint MacroSignal (Richtung), Sentiment (Sizing) und optional Alpha Score
  * zu einer einheitlichen Handlungsempfehlung mit Unified Score (-100 bis +100).
+ * Gewichtung dynamisch aus API-Response: 50/30/20 (mit Alpha) oder 60/40 (ohne Alpha).
  */
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -26,6 +27,7 @@ const CombinedScore = () => {
   const theme = useChartTheme();
   const [showMacroDetail, setShowMacroDetail] = useState(false);
   const [showSentimentDetail, setShowSentimentDetail] = useState(false);
+  const [showAlphaDetail, setShowAlphaDetail] = useState(false);
 
   const MACRO_REC_COLORS = {
     'STARK LONG': theme.actionStrongBuy,
@@ -33,6 +35,12 @@ const CombinedScore = () => {
     'NEUTRAL': theme.actionHold,
     'SHORT': theme.actionSell,
     'STARK SHORT': theme.actionStrongSell,
+  };
+
+  const ALPHA_SIGNAL_COLORS = {
+    'LONG': theme.actionBuy,
+    'SHORT': theme.actionSell,
+    'NEUTRAL': theme.actionHold,
   };
 
   const ACTION_COLOR_MAP = {
@@ -140,12 +148,12 @@ const CombinedScore = () => {
       )}
 
       {/* Sub-Signal Cards */}
-      <div className="combined-subsignals">
+      <div className={`combined-subsignals${data.alpha ? ' combined-subsignals-three' : ''}`}>
         {/* MacroSignal Card */}
         <div className="combined-subsignal-card">
           <div className="combined-subsignal-header">
             <h3>Makro-Signal</h3>
-            <span className="combined-weight-badge">60%</span>
+            <span className="combined-weight-badge">{formatNumber(data.direction.weight * 100, 0)}%</span>
           </div>
           <div className="combined-subsignal-body">
             <span
@@ -215,7 +223,7 @@ const CombinedScore = () => {
         <div className="combined-subsignal-card">
           <div className="combined-subsignal-header">
             <h3>Sentiment</h3>
-            <span className="combined-weight-badge">40%</span>
+            <span className="combined-weight-badge">{formatNumber(data.sizing.weight * 100, 0)}%</span>
           </div>
           <div className="combined-subsignal-body">
             <span
@@ -298,6 +306,86 @@ const CombinedScore = () => {
             </div>
           )}
         </div>
+
+        {/* Alpha Score Card (only when available) */}
+        {data.alpha && data.alpha.status === 'ok' && (
+          <div className="combined-subsignal-card">
+            <div className="combined-subsignal-header">
+              <h3>Alpha Score</h3>
+              <span className="combined-weight-badge">{formatNumber(data.alpha.weight * 100, 0)}%</span>
+            </div>
+            <div className="combined-subsignal-body">
+              <span
+                className="combined-rec-badge"
+                style={{ backgroundColor: ALPHA_SIGNAL_COLORS[data.alpha.trade_signal] || theme.actionHold }}
+              >
+                {data.alpha.trade_signal}
+              </span>
+              <div className="combined-subsignal-metrics">
+                <div className="combined-metric">
+                  <span className="combined-metric-label">Score</span>
+                  <span className="combined-metric-value" style={{
+                    color: parseFloat(data.alpha.score) > 0 ? theme.profit
+                      : parseFloat(data.alpha.score) < 0 ? theme.loss
+                      : theme.textMuted
+                  }}>
+                    {parseFloat(data.alpha.score) > 0 ? '+' : ''}{formatNumber(parseFloat(data.alpha.score), 2)} / 5
+                  </span>
+                </div>
+                <div className="combined-metric">
+                  <span className="combined-metric-label">Faktoren</span>
+                  <span className="combined-metric-value">
+                    {data.alpha.active_factors}/{data.alpha.total_factors}
+                  </span>
+                </div>
+                <div className="combined-metric">
+                  <span className="combined-metric-label">Qualitaet</span>
+                  <span className={`combined-metric-value combined-alpha-quality quality-${data.alpha.quality}`}>
+                    {data.alpha.quality === 'full' ? 'Voll' : data.alpha.quality === 'partial' ? 'Teilweise' : data.alpha.quality}
+                  </span>
+                </div>
+              </div>
+            </div>
+            {data.alpha.factors?.length > 0 && (
+              <button
+                className="combined-detail-toggle"
+                onClick={() => setShowAlphaDetail(!showAlphaDetail)}
+              >
+                {showAlphaDetail ? 'Details ausblenden' : 'Details anzeigen'}
+              </button>
+            )}
+            {showAlphaDetail && data.alpha.factors && (
+              <div className="combined-detail-section">
+                {data.alpha.factors.map((f, i) => (
+                  <div key={i} className="combined-factor-row">
+                    <span className="combined-factor-name">
+                      {f.name === 'zscore' ? 'Z-Score' : f.name === 'leadlag' ? 'Lead-Lag' : f.name === 'imbalance' ? 'Orderbook' : f.name === 'funding' ? 'Funding' : f.name}
+                      <span className="combined-factor-dir">
+                        ({formatNumber(parseFloat(f.weight) * 100, 0)}%)
+                      </span>
+                    </span>
+                    <div className="combined-factor-bar-track">
+                      <div
+                        className={`combined-factor-bar-fill ${parseFloat(f.sub_score) > 0 ? 'positive' : parseFloat(f.sub_score) < 0 ? 'negative' : 'neutral'}`}
+                        style={{
+                          left: parseFloat(f.sub_score) >= 0 ? '50%' : `${50 + (parseFloat(f.sub_score) / 5) * 50}%`,
+                          width: `${Math.abs(parseFloat(f.sub_score)) / 5 * 50}%`,
+                        }}
+                      />
+                      <div className="combined-factor-bar-center" />
+                    </div>
+                    <span className={`combined-factor-score ${parseFloat(f.sub_score) > 0 ? 'positive' : parseFloat(f.sub_score) < 0 ? 'negative' : ''}`}>
+                      {parseFloat(f.sub_score) > 0 ? '+' : ''}{formatNumber(parseFloat(f.sub_score), 1)}
+                    </span>
+                    <span className={`combined-pillar-quality quality-${f.quality}`}>
+                      {f.quality === 'live' ? 'Live' : f.quality === 'cached' ? 'Cached' : f.quality === 'stale' ? 'Veraltet' : 'N/A'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Quality Reason */}
@@ -311,7 +399,8 @@ const CombinedScore = () => {
       <div className="combined-disclaimer">
         Indikativ, keine Handelsempfehlung. Combined Score kombiniert kurzfristige Makro-Richtung
         mit mittelfristigem Sentiment-Sizing und ersetzt keine eigene Analyse.
-        Gewichtung: Makro-Signal 60%, Sentiment 40%.
+        Gewichtung: Makro-Signal {formatNumber(data.direction.weight * 100, 0)}%,
+        Sentiment {formatNumber(data.sizing.weight * 100, 0)}%{data.alpha ? `, Alpha Score ${formatNumber(data.alpha.weight * 100, 0)}%` : ''}.
       </div>
     </div>
   );
