@@ -3,7 +3,7 @@
  */
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8100';
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -255,6 +255,32 @@ export const getReconciliationHistory = async (userId, limit = 20, offset = 0) =
 
 export const getReconciliationRunDetail = async (userId, runId) => {
   const response = await apiClient.get(`/api/reconciliation/${userId}/history/${runId}`);
+  return response.data;
+};
+
+// Backtest API
+export const runBacktest = async (userId, { symbol = 'BTCEUR', months = 12, initial_capital = '10000', fee_rate = '0.001', slippage_pct = '0.0005', position_fraction = '0.10', entry_threshold, atr_multiplier } = {}) => {
+  const body = { symbol, months, initial_capital, fee_rate, slippage_pct, position_fraction };
+  if (entry_threshold) body.entry_threshold = entry_threshold;
+  if (atr_multiplier) body.atr_multiplier = atr_multiplier;
+  const response = await apiClient.post(`/api/backtest/${userId}/run`, body);
+  return response.data;
+};
+
+export const getBacktestRuns = async (userId, symbol = null) => {
+  const params = {};
+  if (symbol) params.symbol = symbol;
+  const response = await apiClient.get(`/api/backtest/${userId}/runs`, { params });
+  return response.data;
+};
+
+export const getBacktestRunDetail = async (userId, runId) => {
+  const response = await apiClient.get(`/api/backtest/${userId}/runs/${runId}`);
+  return response.data;
+};
+
+export const cancelBacktest = async (userId, runId) => {
+  const response = await apiClient.post(`/api/backtest/${userId}/cancel/${runId}`);
   return response.data;
 };
 

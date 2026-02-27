@@ -57,6 +57,9 @@ const GlobalNav = () => {
           ))}
         </div>
         <div className="global-nav-right">
+          <NavLink to="/backtest" className={({ isActive }) => `symbol-pill backtest-pill ${isActive ? 'active' : ''}`}>
+            Backtest
+          </NavLink>
           <NavLink to="/settings" className={({ isActive }) => `symbol-pill settings-pill ${isActive ? 'active' : ''}`}>
             Settings
           </NavLink>

@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-quer
 import LotsTable from './components/LotsTable';
 import Reconciliation from './components/Reconciliation';
 import Settings from './components/Settings';
+import Backtest from './components/Backtest';
 import Orderblock from './components/Orderblock';
 import CombinedScore from './components/CombinedScore';
 import Dashboard from './components/Dashboard';
@@ -50,6 +51,7 @@ function AppContent() {
           <Route path="reconciliation" element={<Reconciliation />} />
         </Route>
         <Route path="/settings" element={<Settings />} />
+        <Route path="/backtest" element={<Backtest />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
 
