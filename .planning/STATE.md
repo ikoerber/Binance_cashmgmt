@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: Multi-Factor Omni-Bot
 status: unknown
-last_updated: "2026-02-26T06:12:35.041Z"
+last_updated: "2026-02-27T15:03:54.470Z"
 progress:
-  total_phases: 2
-  completed_phases: 2
-  total_plans: 7
-  completed_plans: 7
+  total_phases: 3
+  completed_phases: 3
+  total_plans: 11
+  completed_plans: 11
 ---
 
 # Project State
@@ -24,16 +24,16 @@ See: .planning/PROJECT.md (updated 2026-02-25)
 
 Milestone: v3.0 Multi-Factor Omni-Bot
 Phase: 15 of 17 (Backtesting Engine)
-Plan: 3 of 4 complete
-Status: In Progress
-Last activity: 2026-02-27 — Completed 15-03-PLAN.md (Frontend Backtest Page)
+Plan: 4 of 4 complete
+Status: Phase Complete
+Last activity: 2026-02-27 — Completed 15-04-PLAN.md (Parameter Sweep + Progress + CSV Export)
 
-Progress: [███████████████░░░░░] 75%
+Progress: [████████████████████] 100%
 
 ## Performance Metrics
 
 **Velocity (all milestones):**
-- Total plans completed: 38 (8 v1.0 + 9 v1.1 + 12 v2.0 + 9 v3.0)
+- Total plans completed: 39 (8 v1.0 + 9 v1.1 + 12 v2.0 + 10 v3.0)
 - Average duration: 3.3min
 - Total execution time: 134min
 
@@ -49,6 +49,7 @@ Progress: [███████████████░░░░░] 75%
 | 15-01 | Pure Domain Backtest Engine (TDD) | 8min | 1 | 2 |
 | 15-02 | Backtest Persistence + Service + API | 5min | 2 | 5 |
 | 15-03 | Frontend Backtest Page | 5min | 2 | 5 |
+| 15-04 | Parameter Sweep + Progress + CSV Export | 8min | 2 | 6 |
 
 ## Accumulated Context
 
@@ -103,6 +104,11 @@ v1.0 decision log archived in milestones/v1.0-phases/ SUMMARY.md files.
 - 4 API endpoints: POST run, GET runs (list), GET run detail, POST cancel -- all with API key auth
 - excess_return_pct computed at persistence time (net_return - benchmark_return)
 - Frontend Backtest page (15-03): standalone /backtest route, indigo accent, Recharts equity curve + benchmark overlay
+- Parameter Sweep (15-04): grid search via itertools.product, shared candle fetch, hard cap 500 combinations
+- Sweep progress via WebSocket: backtest_progress message with phase/combination counters, auto-reset after 2s
+- CSV export uses fetch+blob with X-API-Key header (not direct link)
+- _build_backtest_config extracted for reuse between single-run and sweep
+- Phase 15 complete: all BT-01 through BT-07 requirements met
 - Backtest form converts user-friendly percentages to API decimals at mutation time
 - History runs use lazy detail loading: expand card to fetch equity curve + trades
 - Monthly heatmap uses CSS Grid (not Recharts) for cell-level color control
@@ -118,5 +124,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-27
-Stopped at: Completed 15-03-PLAN.md
+Stopped at: Completed 15-04-PLAN.md (Phase 15 complete)
 Resume file: None

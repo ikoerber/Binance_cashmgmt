@@ -39,7 +39,7 @@ Requirements for this milestone. Each maps to roadmap phases.
 - [x] **BT-04**: Backtest includes realistic transaction costs (configurable fee rate, slippage modeling)
 - [x] **BT-05**: Backtest results are persisted as immutable snapshots (config + metrics + trades)
 - [x] **BT-06**: User can view backtest history with expandable run details
-- [ ] **BT-07**: User can run parameter sweep (grid search over Z-Score lookback, weights, thresholds) with CSV export
+- [x] **BT-07**: User can run parameter sweep (grid search over Z-Score lookback, weights, thresholds) with CSV export
 
 ### Dry-Run Mode
 
@@ -126,7 +126,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | BT-04 | Phase 15 | Complete |
 | BT-05 | Phase 15 | Complete |
 | BT-06 | Phase 15 | Complete |
-| BT-07 | Phase 15 | Pending |
+| BT-07 | Phase 15 | Complete |
 | DRY-01 | Phase 16 | Pending |
 | DRY-02 | Phase 16 | Pending |
 | DRY-03 | Phase 16 | Pending |
