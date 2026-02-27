@@ -119,12 +119,12 @@ Plans:
   3. Dry-run tracks virtual positions and P&L in separate tables that never appear on the main Dashboard or contaminate the production ledger
   4. A new "Bot" section appears in the navigation (4th area: Trading/Analyse/Bot/Admin) showing current Alpha Score with factor bars, signal history chart, dry-run status, virtual P&L, most recent backtest summary, and regime indicator
   5. Dry-run mode has no structural access to order-placing functionality (enforced by service architecture, not a boolean flag)
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 16-01: TBD
-- [ ] 16-02: TBD
-- [ ] 16-03: TBD
+- [ ] 16-01-PLAN.md — Backend foundation: Domain module (virtual portfolio) + DB models (3 tables) + Alembic migration + Settings extension
+- [ ] 16-02-PLAN.md — DryRunService singleton (evaluation loop, virtual trading, persistence) + API routes (6 endpoints) + WebSocket integration + main.py lifespan
+- [ ] 16-03-PLAN.md — Frontend: Navigation restructure (4 groups) + Bot Dashboard (Alpha Score hero, factor bars, signal chart, KPI cards, regime badge) + Decision Log (filtered table, expandable rows) + WebSocket message handling
 
 ### Phase 17: Combined Score Integration
 **Goal**: Alpha Score enriches the existing Combined Score as a backward-compatible third signal without disrupting calibrated thresholds
@@ -160,5 +160,5 @@ Phases execute in numeric order: 13 → 14 → 15 → 16 → 17
 | 13. XRPBTC Infrastructure | 3/3 | Complete    | 2026-02-25 | - |
 | 14. Multi-Factor Scoring Engine | 4/4 | Complete    | 2026-02-26 | - |
 | 15. Backtesting Engine | 4/4 | Complete    | 2026-02-27 | - |
-| 16. Dry-Run Mode + Bot Dashboard | v3.0 | 0/? | Not started | - |
+| 16. Dry-Run Mode + Bot Dashboard | 1/3 | In Progress|  | - |
 | 17. Combined Score Integration | v3.0 | 0/? | Not started | - |

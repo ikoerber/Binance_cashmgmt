@@ -43,11 +43,11 @@ Requirements for this milestone. Each maps to roadmap phases.
 
 ### Dry-Run Mode
 
-- [ ] **DRY-01**: User can activate dry-run mode that computes real-time signals without placing actual orders
-- [ ] **DRY-02**: Dry-run logs every decision with full context (all 4 factor scores, Alpha Score, trailing stop levels, prices, action, reason)
-- [ ] **DRY-03**: Dry-run tracks virtual portfolio (positions, P&L) in separate tables from production ledger
+- [x] **DRY-01**: User can activate dry-run mode that computes real-time signals without placing actual orders
+- [x] **DRY-02**: Dry-run logs every decision with full context (all 4 factor scores, Alpha Score, trailing stop levels, prices, action, reason)
+- [x] **DRY-03**: Dry-run tracks virtual portfolio (positions, P&L) in separate tables from production ledger
 - [ ] **DRY-04**: User can view dry-run decision log with filtering (date range, action type, symbol)
-- [ ] **DRY-05**: Dry-run mode has NO access to order-placing functionality (structural prevention, not flag-based)
+- [x] **DRY-05**: Dry-run mode has NO access to order-placing functionality (structural prevention, not flag-based)
 
 ### Combined Score Integration
 
@@ -127,11 +127,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 | BT-05 | Phase 15 | Complete |
 | BT-06 | Phase 15 | Complete |
 | BT-07 | Phase 15 | Complete |
-| DRY-01 | Phase 16 | Pending |
-| DRY-02 | Phase 16 | Pending |
-| DRY-03 | Phase 16 | Pending |
+| DRY-01 | Phase 16 | Complete |
+| DRY-02 | Phase 16 | Complete |
+| DRY-03 | Phase 16 | Complete |
 | DRY-04 | Phase 16 | Pending |
-| DRY-05 | Phase 16 | Pending |
+| DRY-05 | Phase 16 | Complete |
 | BOT-01 | Phase 16 | Pending |
 | BOT-02 | Phase 16 | Pending |
 | BOT-03 | Phase 16 | Pending |

@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: Multi-Factor Omni-Bot
-status: unknown
-last_updated: "2026-02-27T15:24:32.561Z"
+status: in-progress
+last_updated: "2026-02-27T16:14:58.579Z"
 progress:
-  total_phases: 3
+  total_phases: 4
   completed_phases: 3
-  total_plans: 11
-  completed_plans: 11
+  total_plans: 14
+  completed_plans: 12
 ---
 
 # Project State
@@ -18,24 +18,24 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-25)
 
 **Core value:** Ledger-first, deterministisches, auditierbares Cashflow-Tracking und automatisiertes Trading-System
-**Current focus:** Phase 15 — Backtesting Engine
+**Current focus:** Phase 16 — Dry-Run Mode & Bot Dashboard
 
 ## Current Position
 
 Milestone: v3.0 Multi-Factor Omni-Bot
-Phase: 15 of 17 (Backtesting Engine)
-Plan: 4 of 4 complete
-Status: Phase Complete
-Last activity: 2026-02-27 — Completed 15-04-PLAN.md (Parameter Sweep + Progress + CSV Export)
+Phase: 16 of 17 (Dry-Run Mode & Bot Dashboard)
+Plan: 1 of 3 complete
+Status: In Progress
+Last activity: 2026-02-27 — Completed 16-01-PLAN.md (Dry-Run Backend Foundation)
 
-Progress: [████████████████████] 100%
+Progress: [██████░░░░░░░░░░░░░░] 33%
 
 ## Performance Metrics
 
 **Velocity (all milestones):**
-- Total plans completed: 39 (8 v1.0 + 9 v1.1 + 12 v2.0 + 10 v3.0)
-- Average duration: 3.3min
-- Total execution time: 134min
+- Total plans completed: 40 (8 v1.0 + 9 v1.1 + 12 v2.0 + 11 v3.0)
+- Average duration: 3.4min
+- Total execution time: 139min
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
@@ -50,6 +50,7 @@ Progress: [████████████████████] 100%
 | 15-02 | Backtest Persistence + Service + API | 5min | 2 | 5 |
 | 15-03 | Frontend Backtest Page | 5min | 2 | 5 |
 | 15-04 | Parameter Sweep + Progress + CSV Export | 8min | 2 | 6 |
+| 16-01 | Dry-Run Backend Foundation | 5min | 2 | 4 |
 
 ## Accumulated Context
 
@@ -112,6 +113,13 @@ v1.0 decision log archived in milestones/v1.0-phases/ SUMMARY.md files.
 - Backtest form converts user-friendly percentages to API decimals at mutation time
 - History runs use lazy detail loading: expand card to fetch equity curve + trades
 - Monthly heatmap uses CSS Grid (not Recharts) for cell-level color control
+- Dry-run domain module (16-01): pure Decimal, no I/O, mirrors backtest engine cost model
+- VirtualPosition, VirtualPortfolioState, VirtualTradeResult, DecisionContext dataclasses
+- 7 pure functions: compute_position_size, execute_virtual_buy/sell, compute_virtual_equity, determine_action, should_enter/exit_trade
+- 3 isolated DB tables: dry_run_decisions (signal log), dry_run_portfolios (state), dry_run_positions (open positions)
+- DryRunDecisionDB stores full alpha score context (factor scores, regime, trailing stop) for audit trail
+- Alembic migration dr01_dry_run_tab: creates 3 tables + dry_run_initial_capital on user_settings
+- Settings API: dry_run_initial_capital (100-10M EUR), String transport, validated Decimal
 
 ### Pending Todos
 
@@ -124,5 +132,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-27
-Stopped at: Completed 15-04-PLAN.md (Phase 15 complete)
+Stopped at: Completed 16-01-PLAN.md
 Resume file: None
