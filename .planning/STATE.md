@@ -8,7 +8,7 @@ progress:
   total_phases: 4
   completed_phases: 3
   total_plans: 14
-  completed_plans: 13
+  completed_plans: 14
 ---
 
 # Project State
@@ -24,11 +24,11 @@ See: .planning/PROJECT.md (updated 2026-02-25)
 
 Milestone: v3.0 Multi-Factor Omni-Bot
 Phase: 16 of 17 (Dry-Run Mode & Bot Dashboard)
-Plan: 2 of 3 complete
-Status: In Progress
-Last activity: 2026-02-27 — Completed 16-02-PLAN.md (DryRunService + API Routes)
+Plan: 3 of 3 complete
+Status: Phase Complete
+Last activity: 2026-02-27 — Completed 16-03-PLAN.md (Bot Dashboard + Decision Log Frontend)
 
-Progress: [█████████████░░░░░░░] 67%
+Progress: [████████████████████] 100%
 
 ## Performance Metrics
 
@@ -52,6 +52,7 @@ Progress: [█████████████░░░░░░░] 67%
 | 15-04 | Parameter Sweep + Progress + CSV Export | 8min | 2 | 6 |
 | 16-01 | Dry-Run Backend Foundation | 5min | 2 | 4 |
 | 16-02 | DryRunService + API Routes | 5min | 2 | 4 |
+| 16-03 | Bot Dashboard + Decision Log Frontend | 12min | 2 | 10 |
 
 ## Accumulated Context
 
@@ -127,6 +128,15 @@ v1.0 decision log archived in milestones/v1.0-phases/ SUMMARY.md files.
 - Idempotency check prevents double-evaluation on server restart mid-interval
 - 30-day auto-purge in evaluation loop, public broadcast_message() on BinanceStreamManager
 - Structural isolation (DRY-05) verified: zero forbidden imports in dry_run_service.py
+- Bot Dashboard (16-03): Alpha Score hero, 4 factor bars, signal history chart, dry-run toggle/reset, 6 KPI cards
+- Decision Log: filterable table (date/action/symbol), expandable rows with factor bars, pagination
+- Navigation restructured to 4 groups: Trading (Dashboard, Lots) / Analyse (Combined Score, Orderblocks, Backtest) / Bot (Bot Dashboard, Decision Log) / Admin (Reconciliation, Settings, API Docs)
+- Backtest and Settings links moved from GlobalNav to SymbolLayout nav groups
+- Dry-run nav badge: amber dot with pulse animation when dry-run active
+- getAlphaScore API client function added (was missing from Phase 14 frontend)
+- WebSocket handlers for dry_run_decision, dry_run_status, dry_run_portfolio_update
+- Settings: dry_run_initial_capital input with 100 EUR minimum validation
+- Phase 16 complete: all BOT-01 through BOT-06 and DRY-01 through DRY-05 requirements met
 
 ### Pending Todos
 
@@ -139,5 +149,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-27
-Stopped at: Completed 16-02-PLAN.md
+Stopped at: Completed 16-03-PLAN.md (Phase 16 complete)
 Resume file: None

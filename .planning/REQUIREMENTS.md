@@ -56,12 +56,12 @@ Requirements for this milestone. Each maps to roadmap phases.
 
 ### Bot Dashboard
 
-- [ ] **BOT-01**: New "Bot" section in navigation (4th area: Trading/Analyse/Bot/Admin)
-- [ ] **BOT-02**: Bot dashboard shows current Alpha Score with factor breakdown (visual bars per factor)
-- [ ] **BOT-03**: Bot dashboard shows signal history (recent Alpha Score values over time, chart)
-- [ ] **BOT-04**: Bot dashboard shows dry-run status (active/inactive, current virtual positions, virtual P&L)
-- [ ] **BOT-05**: Bot dashboard shows backtest results (most recent run summary, link to full history)
-- [ ] **BOT-06**: Bot dashboard shows regime indicator (trending/mean-reverting with confidence)
+- [x] **BOT-01**: New "Bot" section in navigation (4th area: Trading/Analyse/Bot/Admin)
+- [x] **BOT-02**: Bot dashboard shows current Alpha Score with factor breakdown (visual bars per factor)
+- [x] **BOT-03**: Bot dashboard shows signal history (recent Alpha Score values over time, chart)
+- [x] **BOT-04**: Bot dashboard shows dry-run status (active/inactive, current virtual positions, virtual P&L)
+- [x] **BOT-05**: Bot dashboard shows backtest results (most recent run summary, link to full history)
+- [x] **BOT-06**: Bot dashboard shows regime indicator (trending/mean-reverting with confidence)
 
 ## Future Requirements
 
@@ -132,12 +132,12 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DRY-03 | Phase 16 | Complete |
 | DRY-04 | Phase 16 | Complete |
 | DRY-05 | Phase 16 | Complete |
-| BOT-01 | Phase 16 | Pending |
-| BOT-02 | Phase 16 | Pending |
-| BOT-03 | Phase 16 | Pending |
-| BOT-04 | Phase 16 | Pending |
-| BOT-05 | Phase 16 | Pending |
-| BOT-06 | Phase 16 | Pending |
+| BOT-01 | Phase 16 | Complete |
+| BOT-02 | Phase 16 | Complete |
+| BOT-03 | Phase 16 | Complete |
+| BOT-04 | Phase 16 | Complete |
+| BOT-05 | Phase 16 | Complete |
+| BOT-06 | Phase 16 | Complete |
 | COMB-01 | Phase 17 | Pending |
 | COMB-02 | Phase 17 | Pending |
 
