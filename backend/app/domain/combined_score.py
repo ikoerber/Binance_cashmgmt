@@ -23,6 +23,14 @@ from typing import Optional
 DIRECTION_WEIGHT = Decimal("0.60")
 SIZING_WEIGHT = Decimal("0.40")
 
+# Three-signal weights (when Alpha Score is available)
+DIRECTION_WEIGHT_3 = Decimal("0.50")
+SIZING_WEIGHT_3 = Decimal("0.30")
+ALPHA_WEIGHT_3 = Decimal("0.20")
+
+# Alpha Score range
+ALPHA_SCORE_MAX = Decimal("5")
+
 # MacroSignal raw score range
 MACRO_RAW_MAX = Decimal("8")
 
@@ -97,6 +105,19 @@ class SizingInput:
 
 
 @dataclass
+class AlphaInput:
+    """Optionaler Alpha Score Input fuer Combined Scoring."""
+
+    score: Decimal  # -5 bis +5
+    trade_signal: str  # "LONG" | "SHORT" | "NEUTRAL"
+    quality: str  # "full" | "partial" | "degraded" | "warmup" | "unavailable"
+    active_factors: int
+    total_factors: int
+    threshold: Decimal
+    factors: list  # Factor breakdown dicts from alpha service
+
+
+@dataclass
 class CombinedScoreResult:
     """Vollstaendiges Combined Score Ergebnis."""
 
@@ -117,6 +138,10 @@ class CombinedScoreResult:
     # Sizing-Komponente
     sizing: SizingInput
     sizing_weight: Decimal
+
+    # Alpha-Komponente
+    alpha_weight: Decimal  # 0.00 oder 0.20
+    alpha: Optional["AlphaInput"]  # None wenn nicht verfuegbar
 
     # Qualitaet
     overall_quality: str  # "full", "partial", "degraded"
@@ -162,6 +187,24 @@ def _normalize_sentiment_direction(composite_score: Decimal) -> Decimal:
     return max(Decimal("-1"), min(Decimal("1"), direction))
 
 
+def _normalize_alpha(alpha_score: Decimal) -> Decimal:
+    """
+    Normalisiert Alpha Score (-5..+5) auf -1.0..+1.0.
+
+    Alpha Score ist bereits direktional (positiv = Buy, negativ = Sell),
+    gleiche Polaritaet wie MacroSignal. Keine kontraere Inversion noetig.
+
+    >>> _normalize_alpha(Decimal("5"))
+    Decimal('1')
+    >>> _normalize_alpha(Decimal("-5"))
+    Decimal('-1')
+    >>> _normalize_alpha(Decimal("0"))
+    Decimal('0')
+    """
+    normalized = alpha_score / ALPHA_SCORE_MAX
+    return max(Decimal("-1"), min(Decimal("1"), normalized))
+
+
 def _map_score_to_action(score: Decimal) -> CombinedAction:
     """Mappt Unified Score auf 7-stufige Action."""
     for threshold, action in ACTION_THRESHOLDS:
@@ -202,9 +245,10 @@ def _compute_final_multiplier(
 def _detect_conflict(
     direction_normalized: Decimal,
     sentiment_direction: Decimal,
+    alpha_normalized: Optional[Decimal] = None,
 ) -> tuple:
     """
-    Erkennt Divergenz zwischen MacroSignal und Sentiment.
+    Erkennt Divergenz zwischen MacroSignal, Sentiment und optional Alpha Score.
 
     Konflikt = ein Signal sagt Kauf, das andere Verkauf (beide ueber Schwelle).
 
@@ -216,13 +260,32 @@ def _detect_conflict(
     sent_bullish = sentiment_direction > CONFLICT_THRESHOLD
     sent_bearish = sentiment_direction < -CONFLICT_THRESHOLD
 
+    conflict_notes = []
+
     if dir_bullish and sent_bearish:
-        return False, "Makro bullish, aber Sentiment im Greed-Bereich (Vorsicht)"
-    if dir_bearish and sent_bullish:
-        return (
-            False,
-            "Makro bearish, aber Sentiment im Fear-Bereich (Akkumulation moeglich)",
+        conflict_notes.append(
+            "Makro bullish, aber Sentiment im Greed-Bereich (Vorsicht)"
         )
+    elif dir_bearish and sent_bullish:
+        conflict_notes.append(
+            "Makro bearish, aber Sentiment im Fear-Bereich (Akkumulation moeglich)"
+        )
+
+    # Alpha-vs-Macro conflict check (only when alpha is available)
+    if alpha_normalized is not None:
+        alpha_bullish = alpha_normalized > CONFLICT_THRESHOLD
+        alpha_bearish = alpha_normalized < -CONFLICT_THRESHOLD
+        if dir_bullish and alpha_bearish:
+            conflict_notes.append(
+                "Alpha Score bearish gegen bullisches Makro-Signal"
+            )
+        elif dir_bearish and alpha_bullish:
+            conflict_notes.append(
+                "Alpha Score bullish gegen bearisches Makro-Signal"
+            )
+
+    if conflict_notes:
+        return False, "; ".join(conflict_notes)
 
     return True, None
 
@@ -230,19 +293,46 @@ def _detect_conflict(
 def _assess_quality(
     direction: DirectionInput,
     sizing: SizingInput,
+    alpha: Optional["AlphaInput"] = None,
 ) -> tuple:
     """
     Bewertet die Gesamtqualitaet des Combined Score.
 
     Returns:
         (quality: str, quality_reason: Optional[str])
-        - "full": >= 75% Makro-Faktoren UND >= 60% Sentiment-Pillars
+        - "full": >= 75% Makro-Faktoren UND >= 60% Sentiment-Pillars (UND >= 50% Alpha wenn verfuegbar)
         - "partial": >= 50% Makro ODER >= 40% Sentiment
         - "degraded": Unterhalb beider Schwellen
     """
     dir_ratio = direction.active_factors / max(1, direction.total_factors)
     siz_ratio = sizing.active_pillars / max(1, sizing.total_pillars)
 
+    if alpha is not None:
+        alpha_ratio = alpha.active_factors / max(1, alpha.total_factors)
+        # Three-signal full quality: all three meet thresholds
+        if dir_ratio >= 0.75 and siz_ratio >= 0.6 and alpha_ratio >= 0.5:
+            return "full", None
+
+        reason_parts = []
+        if dir_ratio < 0.75:
+            reason_parts.append(
+                f"Makro: {direction.active_factors}/{direction.total_factors} Faktoren"
+            )
+        if siz_ratio < 0.6:
+            reason_parts.append(
+                f"Sentiment: {sizing.active_pillars}/{sizing.total_pillars} Pillars"
+            )
+        if alpha_ratio < 0.5:
+            reason_parts.append(
+                f"Alpha: {alpha.active_factors}/{alpha.total_factors} Faktoren"
+            )
+
+        if dir_ratio >= 0.5 or siz_ratio >= 0.4 or alpha_ratio >= 0.5:
+            return "partial", ", ".join(reason_parts)
+
+        return "degraded", "Zu wenige aktive Datenquellen fuer zuverlaessiges Signal"
+
+    # Existing 2-signal quality logic unchanged
     if dir_ratio >= 0.75 and siz_ratio >= 0.6:
         return "full", None
 
@@ -265,15 +355,22 @@ def _assess_quality(
 def compute_combined_score(
     direction: DirectionInput,
     sizing: SizingInput,
+    alpha: Optional[AlphaInput] = None,
 ) -> CombinedScoreResult:
     """
-    Hauptfunktion: Kombiniert MacroSignal (Richtung) mit Sentiment (Sizing).
+    Hauptfunktion: Kombiniert MacroSignal (Richtung) mit Sentiment (Sizing)
+    und optional Alpha Score.
 
     Pure function — kein I/O, deterministisch, verwendet nur Decimal.
+
+    Gewichtung:
+      - Ohne Alpha (oder warmup/unavailable): 60% Macro + 40% Sentiment
+      - Mit Alpha: 50% Macro + 30% Sentiment + 20% Alpha
 
     Args:
         direction: Normalisierter MacroSignal-Input
         sizing: Normalisierter Sentiment-Input
+        alpha: Optionaler Alpha Score Input (None = Fallback auf 60/40)
 
     Returns:
         CombinedScoreResult mit allen Feldern.
@@ -284,9 +381,28 @@ def compute_combined_score(
     direction_normalized = _normalize_direction(direction.composite_raw)
     sentiment_direction = _normalize_sentiment_direction(sizing.composite_score)
 
-    # 2. Unified Score
+    # Determine weights based on Alpha availability
+    alpha_is_active = (
+        alpha is not None
+        and alpha.quality not in ("warmup", "unavailable")
+    )
+
+    if alpha_is_active:
+        dir_w = DIRECTION_WEIGHT_3
+        siz_w = SIZING_WEIGHT_3
+        alp_w = ALPHA_WEIGHT_3
+        alpha_normalized = _normalize_alpha(alpha.score)
+    else:
+        dir_w = DIRECTION_WEIGHT
+        siz_w = SIZING_WEIGHT
+        alp_w = Decimal("0")
+        alpha_normalized = Decimal("0")
+
+    # 2. Unified Score (includes Alpha contribution when active)
     unified_raw = (
-        direction_normalized * DIRECTION_WEIGHT + sentiment_direction * SIZING_WEIGHT
+        direction_normalized * dir_w
+        + sentiment_direction * siz_w
+        + alpha_normalized * alp_w
     )
     unified_score = (unified_raw * Decimal("100")).quantize(
         Decimal("0.1"), rounding=ROUND_HALF_UP
@@ -300,9 +416,21 @@ def compute_combined_score(
         str(max(1, sizing.total_pillars))
     )
     sizing_confidence = sizing_pillar_ratio * sizing.confidence
-    composite_confidence = (
-        direction_confidence * DIRECTION_WEIGHT + sizing_confidence * SIZING_WEIGHT
-    )
+
+    if alpha_is_active:
+        alpha_ratio = Decimal(str(alpha.active_factors)) / Decimal(
+            str(max(1, alpha.total_factors))
+        )
+        composite_confidence = (
+            direction_confidence * dir_w
+            + sizing_confidence * siz_w
+            + alpha_ratio * alp_w
+        )
+    else:
+        composite_confidence = (
+            direction_confidence * DIRECTION_WEIGHT
+            + sizing_confidence * SIZING_WEIGHT
+        )
 
     unified_dampened = (unified_score * composite_confidence).quantize(
         Decimal("0.1"), rounding=ROUND_HALF_UP
@@ -316,11 +444,19 @@ def compute_combined_score(
         sizing.buy_size_multiplier, direction_normalized, composite_confidence
     )
 
-    # 6. Konflikterkennung
-    aligned, conflict_desc = _detect_conflict(direction_normalized, sentiment_direction)
+    # 6. Konflikterkennung (pass alpha_normalized if active)
+    aligned, conflict_desc = _detect_conflict(
+        direction_normalized,
+        sentiment_direction,
+        alpha_normalized=alpha_normalized if alpha_is_active else None,
+    )
 
-    # 7. Qualitaet
-    quality, quality_reason = _assess_quality(direction, sizing)
+    # 7. Qualitaet (pass alpha if active)
+    quality, quality_reason = _assess_quality(
+        direction,
+        sizing,
+        alpha=alpha if alpha_is_active else None,
+    )
 
     # 8. Intensity: |unified_dampened| / 100
     intensity = abs(unified_dampened) / Decimal("100")
@@ -336,9 +472,11 @@ def compute_combined_score(
         size_multiplier=final_multiplier,
         unified_score=unified_dampened,
         direction=direction,
-        direction_weight=DIRECTION_WEIGHT,
+        direction_weight=dir_w,
         sizing=sizing,
-        sizing_weight=SIZING_WEIGHT,
+        sizing_weight=siz_w,
+        alpha_weight=alp_w,
+        alpha=alpha if alpha_is_active else None,
         overall_quality=quality,
         quality_reason=quality_reason,
         confidence=composite_confidence.quantize(
