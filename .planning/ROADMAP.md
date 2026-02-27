@@ -53,7 +53,7 @@ See: `.planning/milestones/v2.0-ROADMAP.md` for full details
 - [x] **Phase 14: Multi-Factor Scoring Engine** - Four quantitative factors composing into Alpha Score (-5 to +5) with ATR-adaptive trailing exits (completed 2026-02-26)
 - [x] **Phase 15: Backtesting Engine** - Walk-forward simulation over 24 months with Sharpe ratio, drawdown, and HODL benchmark comparison (completed 2026-02-27)
 - [x] **Phase 16: Dry-Run Mode + Bot Dashboard** - Real-time paper trading with decision logging, virtual portfolio, and unified Bot navigation section (completed 2026-02-27)
-- [ ] **Phase 17: Combined Score Integration** - Alpha Score feeds into existing Combined Score as backward-compatible third signal
+- [x] **Phase 17: Combined Score Integration** - Alpha Score feeds into existing Combined Score as backward-compatible third signal (completed 2026-02-27)
 
 ## Phase Details
 
@@ -162,4 +162,4 @@ Phases execute in numeric order: 13 → 14 → 15 → 16 → 17
 | 14. Multi-Factor Scoring Engine | 4/4 | Complete    | 2026-02-26 | - |
 | 15. Backtesting Engine | 4/4 | Complete    | 2026-02-27 | - |
 | 16. Dry-Run Mode + Bot Dashboard | 3/3 | Complete    | 2026-02-27 | - |
-| 17. Combined Score Integration | v3.0 | 1/2 | In Progress | - |
+| 17. Combined Score Integration | 2/2 | Complete   | 2026-02-27 | - |

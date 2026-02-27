@@ -52,7 +52,7 @@ Requirements for this milestone. Each maps to roadmap phases.
 ### Combined Score Integration
 
 - [x] **COMB-01**: Alpha Score feeds into Combined Score as optional 3rd signal (backward-compatible: when unavailable, existing 60/40 weights unchanged)
-- [ ] **COMB-02**: Combined Score dashboard shows Alpha Score contribution when available (factor breakdown in details)
+- [x] **COMB-02**: Combined Score dashboard shows Alpha Score contribution when available (factor breakdown in details)
 
 ### Bot Dashboard
 
@@ -139,7 +139,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | BOT-05 | Phase 16 | Complete |
 | BOT-06 | Phase 16 | Complete |
 | COMB-01 | Phase 17 | Complete |
-| COMB-02 | Phase 17 | Pending |
+| COMB-02 | Phase 17 | Complete |
 
 **Coverage:**
 - v3.0 requirements: 35 total

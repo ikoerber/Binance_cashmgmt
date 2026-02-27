@@ -18,24 +18,24 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-25)
 
 **Core value:** Ledger-first, deterministisches, auditierbares Cashflow-Tracking und automatisiertes Trading-System
-**Current focus:** Phase 16 — Dry-Run Mode & Bot Dashboard
+**Current focus:** Phase 17 — Combined Score Integration (COMPLETE)
 
 ## Current Position
 
 Milestone: v3.0 Multi-Factor Omni-Bot
 Phase: 17 of 17 (Combined Score Integration)
-Plan: 1 of 2 complete
-Status: In Progress
-Last activity: 2026-02-27 — Completed 17-01-PLAN.md (Combined Score Alpha Integration)
+Plan: 2 of 2 complete
+Status: Complete
+Last activity: 2026-02-27 — Completed 17-02-PLAN.md (Combined Score Alpha Frontend)
 
 Progress: [████████████████████] 100%
 
 ## Performance Metrics
 
 **Velocity (all milestones):**
-- Total plans completed: 41 (8 v1.0 + 9 v1.1 + 12 v2.0 + 12 v3.0)
+- Total plans completed: 42 (8 v1.0 + 9 v1.1 + 12 v2.0 + 13 v3.0)
 - Average duration: 3.5min
-- Total execution time: 144min
+- Total execution time: 146min
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
@@ -54,6 +54,7 @@ Progress: [████████████████████] 100%
 | 16-02 | DryRunService + API Routes | 5min | 2 | 4 |
 | 16-03 | Bot Dashboard + Decision Log Frontend | 12min | 2 | 10 |
 | 17-01 | Combined Score Alpha Integration (TDD) | 5min | 1 | 4 |
+| 17-02 | Combined Score Alpha Frontend | 2min | 1 | 2 |
 
 ## Accumulated Context
 
@@ -143,6 +144,12 @@ v1.0 decision log archived in milestones/v1.0-phases/ SUMMARY.md files.
 - Alpha quality warmup/unavailable triggers exact existing 60/40 code path
 - Combined route now loads user settings from DB (Depends(get_db)) for Alpha Score computation
 - _detect_conflict extended with alpha-vs-macro divergence, _assess_quality with three-signal coverage
+- Combined Score Frontend (17-02): Alpha Score sub-signal card conditionally rendered when alpha.status=ok
+- Dynamic weight badges from API response (50/30/20 with Alpha, 60/40 without) -- no hardcoded percentages
+- Alpha factor bars use /5 divisor (sub_scores [-5,+5]) vs Macro /2 divisor (scores [-2,+2])
+- 3-column grid layout via combined-subsignals-three CSS class, responsive collapse on mobile
+- Phase 17 complete: all COMB-01 and COMB-02 requirements met
+- v3.0 milestone complete: phases 13-17 all done
 
 ### Pending Todos
 
@@ -155,5 +162,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-27
-Stopped at: Completed 17-01-PLAN.md (Combined Score Alpha Integration)
+Stopped at: Completed 17-02-PLAN.md (Combined Score Alpha Frontend) -- Phase 17 complete
 Resume file: None
