@@ -1,4 +1,5 @@
 """Settings API Endpoints"""
+
 import logging
 from typing import Optional
 
@@ -44,6 +45,8 @@ class SettingsUpdate(BaseModel):
     alpha_score_atr_mult_btc: Optional[str] = Field(default="2.0")
     alpha_score_atr_mult_xrp: Optional[str] = Field(default="3.0")
     alpha_score_stop_resume_n: Optional[int] = Field(default=5)
+    # Dry-Run Settings
+    dry_run_initial_capital: Optional[str] = Field(default="10000")
 
 
 VALID_STRATEGIES = {"FIFO", "LIFO", "HIGHEST_COST"}
@@ -58,26 +61,102 @@ def _settings_to_dict(settings: UserSettingsDB) -> dict:
         "macro_signal_interval": settings.macro_signal_interval,
         "sell_allocation_strategy": settings.sell_allocation_strategy,
         "ob_interval": settings.ob_interval or "4h",
-        "ob_atr_multiplier": str(settings.ob_atr_multiplier) if settings.ob_atr_multiplier is not None else "2.0",
-        "ob_target_rr": str(settings.ob_target_rr) if settings.ob_target_rr is not None else "2.0",
-        "ob_impulse_window": int(settings.ob_impulse_window) if settings.ob_impulse_window is not None else 5,
-        "recon_tolerance_base": str(settings.recon_tolerance_base) if settings.recon_tolerance_base is not None else "0.0001",
-        "recon_tolerance_quote": str(settings.recon_tolerance_quote) if settings.recon_tolerance_quote is not None else "1.00",
+        "ob_atr_multiplier": (
+            str(settings.ob_atr_multiplier)
+            if settings.ob_atr_multiplier is not None
+            else "2.0"
+        ),
+        "ob_target_rr": (
+            str(settings.ob_target_rr) if settings.ob_target_rr is not None else "2.0"
+        ),
+        "ob_impulse_window": (
+            int(settings.ob_impulse_window)
+            if settings.ob_impulse_window is not None
+            else 5
+        ),
+        "recon_tolerance_base": (
+            str(settings.recon_tolerance_base)
+            if settings.recon_tolerance_base is not None
+            else "0.0001"
+        ),
+        "recon_tolerance_quote": (
+            str(settings.recon_tolerance_quote)
+            if settings.recon_tolerance_quote is not None
+            else "1.00"
+        ),
         # Alpha Score Settings
         "alpha_score_interval": settings.alpha_score_interval or "15m",
-        "alpha_score_weight_zscore": str(settings.alpha_score_weight_zscore) if settings.alpha_score_weight_zscore is not None else "40",
-        "alpha_score_weight_leadlag": str(settings.alpha_score_weight_leadlag) if settings.alpha_score_weight_leadlag is not None else "30",
-        "alpha_score_weight_imbalance": str(settings.alpha_score_weight_imbalance) if settings.alpha_score_weight_imbalance is not None else "20",
-        "alpha_score_weight_funding": str(settings.alpha_score_weight_funding) if settings.alpha_score_weight_funding is not None else "10",
-        "alpha_score_threshold": str(settings.alpha_score_threshold) if settings.alpha_score_threshold is not None else "3.0",
-        "alpha_score_zscore_window": int(settings.alpha_score_zscore_window) if settings.alpha_score_zscore_window is not None else 60,
-        "alpha_score_leadlag_window": int(settings.alpha_score_leadlag_window) if settings.alpha_score_leadlag_window is not None else 30,
-        "alpha_score_hurst_lookback": int(settings.alpha_score_hurst_lookback) if settings.alpha_score_hurst_lookback is not None else 100,
-        "alpha_score_hurst_trending": str(settings.alpha_score_hurst_trending) if settings.alpha_score_hurst_trending is not None else "0.55",
-        "alpha_score_hurst_reverting": str(settings.alpha_score_hurst_reverting) if settings.alpha_score_hurst_reverting is not None else "0.45",
-        "alpha_score_atr_mult_btc": str(settings.alpha_score_atr_mult_btc) if settings.alpha_score_atr_mult_btc is not None else "2.0",
-        "alpha_score_atr_mult_xrp": str(settings.alpha_score_atr_mult_xrp) if settings.alpha_score_atr_mult_xrp is not None else "3.0",
-        "alpha_score_stop_resume_n": int(settings.alpha_score_stop_resume_n) if settings.alpha_score_stop_resume_n is not None else 5,
+        "alpha_score_weight_zscore": (
+            str(settings.alpha_score_weight_zscore)
+            if settings.alpha_score_weight_zscore is not None
+            else "40"
+        ),
+        "alpha_score_weight_leadlag": (
+            str(settings.alpha_score_weight_leadlag)
+            if settings.alpha_score_weight_leadlag is not None
+            else "30"
+        ),
+        "alpha_score_weight_imbalance": (
+            str(settings.alpha_score_weight_imbalance)
+            if settings.alpha_score_weight_imbalance is not None
+            else "20"
+        ),
+        "alpha_score_weight_funding": (
+            str(settings.alpha_score_weight_funding)
+            if settings.alpha_score_weight_funding is not None
+            else "10"
+        ),
+        "alpha_score_threshold": (
+            str(settings.alpha_score_threshold)
+            if settings.alpha_score_threshold is not None
+            else "3.0"
+        ),
+        "alpha_score_zscore_window": (
+            int(settings.alpha_score_zscore_window)
+            if settings.alpha_score_zscore_window is not None
+            else 60
+        ),
+        "alpha_score_leadlag_window": (
+            int(settings.alpha_score_leadlag_window)
+            if settings.alpha_score_leadlag_window is not None
+            else 30
+        ),
+        "alpha_score_hurst_lookback": (
+            int(settings.alpha_score_hurst_lookback)
+            if settings.alpha_score_hurst_lookback is not None
+            else 100
+        ),
+        "alpha_score_hurst_trending": (
+            str(settings.alpha_score_hurst_trending)
+            if settings.alpha_score_hurst_trending is not None
+            else "0.55"
+        ),
+        "alpha_score_hurst_reverting": (
+            str(settings.alpha_score_hurst_reverting)
+            if settings.alpha_score_hurst_reverting is not None
+            else "0.45"
+        ),
+        "alpha_score_atr_mult_btc": (
+            str(settings.alpha_score_atr_mult_btc)
+            if settings.alpha_score_atr_mult_btc is not None
+            else "2.0"
+        ),
+        "alpha_score_atr_mult_xrp": (
+            str(settings.alpha_score_atr_mult_xrp)
+            if settings.alpha_score_atr_mult_xrp is not None
+            else "3.0"
+        ),
+        "alpha_score_stop_resume_n": (
+            int(settings.alpha_score_stop_resume_n)
+            if settings.alpha_score_stop_resume_n is not None
+            else 5
+        ),
+        # Dry-Run
+        "dry_run_initial_capital": (
+            str(settings.dry_run_initial_capital)
+            if settings.dry_run_initial_capital is not None
+            else "10000"
+        ),
     }
 
 
@@ -106,6 +185,8 @@ DEFAULTS = {
     "alpha_score_atr_mult_btc": "2.0",
     "alpha_score_atr_mult_xrp": "3.0",
     "alpha_score_stop_resume_n": 5,
+    # Dry-Run
+    "dry_run_initial_capital": "10000",
 }
 
 
@@ -120,9 +201,9 @@ def get_settings(
     Gibt gespeicherte Settings oder Defaults zurueck.
     """
     try:
-        settings = db.query(UserSettingsDB).filter(
-            UserSettingsDB.user_id == user_id
-        ).first()
+        settings = (
+            db.query(UserSettingsDB).filter(UserSettingsDB.user_id == user_id).first()
+        )
 
         if settings:
             return _settings_to_dict(settings)
@@ -149,45 +230,69 @@ def update_settings(
     try:
         max_val = Decimal(body.max_order_value_eur)
     except Exception:
-        raise HTTPException(status_code=400, detail="max_order_value_eur muss eine gueltige Zahl sein")
+        raise HTTPException(
+            status_code=400, detail="max_order_value_eur muss eine gueltige Zahl sein"
+        )
     if max_val.is_nan() or max_val.is_infinite():
-        raise HTTPException(status_code=400, detail="max_order_value_eur darf nicht NaN oder Infinity sein")
+        raise HTTPException(
+            status_code=400,
+            detail="max_order_value_eur darf nicht NaN oder Infinity sein",
+        )
     if not (Decimal("1") <= max_val <= Decimal("1000000")):
-        raise HTTPException(status_code=400, detail="max_order_value_eur muss zwischen 1 und 1000000 liegen")
+        raise HTTPException(
+            status_code=400,
+            detail="max_order_value_eur muss zwischen 1 und 1000000 liegen",
+        )
 
     ob_atr_mult = None
     if body.ob_atr_multiplier is not None:
         try:
             ob_atr_mult = Decimal(body.ob_atr_multiplier)
         except Exception:
-            raise HTTPException(status_code=400, detail="ob_atr_multiplier muss eine gueltige Zahl sein")
+            raise HTTPException(
+                status_code=400, detail="ob_atr_multiplier muss eine gueltige Zahl sein"
+            )
         if ob_atr_mult.is_nan() or ob_atr_mult.is_infinite():
-            raise HTTPException(status_code=400, detail="ob_atr_multiplier darf nicht NaN oder Infinity sein")
+            raise HTTPException(
+                status_code=400,
+                detail="ob_atr_multiplier darf nicht NaN oder Infinity sein",
+            )
         if not (Decimal("0.5") <= ob_atr_mult <= Decimal("10.0")):
-            raise HTTPException(status_code=400, detail="ob_atr_multiplier muss zwischen 0.5 und 10.0 liegen")
+            raise HTTPException(
+                status_code=400,
+                detail="ob_atr_multiplier muss zwischen 0.5 und 10.0 liegen",
+            )
 
     ob_rr = None
     if body.ob_target_rr is not None:
         try:
             ob_rr = Decimal(body.ob_target_rr)
         except Exception:
-            raise HTTPException(status_code=400, detail="ob_target_rr muss eine gueltige Zahl sein")
+            raise HTTPException(
+                status_code=400, detail="ob_target_rr muss eine gueltige Zahl sein"
+            )
         if ob_rr.is_nan() or ob_rr.is_infinite():
-            raise HTTPException(status_code=400, detail="ob_target_rr darf nicht NaN oder Infinity sein")
+            raise HTTPException(
+                status_code=400, detail="ob_target_rr darf nicht NaN oder Infinity sein"
+            )
         if not (Decimal("0.5") <= ob_rr <= Decimal("10.0")):
-            raise HTTPException(status_code=400, detail="ob_target_rr muss zwischen 0.5 und 10.0 liegen")
+            raise HTTPException(
+                status_code=400, detail="ob_target_rr muss zwischen 0.5 und 10.0 liegen"
+            )
 
     if body.macro_signal_interval not in ("1", "5", "15"):
-        raise HTTPException(status_code=400, detail="macro_signal_interval muss '1', '5' oder '15' sein")
+        raise HTTPException(
+            status_code=400, detail="macro_signal_interval muss '1', '5' oder '15' sein"
+        )
     if body.sell_allocation_strategy not in VALID_STRATEGIES:
         raise HTTPException(
             status_code=400,
-            detail=f"sell_allocation_strategy muss einer von {sorted(VALID_STRATEGIES)} sein"
+            detail=f"sell_allocation_strategy muss einer von {sorted(VALID_STRATEGIES)} sein",
         )
     if body.ob_interval and body.ob_interval not in VALID_OB_INTERVALS:
         raise HTTPException(
             status_code=400,
-            detail=f"ob_interval muss einer von {sorted(VALID_OB_INTERVALS)} sein"
+            detail=f"ob_interval muss einer von {sorted(VALID_OB_INTERVALS)} sein",
         )
 
     # Reconciliation Threshold Validation
@@ -196,28 +301,47 @@ def update_settings(
         try:
             recon_base = Decimal(body.recon_tolerance_base)
         except Exception:
-            raise HTTPException(status_code=400, detail="recon_tolerance_base muss eine gueltige Zahl sein")
+            raise HTTPException(
+                status_code=400,
+                detail="recon_tolerance_base muss eine gueltige Zahl sein",
+            )
         if recon_base.is_nan() or recon_base.is_infinite():
-            raise HTTPException(status_code=400, detail="recon_tolerance_base darf nicht NaN oder Infinity sein")
+            raise HTTPException(
+                status_code=400,
+                detail="recon_tolerance_base darf nicht NaN oder Infinity sein",
+            )
         if recon_base < Decimal("0"):
-            raise HTTPException(status_code=400, detail="recon_tolerance_base muss >= 0 sein")
+            raise HTTPException(
+                status_code=400, detail="recon_tolerance_base muss >= 0 sein"
+            )
 
     recon_quote = None
     if body.recon_tolerance_quote is not None:
         try:
             recon_quote = Decimal(body.recon_tolerance_quote)
         except Exception:
-            raise HTTPException(status_code=400, detail="recon_tolerance_quote muss eine gueltige Zahl sein")
+            raise HTTPException(
+                status_code=400,
+                detail="recon_tolerance_quote muss eine gueltige Zahl sein",
+            )
         if recon_quote.is_nan() or recon_quote.is_infinite():
-            raise HTTPException(status_code=400, detail="recon_tolerance_quote darf nicht NaN oder Infinity sein")
+            raise HTTPException(
+                status_code=400,
+                detail="recon_tolerance_quote darf nicht NaN oder Infinity sein",
+            )
         if recon_quote < Decimal("0"):
-            raise HTTPException(status_code=400, detail="recon_tolerance_quote muss >= 0 sein")
+            raise HTTPException(
+                status_code=400, detail="recon_tolerance_quote muss >= 0 sein"
+            )
 
     # Alpha Score Validation
-    if body.alpha_score_interval and body.alpha_score_interval not in VALID_ALPHA_INTERVALS:
+    if (
+        body.alpha_score_interval
+        and body.alpha_score_interval not in VALID_ALPHA_INTERVALS
+    ):
         raise HTTPException(
             status_code=400,
-            detail=f"alpha_score_interval muss einer von {sorted(VALID_ALPHA_INTERVALS)} sein"
+            detail=f"alpha_score_interval muss einer von {sorted(VALID_ALPHA_INTERVALS)} sein",
         )
 
     # Validate and parse alpha score weights
@@ -229,11 +353,19 @@ def update_settings(
             try:
                 wval = Decimal(raw_val)
             except Exception:
-                raise HTTPException(status_code=400, detail=f"{field_name} muss eine gueltige Zahl sein")
+                raise HTTPException(
+                    status_code=400, detail=f"{field_name} muss eine gueltige Zahl sein"
+                )
             if wval.is_nan() or wval.is_infinite():
-                raise HTTPException(status_code=400, detail=f"{field_name} darf nicht NaN oder Infinity sein")
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"{field_name} darf nicht NaN oder Infinity sein",
+                )
             if not (Decimal("0") <= wval <= Decimal("100")):
-                raise HTTPException(status_code=400, detail=f"{field_name} muss zwischen 0 und 100 liegen")
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"{field_name} muss zwischen 0 und 100 liegen",
+                )
             alpha_weights[wname] = wval
 
     # Auto-normalize weights to sum to 100%
@@ -241,29 +373,49 @@ def update_settings(
         weight_sum = sum(alpha_weights.values())
         if weight_sum > Decimal("0"):
             for wname in alpha_weights:
-                alpha_weights[wname] = (alpha_weights[wname] / weight_sum * Decimal("100")).quantize(Decimal("0.01"))
+                alpha_weights[wname] = (
+                    alpha_weights[wname] / weight_sum * Decimal("100")
+                ).quantize(Decimal("0.01"))
 
     alpha_threshold = None
     if body.alpha_score_threshold is not None:
         try:
             alpha_threshold = Decimal(body.alpha_score_threshold)
         except Exception:
-            raise HTTPException(status_code=400, detail="alpha_score_threshold muss eine gueltige Zahl sein")
+            raise HTTPException(
+                status_code=400,
+                detail="alpha_score_threshold muss eine gueltige Zahl sein",
+            )
         if alpha_threshold.is_nan() or alpha_threshold.is_infinite():
-            raise HTTPException(status_code=400, detail="alpha_score_threshold darf nicht NaN oder Infinity sein")
+            raise HTTPException(
+                status_code=400,
+                detail="alpha_score_threshold darf nicht NaN oder Infinity sein",
+            )
         if not (Decimal("0.1") <= alpha_threshold <= Decimal("5.0")):
-            raise HTTPException(status_code=400, detail="alpha_score_threshold muss zwischen 0.1 und 5.0 liegen")
+            raise HTTPException(
+                status_code=400,
+                detail="alpha_score_threshold muss zwischen 0.1 und 5.0 liegen",
+            )
 
     # Validate integer windows
     if body.alpha_score_zscore_window is not None:
         if not (10 <= body.alpha_score_zscore_window <= 500):
-            raise HTTPException(status_code=400, detail="alpha_score_zscore_window muss zwischen 10 und 500 liegen")
+            raise HTTPException(
+                status_code=400,
+                detail="alpha_score_zscore_window muss zwischen 10 und 500 liegen",
+            )
     if body.alpha_score_leadlag_window is not None:
         if not (10 <= body.alpha_score_leadlag_window <= 500):
-            raise HTTPException(status_code=400, detail="alpha_score_leadlag_window muss zwischen 10 und 500 liegen")
+            raise HTTPException(
+                status_code=400,
+                detail="alpha_score_leadlag_window muss zwischen 10 und 500 liegen",
+            )
     if body.alpha_score_hurst_lookback is not None:
         if not (10 <= body.alpha_score_hurst_lookback <= 500):
-            raise HTTPException(status_code=400, detail="alpha_score_hurst_lookback muss zwischen 10 und 500 liegen")
+            raise HTTPException(
+                status_code=400,
+                detail="alpha_score_hurst_lookback muss zwischen 10 und 500 liegen",
+            )
 
     # Validate Hurst thresholds (0.0-1.0)
     alpha_hurst_trending = None
@@ -271,22 +423,40 @@ def update_settings(
         try:
             alpha_hurst_trending = Decimal(body.alpha_score_hurst_trending)
         except Exception:
-            raise HTTPException(status_code=400, detail="alpha_score_hurst_trending muss eine gueltige Zahl sein")
+            raise HTTPException(
+                status_code=400,
+                detail="alpha_score_hurst_trending muss eine gueltige Zahl sein",
+            )
         if alpha_hurst_trending.is_nan() or alpha_hurst_trending.is_infinite():
-            raise HTTPException(status_code=400, detail="alpha_score_hurst_trending darf nicht NaN oder Infinity sein")
+            raise HTTPException(
+                status_code=400,
+                detail="alpha_score_hurst_trending darf nicht NaN oder Infinity sein",
+            )
         if not (Decimal("0") <= alpha_hurst_trending <= Decimal("1")):
-            raise HTTPException(status_code=400, detail="alpha_score_hurst_trending muss zwischen 0.0 und 1.0 liegen")
+            raise HTTPException(
+                status_code=400,
+                detail="alpha_score_hurst_trending muss zwischen 0.0 und 1.0 liegen",
+            )
 
     alpha_hurst_reverting = None
     if body.alpha_score_hurst_reverting is not None:
         try:
             alpha_hurst_reverting = Decimal(body.alpha_score_hurst_reverting)
         except Exception:
-            raise HTTPException(status_code=400, detail="alpha_score_hurst_reverting muss eine gueltige Zahl sein")
+            raise HTTPException(
+                status_code=400,
+                detail="alpha_score_hurst_reverting muss eine gueltige Zahl sein",
+            )
         if alpha_hurst_reverting.is_nan() or alpha_hurst_reverting.is_infinite():
-            raise HTTPException(status_code=400, detail="alpha_score_hurst_reverting darf nicht NaN oder Infinity sein")
+            raise HTTPException(
+                status_code=400,
+                detail="alpha_score_hurst_reverting darf nicht NaN oder Infinity sein",
+            )
         if not (Decimal("0") <= alpha_hurst_reverting <= Decimal("1")):
-            raise HTTPException(status_code=400, detail="alpha_score_hurst_reverting muss zwischen 0.0 und 1.0 liegen")
+            raise HTTPException(
+                status_code=400,
+                detail="alpha_score_hurst_reverting muss zwischen 0.0 und 1.0 liegen",
+            )
 
     # Validate ATR multipliers (0.5-10.0)
     alpha_atr_btc = None
@@ -294,33 +464,78 @@ def update_settings(
         try:
             alpha_atr_btc = Decimal(body.alpha_score_atr_mult_btc)
         except Exception:
-            raise HTTPException(status_code=400, detail="alpha_score_atr_mult_btc muss eine gueltige Zahl sein")
+            raise HTTPException(
+                status_code=400,
+                detail="alpha_score_atr_mult_btc muss eine gueltige Zahl sein",
+            )
         if alpha_atr_btc.is_nan() or alpha_atr_btc.is_infinite():
-            raise HTTPException(status_code=400, detail="alpha_score_atr_mult_btc darf nicht NaN oder Infinity sein")
+            raise HTTPException(
+                status_code=400,
+                detail="alpha_score_atr_mult_btc darf nicht NaN oder Infinity sein",
+            )
         if not (Decimal("0.5") <= alpha_atr_btc <= Decimal("10.0")):
-            raise HTTPException(status_code=400, detail="alpha_score_atr_mult_btc muss zwischen 0.5 und 10.0 liegen")
+            raise HTTPException(
+                status_code=400,
+                detail="alpha_score_atr_mult_btc muss zwischen 0.5 und 10.0 liegen",
+            )
 
     alpha_atr_xrp = None
     if body.alpha_score_atr_mult_xrp is not None:
         try:
             alpha_atr_xrp = Decimal(body.alpha_score_atr_mult_xrp)
         except Exception:
-            raise HTTPException(status_code=400, detail="alpha_score_atr_mult_xrp muss eine gueltige Zahl sein")
+            raise HTTPException(
+                status_code=400,
+                detail="alpha_score_atr_mult_xrp muss eine gueltige Zahl sein",
+            )
         if alpha_atr_xrp.is_nan() or alpha_atr_xrp.is_infinite():
-            raise HTTPException(status_code=400, detail="alpha_score_atr_mult_xrp darf nicht NaN oder Infinity sein")
+            raise HTTPException(
+                status_code=400,
+                detail="alpha_score_atr_mult_xrp darf nicht NaN oder Infinity sein",
+            )
         if not (Decimal("0.5") <= alpha_atr_xrp <= Decimal("10.0")):
-            raise HTTPException(status_code=400, detail="alpha_score_atr_mult_xrp muss zwischen 0.5 und 10.0 liegen")
+            raise HTTPException(
+                status_code=400,
+                detail="alpha_score_atr_mult_xrp muss zwischen 0.5 und 10.0 liegen",
+            )
 
     # Validate stop resume N (1-50)
     if body.alpha_score_stop_resume_n is not None:
         if not (1 <= body.alpha_score_stop_resume_n <= 50):
-            raise HTTPException(status_code=400, detail="alpha_score_stop_resume_n muss zwischen 1 und 50 liegen")
+            raise HTTPException(
+                status_code=400,
+                detail="alpha_score_stop_resume_n muss zwischen 1 und 50 liegen",
+            )
+
+    # Dry-Run Initial Capital Validation
+    dry_run_capital = None
+    if body.dry_run_initial_capital is not None:
+        try:
+            dry_run_capital = Decimal(body.dry_run_initial_capital)
+        except Exception:
+            raise HTTPException(
+                status_code=400,
+                detail="dry_run_initial_capital muss eine gueltige Zahl sein",
+            )
+        if dry_run_capital.is_nan() or dry_run_capital.is_infinite():
+            raise HTTPException(
+                status_code=400,
+                detail="dry_run_initial_capital darf nicht NaN oder Infinity sein",
+            )
+        if not (Decimal("100") <= dry_run_capital <= Decimal("10000000")):
+            raise HTTPException(
+                status_code=400,
+                detail="dry_run_initial_capital muss zwischen 100 und 10000000 liegen",
+            )
 
     try:
         # Row-Level Lock: verhindert Lost Updates bei konkurrierenden Requests
-        settings = db.query(UserSettingsDB).filter(
-            UserSettingsDB.user_id == user_id
-        ).with_for_update().first()
+        settings = (
+            db.query(UserSettingsDB)
+            .filter(UserSettingsDB.user_id == user_id)
+            .with_for_update()
+            .first()
+        )
 
         if settings:
             settings.max_order_value_eur = max_val
@@ -349,6 +564,7 @@ def update_settings(
             settings.alpha_score_atr_mult_btc = alpha_atr_btc
             settings.alpha_score_atr_mult_xrp = alpha_atr_xrp
             settings.alpha_score_stop_resume_n = body.alpha_score_stop_resume_n
+            settings.dry_run_initial_capital = dry_run_capital
             settings.updated_at = utcnow()
         else:
             settings = UserSettingsDB(
@@ -378,6 +594,7 @@ def update_settings(
                 alpha_score_atr_mult_btc=alpha_atr_btc,
                 alpha_score_atr_mult_xrp=alpha_atr_xrp,
                 alpha_score_stop_resume_n=body.alpha_score_stop_resume_n,
+                dry_run_initial_capital=dry_run_capital,
                 created_at=utcnow(),
                 updated_at=utcnow(),
             )

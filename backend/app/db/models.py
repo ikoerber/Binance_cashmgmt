@@ -554,6 +554,118 @@ class AlphaBacktestRunDB(Base):
     )
 
 
+class DryRunDecisionDB(Base):
+    """
+    Dry-Run Decision Log - Every signal evaluation at candle close.
+    Separate from production ledger. Auto-purged after 30 days.
+    """
+
+    __tablename__ = "dry_run_decisions"
+
+    id = Column(String, primary_key=True)  # "drd_{uuid_hex[:12]}"
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    symbol = Column(String, nullable=False)  # "BTCEUR" | "XRPEUR"
+
+    action = Column(String, nullable=False)  # "BUY" | "SELL" | "HOLD" | "NO_SIGNAL"
+    reason = Column(Text, nullable=False)
+
+    alpha_score = Column(Numeric(precision=10, scale=4), nullable=False)
+    trade_signal = Column(
+        String, nullable=False
+    )  # "LONG" | "SHORT" | "NEUTRAL"
+    threshold = Column(Numeric(precision=10, scale=4), nullable=False)
+    quality = Column(
+        String, nullable=False
+    )  # "full" | "partial" | "degraded" | "warmup"
+
+    factor_zscore = Column(Numeric(precision=10, scale=4), nullable=True)
+    factor_leadlag = Column(Numeric(precision=10, scale=4), nullable=True)
+    factor_imbalance = Column(Numeric(precision=10, scale=4), nullable=True)
+    factor_funding = Column(Numeric(precision=10, scale=4), nullable=True)
+    factors_json = Column(JSON, nullable=False)
+
+    current_price = Column(Numeric(precision=20, scale=10), nullable=False)
+    trailing_stop_level = Column(Numeric(precision=20, scale=10), nullable=True)
+
+    regime_label = Column(String, nullable=True)
+    regime_hurst = Column(Numeric(precision=10, scale=4), nullable=True)
+
+    virtual_qty = Column(Numeric(precision=20, scale=10), nullable=True)
+    virtual_price = Column(Numeric(precision=20, scale=10), nullable=True)
+    virtual_fee = Column(Numeric(precision=20, scale=10), nullable=True)
+
+    evaluated_at = Column(DateTime, nullable=False, index=True)
+    created_at = Column(DateTime, nullable=False, default=_utcnow)
+
+    __table_args__ = (
+        Index("idx_drd_user_symbol_time", "user_id", "symbol", "evaluated_at"),
+        Index("idx_drd_user_action", "user_id", "action"),
+    )
+
+
+class DryRunPortfolioDB(Base):
+    """
+    Dry-Run Virtual Portfolio state per user.
+    Single row per user. Completely separate from production portfolio.
+    """
+
+    __tablename__ = "dry_run_portfolios"
+
+    id = Column(String, primary_key=True)
+    user_id = Column(String, ForeignKey("users.id"), unique=True, nullable=False)
+
+    initial_capital = Column(Numeric(precision=20, scale=2), nullable=False)
+    cash = Column(Numeric(precision=20, scale=2), nullable=False)
+    total_equity = Column(Numeric(precision=20, scale=2), nullable=False)
+    unrealized_pnl = Column(
+        Numeric(precision=20, scale=4), nullable=False, server_default="0"
+    )
+    realized_pnl = Column(
+        Numeric(precision=20, scale=4), nullable=False, server_default="0"
+    )
+
+    trade_count = Column(
+        Numeric(precision=10, scale=0), nullable=False, server_default="0"
+    )
+    win_count = Column(
+        Numeric(precision=10, scale=0), nullable=False, server_default="0"
+    )
+
+    is_active = Column(Boolean, nullable=False, default=False)
+    activated_at = Column(DateTime, nullable=True)
+
+    created_at = Column(DateTime, nullable=False, default=_utcnow)
+    updated_at = Column(DateTime, nullable=False, default=_utcnow, onupdate=_utcnow)
+
+
+class DryRunPositionDB(Base):
+    """
+    Dry-Run Virtual Position - Open virtual positions.
+    Separate from trade_lots. Cleaned on portfolio reset.
+    """
+
+    __tablename__ = "dry_run_positions"
+
+    id = Column(String, primary_key=True)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    portfolio_id = Column(
+        String, ForeignKey("dry_run_portfolios.id"), nullable=False
+    )
+
+    symbol = Column(String, nullable=False)
+    qty = Column(Numeric(precision=20, scale=10), nullable=False)
+    entry_price = Column(Numeric(precision=20, scale=10), nullable=False)
+    entry_time = Column(DateTime, nullable=False)
+    fees_paid = Column(Numeric(precision=20, scale=10), nullable=False)
+    decision_id = Column(
+        String, ForeignKey("dry_run_decisions.id"), nullable=True
+    )
+
+    created_at = Column(DateTime, nullable=False, default=_utcnow)
+
+    __table_args__ = (Index("idx_drp_user_symbol", "user_id", "symbol"),)
+
+
 class UserSettingsDB(Base):
     """
     User Settings - Konfigurierbare Parameter pro User
@@ -601,6 +713,11 @@ class UserSettingsDB(Base):
     alpha_score_atr_mult_btc = Column(Numeric(precision=5, scale=2), nullable=True)  # Default 2.0
     alpha_score_atr_mult_xrp = Column(Numeric(precision=5, scale=2), nullable=True)  # Default 3.0
     alpha_score_stop_resume_n = Column(Numeric(precision=3, scale=0), nullable=True)  # Default 5
+
+    # Dry-Run Settings
+    dry_run_initial_capital = Column(
+        Numeric(precision=20, scale=2), nullable=True
+    )  # Default: 10000
 
     created_at = Column(DateTime, nullable=False, default=_utcnow)
     updated_at = Column(DateTime, nullable=False, default=_utcnow, onupdate=_utcnow)
