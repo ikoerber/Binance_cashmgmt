@@ -30,6 +30,7 @@ from app.api.routes import (
     alerts,
     alpha_score,
     backtest,
+    dry_run,
 )
 from app.api.routes import websocket as websocket_route
 from app.services.websocket_manager import get_stream_manager
@@ -52,7 +53,16 @@ async def lifespan(app: FastAPI):
     await stream_manager.start()
     await stream_manager.start_user_data_stream()
 
+    # Dry-Run Service starten
+    from app.services.dry_run_service import get_dry_run_service
+
+    dry_run_svc = get_dry_run_service()
+    await dry_run_svc.start()
+
     yield
+
+    # Dry-Run Service stoppen
+    await dry_run_svc.stop()
 
     # WebSocket Manager stoppen
     await stream_manager.stop()
@@ -85,8 +95,11 @@ async def add_security_headers(request: Request, call_next):
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-XSS-Protection"] = "1; mode=block"
-    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    response.headers["Strict-Transport-Security"] = (
+        "max-age=31536000; includeSubDomains"
+    )
     return response
+
 
 # API-Key Auth als Router-Dependency (statt global, weil APIKeyHeader nicht mit WebSocket kompatibel)
 api_auth = [Depends(require_api_key)]
@@ -107,6 +120,7 @@ app.include_router(combined.router, dependencies=api_auth)
 app.include_router(alerts.router, dependencies=api_auth)
 app.include_router(alpha_score.router, dependencies=api_auth)
 app.include_router(backtest.router, dependencies=api_auth)
+app.include_router(dry_run.router, dependencies=api_auth)
 
 # WebSocket Route (eigene Auth via Query-Parameter, kein APIKeyHeader)
 app.include_router(websocket_route.router)
