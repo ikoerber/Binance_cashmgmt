@@ -284,6 +284,25 @@ export const cancelBacktest = async (userId, runId) => {
   return response.data;
 };
 
+export const runBacktestSweep = async (userId, { symbol = 'BTCEUR', months = 12, initial_capital = '10000', fee_rate, slippage_pct, position_fraction, sweep } = {}) => {
+  const body = { symbol, months, initial_capital, sweep };
+  if (fee_rate) body.fee_rate = fee_rate;
+  if (slippage_pct) body.slippage_pct = slippage_pct;
+  if (position_fraction) body.position_fraction = position_fraction;
+  const response = await apiClient.post(`/api/backtest/${userId}/sweep`, body);
+  return response.data;
+};
+
+export const getBacktestSweepDetail = async (userId, sweepId) => {
+  const response = await apiClient.get(`/api/backtest/${userId}/sweep/${sweepId}`);
+  return response.data;
+};
+
+export const getBacktestSweepCsvUrl = (userId, sweepId) => {
+  const base = API_BASE_URL;
+  return `${base}/api/backtest/${userId}/sweep/${sweepId}/csv`;
+};
+
 // Server IP API
 export const getServerIp = async () => {
   const response = await apiClient.get('/api/server-ip');

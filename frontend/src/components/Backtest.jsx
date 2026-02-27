@@ -5,7 +5,7 @@
  * Displays equity curve with HODL benchmark, drawdown chart, monthly returns heatmap,
  * P&L histogram, trade list, and backtest history.
  */
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar,
@@ -14,10 +14,12 @@ import {
 } from 'recharts';
 import {
   runBacktest, getBacktestRuns, getBacktestRunDetail,
+  runBacktestSweep, cancelBacktest, getBacktestSweepCsvUrl,
 } from '../api/client';
 import { formatNumber, formatEUR, formatDate, formatPct } from '../utils/formatters';
 import { useChartTheme } from '../hooks/useChartTheme';
 import { useUser } from '../contexts/UserContext';
+import { useWebSocket } from '../contexts/WebSocketContext';
 import useNotification from '../hooks/useNotification';
 import './Backtest.css';
 
@@ -82,6 +84,40 @@ const getHeatmapTextColor = (val) => {
   return 'var(--color-text-primary)';
 };
 
+// ─── Sweep Helpers ───
+
+const SWEEP_PARAMS = [
+  { key: 'zscore_window', label: 'Z-Score Lookback', defaultMin: 30, defaultMax: 90, defaultStep: 15, isInt: true },
+  { key: 'entry_threshold', label: 'Entry-Schwelle', defaultMin: 2.0, defaultMax: 4.0, defaultStep: 0.5, isInt: false },
+  { key: 'atr_multiplier', label: 'ATR Multiplikator', defaultMin: 1.5, defaultMax: 3.0, defaultStep: 0.5, isInt: false },
+  { key: 'weight_zscore', label: 'Z-Score Gewicht', defaultMin: 30, defaultMax: 50, defaultStep: 10, isInt: true },
+];
+
+const computeCombinationCount = (sweepRanges) => {
+  let count = 1;
+  for (const param of SWEEP_PARAMS) {
+    const range = sweepRanges[param.key];
+    if (!range || !range.enabled) continue;
+    const min = parseFloat(range.min);
+    const max = parseFloat(range.max);
+    const step = parseFloat(range.step);
+    if (isNaN(min) || isNaN(max) || isNaN(step) || step <= 0 || min > max) continue;
+    const steps = Math.floor((max - min) / step) + 1;
+    count *= Math.max(1, steps);
+  }
+  return count;
+};
+
+const PHASE_LABELS = {
+  fetching_data: 'Daten laden...',
+  warming_up: 'Warmup...',
+  simulating: 'Simuliere...',
+  computing_metrics: 'Metriken berechnen...',
+  sweep: 'Sweep',
+  complete: 'Abgeschlossen',
+  cancelled: 'Abgebrochen',
+};
+
 // ─── Component ───
 
 const Backtest = () => {
@@ -104,6 +140,22 @@ const Backtest = () => {
   const [currentResult, setCurrentResult] = useState(null);
   const [showTrades, setShowTrades] = useState(false);
   const [expandedRunId, setExpandedRunId] = useState(null);
+
+  // ─── Sweep State ───
+  const [sweepRanges, setSweepRanges] = useState(() => {
+    const init = {};
+    SWEEP_PARAMS.forEach(p => {
+      init[p.key] = { enabled: true, min: String(p.defaultMin), max: String(p.defaultMax), step: String(p.defaultStep) };
+    });
+    return init;
+  });
+  const [sweepResult, setSweepResult] = useState(null);
+  const [sweepSortKey, setSweepSortKey] = useState('sharpe_ratio');
+  const [sweepSortDir, setSweepSortDir] = useState('desc');
+  const [cancelling, setCancelling] = useState(false);
+
+  // ─── WebSocket Progress ───
+  const { backtestProgress } = useWebSocket();
 
   // Auto-set ATR multiplier on symbol change
   const handleSymbolChange = (newSymbol) => {
@@ -145,6 +197,119 @@ const Backtest = () => {
       showMessage('error', err.response?.data?.detail || err.message);
     },
   });
+
+  // ─── Sweep Mutation ───
+  const sweepMutation = useMutation({
+    mutationFn: () => {
+      const sweep = {};
+      SWEEP_PARAMS.forEach(p => {
+        const r = sweepRanges[p.key];
+        if (r && r.enabled) {
+          sweep[p.key] = {
+            min: parseFloat(r.min),
+            max: parseFloat(r.max),
+            step: parseFloat(r.step),
+          };
+        }
+      });
+      return runBacktestSweep(userId, {
+        symbol,
+        months,
+        initial_capital: initialCapital,
+        fee_rate: String(parseFloat(feeRate) / 100),
+        slippage_pct: String(parseFloat(slippage) / 100),
+        position_fraction: String(parseFloat(positionFraction) / 100),
+        sweep,
+      });
+    },
+    onSuccess: (data) => {
+      setSweepResult(data);
+      queryClient.invalidateQueries({ queryKey: ['backtest-runs', userId] });
+      const msg = data.cancelled
+        ? `Sweep abgebrochen: ${data.completed_count}/${data.combination_count} Kombinationen.`
+        : `Sweep abgeschlossen: ${data.completed_count} Kombinationen in ${data.duration_seconds}s.`;
+      showMessage('success', msg);
+    },
+    onError: (err) => {
+      const detail = err.response?.data?.detail;
+      if (typeof detail === 'object' && detail.error) {
+        showMessage('error', `${detail.error} (${detail.combination_count} Kombinationen, max ${detail.max_allowed})`);
+      } else {
+        showMessage('error', detail || err.message);
+      }
+    },
+  });
+
+  const handleCancelBacktest = useCallback(async () => {
+    const runId = backtestProgress?.run_id;
+    if (!runId) return;
+    setCancelling(true);
+    try {
+      await cancelBacktest(userId, runId);
+    } catch {
+      // Ignore — may have already finished
+    }
+    setCancelling(false);
+  }, [userId, backtestProgress]);
+
+  const handleSweepSort = useCallback((key) => {
+    setSweepSortDir(prev => (sweepSortKey === key ? (prev === 'asc' ? 'desc' : 'asc') : 'desc'));
+    setSweepSortKey(key);
+  }, [sweepSortKey]);
+
+  const handleSweepRangeChange = useCallback((paramKey, field, value) => {
+    setSweepRanges(prev => ({
+      ...prev,
+      [paramKey]: { ...prev[paramKey], [field]: value },
+    }));
+  }, []);
+
+  const handleSweepToggle = useCallback((paramKey) => {
+    setSweepRanges(prev => ({
+      ...prev,
+      [paramKey]: { ...prev[paramKey], enabled: !prev[paramKey].enabled },
+    }));
+  }, []);
+
+  // ─── Sweep Derived Data ───
+  const combinationCount = useMemo(() => computeCombinationCount(sweepRanges), [sweepRanges]);
+  const sweepBlocked = combinationCount > 500;
+  const sweepWarning = combinationCount > 100 && !sweepBlocked;
+  const hasEnabledSweepParam = SWEEP_PARAMS.some(p => sweepRanges[p.key]?.enabled);
+
+  const sortedSweepResults = useMemo(() => {
+    if (!sweepResult?.results) return [];
+    return [...sweepResult.results].sort((a, b) => {
+      const av = parseFloat(a[sweepSortKey]) || 0;
+      const bv = parseFloat(b[sweepSortKey]) || 0;
+      return sweepSortDir === 'asc' ? av - bv : bv - av;
+    });
+  }, [sweepResult, sweepSortKey, sweepSortDir]);
+
+  const handleCsvExport = useCallback(() => {
+    if (!sweepResult?.sweep_id) return;
+    const url = getBacktestSweepCsvUrl(userId, sweepResult.sweep_id);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `sweep_${sweepResult.sweep_id}.csv`;
+    // Add API key header — use fetch+blob approach
+    fetch(url, {
+      headers: { 'X-API-Key': import.meta.env.VITE_API_KEY || '' },
+    })
+      .then(res => res.blob())
+      .then(blob => {
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = `sweep_${sweepResult.sweep_id}.csv`;
+        a.click();
+        URL.revokeObjectURL(blobUrl);
+      });
+  }, [userId, sweepResult]);
+
+  // ─── Progress State ───
+  const isRunning = runMutation.isPending || sweepMutation.isPending;
+  const showProgress = backtestProgress && backtestProgress.phase !== 'complete' && backtestProgress.phase !== 'cancelled';
 
   // ─── Derived Data ───
   const runs = runsData?.runs || [];
@@ -315,18 +480,202 @@ const Backtest = () => {
           <button
             className="btn-bt-run"
             onClick={() => runMutation.mutate()}
-            disabled={runMutation.isPending}
+            disabled={isRunning}
           >
             {runMutation.isPending ? 'Simuliere...' : 'Backtest starten'}
           </button>
-          {runMutation.isPending && (
-            <div className="bt-progress-placeholder">
-              <div className="bt-spinner" />
-              <span>Simulation laeuft...</span>
-            </div>
-          )}
         </div>
       </div>
+
+      {/* ─── Progress Bar ─── */}
+      {(showProgress || backtestProgress?.phase === 'cancelled') && (
+        <div className="bt-progress-section">
+          <div className="bt-progress-header">
+            <span className="bt-progress-phase">
+              {backtestProgress?.phase === 'sweep'
+                ? `Sweep ${backtestProgress.combination_current || 0} / ${backtestProgress.combination_total || 0}`
+                : PHASE_LABELS[backtestProgress?.phase] || 'Verarbeite...'}
+            </span>
+            {backtestProgress?.elapsed_seconds != null && (
+              <span className="bt-progress-elapsed">{backtestProgress.elapsed_seconds}s</span>
+            )}
+          </div>
+          <div className="bt-progress-bar-track">
+            <div
+              className="bt-progress-bar-fill"
+              style={{ width: `${Math.min(100, backtestProgress?.progress_pct || backtestProgress?.pct || 0)}%` }}
+            />
+          </div>
+          <div className="bt-progress-details">
+            {backtestProgress?.processed != null && (
+              <span>{formatNumber(backtestProgress.processed, 0)} / {formatNumber(backtestProgress.total, 0)} Kerzen</span>
+            )}
+            {backtestProgress?.trades_found != null && (
+              <span>{backtestProgress.trades_found} Trades gefunden</span>
+            )}
+            {backtestProgress?.phase === 'cancelled' && (
+              <span className="bt-progress-cancelled-notice">Abgebrochen — Teilergebnisse anzeigen</span>
+            )}
+          </div>
+          {isRunning && (
+            <button
+              className="btn-bt-cancel"
+              onClick={handleCancelBacktest}
+              disabled={cancelling}
+            >
+              {cancelling ? 'Abbrechen...' : 'Abbrechen'}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* ─── Parameter Sweep ─── */}
+      <div className="bt-form-section bt-sweep-section">
+        <h3>Parameter Sweep</h3>
+        <div className="bt-sweep-grid">
+          {SWEEP_PARAMS.map(param => {
+            const range = sweepRanges[param.key];
+            return (
+              <div key={param.key} className={`bt-sweep-row ${range?.enabled ? '' : 'bt-sweep-disabled'}`}>
+                <label className="bt-sweep-toggle">
+                  <input
+                    type="checkbox"
+                    checked={range?.enabled || false}
+                    onChange={() => handleSweepToggle(param.key)}
+                  />
+                  <span>{param.label}</span>
+                </label>
+                <div className="bt-sweep-inputs">
+                  <div className="bt-sweep-field">
+                    <span className="bt-sweep-field-label">Min</span>
+                    <input
+                      type="number"
+                      value={range?.min || ''}
+                      onChange={(e) => handleSweepRangeChange(param.key, 'min', e.target.value)}
+                      disabled={!range?.enabled}
+                      step={param.isInt ? '1' : '0.1'}
+                    />
+                  </div>
+                  <div className="bt-sweep-field">
+                    <span className="bt-sweep-field-label">Max</span>
+                    <input
+                      type="number"
+                      value={range?.max || ''}
+                      onChange={(e) => handleSweepRangeChange(param.key, 'max', e.target.value)}
+                      disabled={!range?.enabled}
+                      step={param.isInt ? '1' : '0.1'}
+                    />
+                  </div>
+                  <div className="bt-sweep-field">
+                    <span className="bt-sweep-field-label">Step</span>
+                    <input
+                      type="number"
+                      value={range?.step || ''}
+                      onChange={(e) => handleSweepRangeChange(param.key, 'step', e.target.value)}
+                      disabled={!range?.enabled}
+                      step={param.isInt ? '1' : '0.1'}
+                      min="0.1"
+                    />
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <div className="bt-sweep-footer">
+          <span className={`bt-sweep-badge ${sweepBlocked ? 'bt-sweep-badge-error' : sweepWarning ? 'bt-sweep-badge-warning' : 'bt-sweep-badge-ok'}`}>
+            {combinationCount} Kombination{combinationCount !== 1 ? 'en' : ''}
+            {sweepBlocked && ' — Max 500 erlaubt'}
+            {sweepWarning && ' — Kann mehrere Minuten dauern'}
+          </span>
+          <button
+            className="btn-bt-run btn-bt-sweep"
+            onClick={() => sweepMutation.mutate()}
+            disabled={isRunning || sweepBlocked || !hasEnabledSweepParam}
+          >
+            {sweepMutation.isPending ? 'Sweep laeuft...' : 'Sweep starten'}
+          </button>
+        </div>
+      </div>
+
+      {/* ─── Sweep Results ─── */}
+      {sweepResult && sweepResult.results?.length > 0 && (
+        <div className="bt-sweep-results">
+          <div className="bt-sweep-results-header">
+            <h3>Sweep Ergebnisse ({sweepResult.results.length} Kombinationen)</h3>
+            <button className="btn-bt-csv" onClick={handleCsvExport}>
+              CSV Export
+            </button>
+          </div>
+          {sweepResult.cancelled && (
+            <div className="bt-sweep-cancelled-notice">
+              Sweep abgebrochen — {sweepResult.completed_count} von {sweepResult.combination_count} Kombinationen abgeschlossen
+            </div>
+          )}
+          <div className="bt-table-container bt-sweep-table-container">
+            <table className="bt-table bt-sweep-table">
+              <thead>
+                <tr>
+                  {SWEEP_PARAMS.filter(p => sweepRanges[p.key]?.enabled).map(p => (
+                    <th key={p.key} className="bt-sortable" onClick={() => handleSweepSort(p.key)}>
+                      {p.label}
+                      {sweepSortKey === p.key && (
+                        <span className="bt-sort-arrow">{sweepSortDir === 'asc' ? ' \u25B2' : ' \u25BC'}</span>
+                      )}
+                    </th>
+                  ))}
+                  <th className="bt-sortable" onClick={() => handleSweepSort('net_return_pct')}>
+                    Rendite %{sweepSortKey === 'net_return_pct' && <span className="bt-sort-arrow">{sweepSortDir === 'asc' ? ' \u25B2' : ' \u25BC'}</span>}
+                  </th>
+                  <th className="bt-sortable" onClick={() => handleSweepSort('sharpe_ratio')}>
+                    Sharpe{sweepSortKey === 'sharpe_ratio' && <span className="bt-sort-arrow">{sweepSortDir === 'asc' ? ' \u25B2' : ' \u25BC'}</span>}
+                  </th>
+                  <th className="bt-sortable" onClick={() => handleSweepSort('max_drawdown_pct')}>
+                    Max DD %{sweepSortKey === 'max_drawdown_pct' && <span className="bt-sort-arrow">{sweepSortDir === 'asc' ? ' \u25B2' : ' \u25BC'}</span>}
+                  </th>
+                  <th className="bt-sortable" onClick={() => handleSweepSort('trade_count')}>
+                    Trades{sweepSortKey === 'trade_count' && <span className="bt-sort-arrow">{sweepSortDir === 'asc' ? ' \u25B2' : ' \u25BC'}</span>}
+                  </th>
+                  <th className="bt-sortable" onClick={() => handleSweepSort('win_rate')}>
+                    Win %{sweepSortKey === 'win_rate' && <span className="bt-sort-arrow">{sweepSortDir === 'asc' ? ' \u25B2' : ' \u25BC'}</span>}
+                  </th>
+                  <th>Fees</th>
+                  <th>Slippage</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sortedSweepResults.map((row, idx) => {
+                  const ret = parseFloat(row.net_return_pct) || 0;
+                  const sharpe = parseFloat(row.sharpe_ratio) || 0;
+                  const dd = parseFloat(row.max_drawdown_pct) || 0;
+                  return (
+                    <tr key={idx}>
+                      {SWEEP_PARAMS.filter(p => sweepRanges[p.key]?.enabled).map(p => (
+                        <td key={p.key} className="cell-mono">{row[p.key] ?? '-'}</td>
+                      ))}
+                      <td className={`cell-mono ${ret >= 0 ? 'bt-profit' : 'bt-loss'}`}>
+                        {formatPct(ret)}
+                      </td>
+                      <td className={`cell-mono ${sharpe >= 1 ? 'bt-profit' : ''}`}>
+                        {formatNumber(sharpe, 2)}
+                      </td>
+                      <td className="cell-mono bt-loss">
+                        {formatPct(dd)}
+                      </td>
+                      <td className="cell-mono">{row.trade_count ?? 0}</td>
+                      <td className="cell-mono">
+                        {row.win_rate != null ? `${formatNumber(parseFloat(row.win_rate) * 100, 1)}%` : '-'}
+                      </td>
+                      <td className="cell-mono">{row.total_fees != null ? formatEUR(parseFloat(row.total_fees)) : '-'}</td>
+                      <td className="cell-mono">{row.total_slippage != null ? formatEUR(parseFloat(row.total_slippage)) : '-'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* ─── Results Section ─── */}
       {currentResult && (

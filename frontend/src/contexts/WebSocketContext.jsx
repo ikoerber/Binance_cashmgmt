@@ -13,7 +13,7 @@ import { useQueryClient } from '@tanstack/react-query';
 
 const WebSocketContext = createContext(null);
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8100';
 const API_KEY = import.meta.env.VITE_API_KEY || '';
 
 // HTTP(S) URL zu WS(S) URL konvertieren
@@ -39,9 +39,13 @@ export const WebSocketProvider = ({ userId = 'user_123', children }) => {
   // Phase 3: Fill Events
   const [lastFillEvent, setLastFillEvent] = useState(null);
 
+  // Backtest Progress (Phase 15)
+  const [backtestProgress, setBacktestProgress] = useState(null);
+  const backtestProgressResetRef = useRef(null);
+
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN ||
-        wsRef.current?.readyState === WebSocket.CONNECTING) {
+      wsRef.current?.readyState === WebSocket.CONNECTING) {
       return;
     }
 
@@ -118,6 +122,17 @@ export const WebSocketProvider = ({ userId = 'user_123', children }) => {
             queryClient.invalidateQueries({ queryKey: ['lots', fillSym] });
             queryClient.invalidateQueries({ queryKey: ['portfolio', fillSym] });
             queryClient.invalidateQueries({ queryKey: ['orders', fillSym] });
+            break;
+          }
+
+          case 'backtest_progress': {
+            const progressData = data.data || data;
+            setBacktestProgress(progressData);
+            // Auto-reset nach Abschluss oder Abbruch (nach 2s damit UI 100% anzeigen kann)
+            if (progressData.phase === 'complete' || progressData.phase === 'cancelled') {
+              if (backtestProgressResetRef.current) clearTimeout(backtestProgressResetRef.current);
+              backtestProgressResetRef.current = setTimeout(() => setBacktestProgress(null), 2000);
+            }
             break;
           }
 
@@ -198,6 +213,7 @@ export const WebSocketProvider = ({ userId = 'user_123', children }) => {
     lastOrderUpdate,
     lastBalanceUpdate,
     lastFillEvent,
+    backtestProgress,
   };
 
   return (
