@@ -1,6 +1,368 @@
-/* Decision Log - Placeholder (implemented in Task 2) */
+/* Decision Log - Dry-Run Decision History */
+
 .decision-log-container {
   padding: 24px;
   max-width: 1200px;
   margin: 0 auto;
+}
+
+/* --- Header --- */
+
+.decision-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.decision-header h2 {
+  margin: 0;
+  font-size: 22px;
+  color: var(--color-text-primary, #1e293b);
+}
+
+.decision-total {
+  font-size: 14px;
+  color: var(--color-text-secondary, #64748b);
+  font-weight: 500;
+}
+
+/* --- Filter Bar --- */
+
+.decision-filters {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  padding: 16px 20px;
+  background: var(--color-bg-card, #fff);
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: var(--radius-lg, 12px);
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  box-shadow: var(--shadow-card, 0 1px 3px rgba(0,0,0,0.1));
+}
+
+.decision-filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.decision-filter-field label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-muted, #64748b);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.decision-filter-field input,
+.decision-filter-field select {
+  padding: 6px 10px;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: var(--radius-md, 8px);
+  font-size: 13px;
+  color: var(--color-text-primary, #1e293b);
+  background: var(--color-bg-page, #fff);
+  min-width: 120px;
+}
+
+.decision-filter-field input:focus,
+.decision-filter-field select:focus {
+  outline: none;
+  border-color: #d97706;
+  box-shadow: 0 0 0 2px rgba(217, 119, 6, 0.15);
+}
+
+.decision-filter-reset {
+  padding: 6px 16px;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: var(--radius-md, 8px);
+  background: transparent;
+  color: var(--color-text-secondary, #64748b);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+  align-self: flex-end;
+}
+
+.decision-filter-reset:hover {
+  border-color: var(--color-text-secondary, #64748b);
+  color: var(--color-text-primary, #1e293b);
+}
+
+/* --- Loading / Empty --- */
+
+.decision-loading,
+.decision-empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--color-text-secondary, #64748b);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* --- Table --- */
+
+.decision-table-wrapper {
+  background: var(--color-bg-card, #fff);
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: var(--radius-lg, 12px);
+  overflow: hidden;
+  box-shadow: var(--shadow-card, 0 1px 3px rgba(0,0,0,0.1));
+}
+
+.decision-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.decision-table thead {
+  background: var(--color-bg-subtle, #f8fafc);
+  border-bottom: 1px solid var(--color-border, #e2e8f0);
+}
+
+.decision-table th {
+  padding: 10px 14px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-muted, #64748b);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.decision-table td {
+  padding: 10px 14px;
+  color: var(--color-text-body, #334155);
+  border-bottom: 1px solid var(--color-border-light, #f1f5f9);
+}
+
+/* --- Row --- */
+
+.decision-row {
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.decision-row:hover {
+  background: var(--color-bg-subtle, #f8fafc);
+}
+
+.decision-row.expanded {
+  background: var(--color-bg-subtle, #f8fafc);
+}
+
+.decision-cell-time {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.decision-date {
+  font-weight: 500;
+  color: var(--color-text-primary, #1e293b);
+}
+
+.decision-time {
+  font-size: 11px;
+  color: var(--color-text-muted, #64748b);
+}
+
+/* --- Badges --- */
+
+.decision-action-badge {
+  display: inline-block;
+  color: white;
+  padding: 3px 10px;
+  border-radius: var(--radius-md, 8px);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.decision-signal-badge {
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.decision-quality-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: var(--radius-md, 8px);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.decision-quality-badge.quality-full {
+  background: var(--color-success-bg, #dcfce7);
+  color: var(--color-profit, #16a34a);
+}
+
+.decision-quality-badge.quality-partial {
+  background: var(--color-warning-bg, #fef3c7);
+  color: #d97706;
+}
+
+.decision-quality-badge.quality-degraded {
+  background: var(--color-alert-red-severity-bg, #fee2e2);
+  color: var(--color-loss, #dc2626);
+}
+
+/* --- Score --- */
+
+.decision-score {
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.decision-score.positive {
+  color: var(--color-profit, #16a34a);
+}
+
+.decision-score.negative {
+  color: var(--color-loss, #dc2626);
+}
+
+/* --- Reason Cell --- */
+
+.decision-cell-reason {
+  max-width: 200px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--color-text-secondary, #64748b);
+  font-size: 12px;
+}
+
+/* --- Expanded Row --- */
+
+.decision-row-expanded td {
+  padding: 0;
+  border-bottom: 2px solid #d97706;
+}
+
+.decision-detail {
+  padding: 16px 20px;
+  background: var(--color-bg-muted, #f1f5f9);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.decision-detail h4 {
+  margin: 0 0 8px 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-primary, #1e293b);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+/* --- Factor Section (reuses BotDashboard.css classes for bars) --- */
+
+.decision-factor-section {
+  /* Container for factor bars in expanded detail */
+}
+
+.decision-factor-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* --- Detail Grid --- */
+
+.decision-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.decision-detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.decision-detail-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-muted, #64748b);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.decision-detail-value {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-primary, #1e293b);
+}
+
+/* --- Trade Section --- */
+
+.decision-trade-section {
+  padding-top: 8px;
+  border-top: 1px solid var(--color-border, #e2e8f0);
+}
+
+/* --- Reason Full --- */
+
+.decision-reason-full {
+  padding-top: 8px;
+  border-top: 1px solid var(--color-border, #e2e8f0);
+}
+
+.decision-reason-full p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-text-body, #334155);
+  line-height: 1.5;
+}
+
+/* --- Load More --- */
+
+.decision-load-more-container {
+  display: flex;
+  justify-content: center;
+  margin-top: 16px;
+}
+
+.decision-load-more {
+  padding: 10px 32px;
+  border: 1px solid #d97706;
+  border-radius: var(--radius-lg, 12px);
+  background: transparent;
+  color: #d97706;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.decision-load-more:hover {
+  background: rgba(217, 119, 6, 0.08);
+}
+
+/* --- Responsive --- */
+
+@media (max-width: 768px) {
+  .decision-filters {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .decision-table-wrapper {
+    overflow-x: auto;
+  }
+
+  .decision-table {
+    min-width: 700px;
+  }
+
+  .decision-detail-grid {
+    grid-template-columns: 1fr;
+  }
 }
