@@ -18,24 +18,24 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-25)
 
 **Core value:** Ledger-first, deterministisches, auditierbares Cashflow-Tracking und automatisiertes Trading-System
-**Current focus:** Phase 14 — Multi-Factor Scoring Engine
+**Current focus:** Phase 15 — Backtesting Engine
 
 ## Current Position
 
 Milestone: v3.0 Multi-Factor Omni-Bot
-Phase: 14 of 17 (Multi-Factor Scoring Engine)
-Plan: 4 of 4 complete
-Status: Complete
-Last activity: 2026-02-26 — Completed 14-04-PLAN.md (Data Service + API Routes)
+Phase: 15 of 17 (Backtesting Engine)
+Plan: 1 of 4 complete
+Status: In Progress
+Last activity: 2026-02-27 — Completed 15-01-PLAN.md (Pure Domain Backtest Engine)
 
-Progress: [████████████████████] 100%
+Progress: [█████░░░░░░░░░░░░░░░] 25%
 
 ## Performance Metrics
 
 **Velocity (all milestones):**
-- Total plans completed: 36 (8 v1.0 + 9 v1.1 + 12 v2.0 + 7 v3.0)
-- Average duration: 3.2min
-- Total execution time: 126min
+- Total plans completed: 37 (8 v1.0 + 9 v1.1 + 12 v2.0 + 8 v3.0)
+- Average duration: 3.3min
+- Total execution time: 134min
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
@@ -46,6 +46,7 @@ Progress: [████████████████████] 100%
 | 14-02 | Alpha Score Settings Pipeline | 5min | 2 | 5 |
 | 14-03 | Hurst Regime + Aggregation + Trailing Stops (TDD) | 5min | 1 | 2 |
 | 14-04 | Data Service + API Routes | 5min | 2 | 3 |
+| 15-01 | Pure Domain Backtest Engine (TDD) | 8min | 1 | 2 |
 
 ## Accumulated Context
 
@@ -88,6 +89,11 @@ v1.0 decision log archived in milestones/v1.0-phases/ SUMMARY.md files.
 - GET /api/alpha-score/{user_id}/score: full Alpha Score with factor breakdown and regime info
 - GET /api/alpha-score/{user_id}/trailing-stops: per-symbol stop levels with freeze/resume state
 - Phase 14 complete: all SCORE-01 through SCORE-09 and EXIT-01/EXIT-02 requirements met
+- Backtest engine (15-01): pure domain module, 946 lines, 48 tests, zero float contamination
+- Degraded Alpha Score in backtest: orderbook + funding marked unavailable, Z-Score + Lead-Lag renormalized
+- Equity curve downsampled to daily (max ~730 points for 24 months)
+- Benchmark 50/50 BTC/XRP HODL with same fee_rate on purchase
+- Candle dict format: {open_time, open, high, low, close, volume} all Decimal
 
 ### Pending Todos
 
@@ -99,6 +105,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-26
-Stopped at: Completed 14-04-PLAN.md (Phase 14 complete)
+Last session: 2026-02-27
+Stopped at: Completed 15-01-PLAN.md
 Resume file: None
