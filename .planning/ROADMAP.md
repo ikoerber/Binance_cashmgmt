@@ -101,12 +101,13 @@ Plans:
   3. Backtest results are persisted as immutable snapshots and user can browse backtest history with expandable run details
   4. User can run a parameter sweep (grid search over Z-Score lookback, weights, thresholds) and export results as CSV
   5. Backtest includes realistic transaction costs (configurable fee rate and slippage modeling) visible in the results
-**Plans**: TBD
+**Plans**: 4 plans
 
 Plans:
-- [ ] 15-01: TBD
-- [ ] 15-02: TBD
-- [ ] 15-03: TBD
+- [ ] 15-01-PLAN.md — TDD: Pure domain backtest engine (simulation loop, metrics, benchmark, transaction costs)
+- [ ] 15-02-PLAN.md — DB model + migration + service layer + API routes (run/list/detail/cancel)
+- [ ] 15-03-PLAN.md — Frontend Backtest page (form, equity curve, drawdown, heatmap, histogram, trade list, history)
+- [ ] 15-04-PLAN.md — Parameter sweep + WebSocket progress streaming + CSV export + cancellation
 
 ### Phase 16: Dry-Run Mode + Bot Dashboard
 **Goal**: Users can observe the scoring engine operating in real-time paper trading mode through a dedicated Bot navigation section, building trust before any future live execution
@@ -158,6 +159,6 @@ Phases execute in numeric order: 13 → 14 → 15 → 16 → 17
 | 12. Navigation Restructure + Dashboard | v2.0 | 2/2 | Complete | 2026-02-25 |
 | 13. XRPBTC Infrastructure | 3/3 | Complete    | 2026-02-25 | - |
 | 14. Multi-Factor Scoring Engine | 4/4 | Complete    | 2026-02-26 | - |
-| 15. Backtesting Engine | v3.0 | 0/? | Not started | - |
+| 15. Backtesting Engine | v3.0 | 0/4 | Not started | - |
 | 16. Dry-Run Mode + Bot Dashboard | v3.0 | 0/? | Not started | - |
 | 17. Combined Score Integration | v3.0 | 0/? | Not started | - |
