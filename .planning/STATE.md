@@ -24,16 +24,16 @@ See: .planning/PROJECT.md (updated 2026-02-25)
 
 Milestone: v3.0 Multi-Factor Omni-Bot
 Phase: 15 of 17 (Backtesting Engine)
-Plan: 1 of 4 complete
+Plan: 2 of 4 complete
 Status: In Progress
-Last activity: 2026-02-27 — Completed 15-01-PLAN.md (Pure Domain Backtest Engine)
+Last activity: 2026-02-27 — Completed 15-02-PLAN.md (Backtest Persistence + Service + API)
 
-Progress: [█████░░░░░░░░░░░░░░░] 25%
+Progress: [██████████░░░░░░░░░░] 50%
 
 ## Performance Metrics
 
 **Velocity (all milestones):**
-- Total plans completed: 37 (8 v1.0 + 9 v1.1 + 12 v2.0 + 8 v3.0)
+- Total plans completed: 38 (8 v1.0 + 9 v1.1 + 12 v2.0 + 9 v3.0)
 - Average duration: 3.3min
 - Total execution time: 134min
 
@@ -47,6 +47,7 @@ Progress: [█████░░░░░░░░░░░░░░░] 25%
 | 14-03 | Hurst Regime + Aggregation + Trailing Stops (TDD) | 5min | 1 | 2 |
 | 14-04 | Data Service + API Routes | 5min | 2 | 3 |
 | 15-01 | Pure Domain Backtest Engine (TDD) | 8min | 1 | 2 |
+| 15-02 | Backtest Persistence + Service + API | 5min | 2 | 5 |
 
 ## Accumulated Context
 
@@ -94,6 +95,11 @@ v1.0 decision log archived in milestones/v1.0-phases/ SUMMARY.md files.
 - Equity curve downsampled to daily (max ~730 points for 24 months)
 - Benchmark 50/50 BTC/XRP HODL with same fee_rate on purchase
 - Candle dict format: {open_time, open, high, low, close, volume} all Decimal
+- AlphaBacktestRunDB (15-02): immutable snapshots, key metrics as queryable columns + JSON blobs
+- BacktestDataService singleton: paginated kline fetch (3 series), domain orchestration, persistence, cancellation
+- XRPEUR fallback: derive from XRPBTC * BTCEUR via open_time matching when direct data unavailable
+- 4 API endpoints: POST run, GET runs (list), GET run detail, POST cancel -- all with API key auth
+- excess_return_pct computed at persistence time (net_return - benchmark_return)
 
 ### Pending Todos
 
@@ -106,5 +112,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-27
-Stopped at: Completed 15-01-PLAN.md
+Stopped at: Completed 15-02-PLAN.md
 Resume file: None

@@ -37,8 +37,8 @@ Requirements for this milestone. Each maps to roadmap phases.
 - [x] **BT-02**: Backtest computes performance metrics: net return, Sharpe ratio, max drawdown, trade count, win rate
 - [x] **BT-03**: Backtest compares results against buy-and-hold benchmark (50/50 BTC/XRP HODL)
 - [x] **BT-04**: Backtest includes realistic transaction costs (configurable fee rate, slippage modeling)
-- [ ] **BT-05**: Backtest results are persisted as immutable snapshots (config + metrics + trades)
-- [ ] **BT-06**: User can view backtest history with expandable run details
+- [x] **BT-05**: Backtest results are persisted as immutable snapshots (config + metrics + trades)
+- [x] **BT-06**: User can view backtest history with expandable run details
 - [ ] **BT-07**: User can run parameter sweep (grid search over Z-Score lookback, weights, thresholds) with CSV export
 
 ### Dry-Run Mode
@@ -124,8 +124,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | BT-02 | Phase 15 | Complete |
 | BT-03 | Phase 15 | Complete |
 | BT-04 | Phase 15 | Complete |
-| BT-05 | Phase 15 | Pending |
-| BT-06 | Phase 15 | Pending |
+| BT-05 | Phase 15 | Complete |
+| BT-06 | Phase 15 | Complete |
 | BT-07 | Phase 15 | Pending |
 | DRY-01 | Phase 16 | Pending |
 | DRY-02 | Phase 16 | Pending |
