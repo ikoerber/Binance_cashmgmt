@@ -24,11 +24,11 @@ See: .planning/PROJECT.md (updated 2026-02-25)
 
 Milestone: v3.0 Multi-Factor Omni-Bot
 Phase: 15 of 17 (Backtesting Engine)
-Plan: 2 of 4 complete
+Plan: 3 of 4 complete
 Status: In Progress
-Last activity: 2026-02-27 — Completed 15-02-PLAN.md (Backtest Persistence + Service + API)
+Last activity: 2026-02-27 — Completed 15-03-PLAN.md (Frontend Backtest Page)
 
-Progress: [██████████░░░░░░░░░░] 50%
+Progress: [███████████████░░░░░] 75%
 
 ## Performance Metrics
 
@@ -48,6 +48,7 @@ Progress: [██████████░░░░░░░░░░] 50%
 | 14-04 | Data Service + API Routes | 5min | 2 | 3 |
 | 15-01 | Pure Domain Backtest Engine (TDD) | 8min | 1 | 2 |
 | 15-02 | Backtest Persistence + Service + API | 5min | 2 | 5 |
+| 15-03 | Frontend Backtest Page | 5min | 2 | 5 |
 
 ## Accumulated Context
 
@@ -90,6 +91,7 @@ v1.0 decision log archived in milestones/v1.0-phases/ SUMMARY.md files.
 - GET /api/alpha-score/{user_id}/score: full Alpha Score with factor breakdown and regime info
 - GET /api/alpha-score/{user_id}/trailing-stops: per-symbol stop levels with freeze/resume state
 - Phase 14 complete: all SCORE-01 through SCORE-09 and EXIT-01/EXIT-02 requirements met
+- **IMPORTANT**: Combined Score page is inside /s/:symbol route (symbol-specific), Backtest is standalone /backtest (symbol-agnostic at entry)
 - Backtest engine (15-01): pure domain module, 946 lines, 48 tests, zero float contamination
 - Degraded Alpha Score in backtest: orderbook + funding marked unavailable, Z-Score + Lead-Lag renormalized
 - Equity curve downsampled to daily (max ~730 points for 24 months)
@@ -100,6 +102,10 @@ v1.0 decision log archived in milestones/v1.0-phases/ SUMMARY.md files.
 - XRPEUR fallback: derive from XRPBTC * BTCEUR via open_time matching when direct data unavailable
 - 4 API endpoints: POST run, GET runs (list), GET run detail, POST cancel -- all with API key auth
 - excess_return_pct computed at persistence time (net_return - benchmark_return)
+- Frontend Backtest page (15-03): standalone /backtest route, indigo accent, Recharts equity curve + benchmark overlay
+- Backtest form converts user-friendly percentages to API decimals at mutation time
+- History runs use lazy detail loading: expand card to fetch equity curve + trades
+- Monthly heatmap uses CSS Grid (not Recharts) for cell-level color control
 
 ### Pending Todos
 
@@ -112,5 +118,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-27
-Stopped at: Completed 15-02-PLAN.md
+Stopped at: Completed 15-03-PLAN.md
 Resume file: None
