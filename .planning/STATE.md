@@ -8,7 +8,7 @@ progress:
   total_phases: 4
   completed_phases: 3
   total_plans: 14
-  completed_plans: 12
+  completed_plans: 13
 ---
 
 # Project State
@@ -24,11 +24,11 @@ See: .planning/PROJECT.md (updated 2026-02-25)
 
 Milestone: v3.0 Multi-Factor Omni-Bot
 Phase: 16 of 17 (Dry-Run Mode & Bot Dashboard)
-Plan: 1 of 3 complete
+Plan: 2 of 3 complete
 Status: In Progress
-Last activity: 2026-02-27 — Completed 16-01-PLAN.md (Dry-Run Backend Foundation)
+Last activity: 2026-02-27 — Completed 16-02-PLAN.md (DryRunService + API Routes)
 
-Progress: [██████░░░░░░░░░░░░░░] 33%
+Progress: [█████████████░░░░░░░] 67%
 
 ## Performance Metrics
 
@@ -51,6 +51,7 @@ Progress: [██████░░░░░░░░░░░░░░] 33%
 | 15-03 | Frontend Backtest Page | 5min | 2 | 5 |
 | 15-04 | Parameter Sweep + Progress + CSV Export | 8min | 2 | 6 |
 | 16-01 | Dry-Run Backend Foundation | 5min | 2 | 4 |
+| 16-02 | DryRunService + API Routes | 5min | 2 | 4 |
 
 ## Accumulated Context
 
@@ -120,6 +121,12 @@ v1.0 decision log archived in milestones/v1.0-phases/ SUMMARY.md files.
 - DryRunDecisionDB stores full alpha score context (factor scores, regime, trailing stop) for audit trail
 - Alembic migration dr01_dry_run_tab: creates 3 tables + dry_run_initial_capital on user_settings
 - Settings API: dry_run_initial_capital (100-10M EUR), String transport, validated Decimal
+- DryRunService (16-02): singleton with candle-close evaluation loop, wall-clock boundary alignment
+- 6 API endpoints under /api/dry-run: status, toggle, decisions (filterable), decision detail, reset, portfolio
+- Evaluation loop uses SessionLocal() (not request-scoped get_db()), asyncio.Lock for toggle/eval race
+- Idempotency check prevents double-evaluation on server restart mid-interval
+- 30-day auto-purge in evaluation loop, public broadcast_message() on BinanceStreamManager
+- Structural isolation (DRY-05) verified: zero forbidden imports in dry_run_service.py
 
 ### Pending Todos
 
@@ -132,5 +139,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-27
-Stopped at: Completed 16-01-PLAN.md
+Stopped at: Completed 16-02-PLAN.md
 Resume file: None
