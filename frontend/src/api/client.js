@@ -303,6 +303,47 @@ export const getBacktestSweepCsvUrl = (userId, sweepId) => {
   return `${base}/api/backtest/${userId}/sweep/${sweepId}/csv`;
 };
 
+// Alpha Score API
+export const getAlphaScore = async (userId, symbol = 'BTCEUR') => {
+  const response = await apiClient.get(`/api/alpha-score/${userId}/score`, {
+    params: { symbol },
+  });
+  return response.data;
+};
+
+// Dry-Run API
+export const getDryRunStatus = async (userId) => {
+  const response = await apiClient.get(`/api/dry-run/${userId}/status`);
+  return response.data;
+};
+
+export const toggleDryRun = async (userId) => {
+  const response = await apiClient.post(`/api/dry-run/${userId}/toggle`);
+  return response.data;
+};
+
+export const getDryRunDecisions = async (userId, { fromDate, toDate, action, symbol, limit = 50, offset = 0 } = {}) => {
+  const response = await apiClient.get(`/api/dry-run/${userId}/decisions`, {
+    params: { from_date: fromDate, to_date: toDate, action, symbol, limit, offset },
+  });
+  return response.data;
+};
+
+export const getDryRunDecisionDetail = async (userId, decisionId) => {
+  const response = await apiClient.get(`/api/dry-run/${userId}/decisions/${decisionId}`);
+  return response.data;
+};
+
+export const resetDryRunPortfolio = async (userId) => {
+  const response = await apiClient.post(`/api/dry-run/${userId}/reset`);
+  return response.data;
+};
+
+export const getDryRunPortfolio = async (userId) => {
+  const response = await apiClient.get(`/api/dry-run/${userId}/portfolio`);
+  return response.data;
+};
+
 // Server IP API
 export const getServerIp = async () => {
   const response = await apiClient.get('/api/server-ip');

@@ -35,6 +35,7 @@ const Settings = () => {
   const [obImpulseWindow, setObImpulseWindow] = useState('5');
   const [reconToleranceBase, setReconToleranceBase] = useState('0.0001');
   const [reconToleranceQuote, setReconToleranceQuote] = useState('1.00');
+  const [dryRunInitialCapital, setDryRunInitialCapital] = useState('10000');
 
   // Alpha Score Settings
   const [alphaInterval, setAlphaInterval] = useState(ALPHA_DEFAULTS.alpha_score_interval);
@@ -69,6 +70,7 @@ const Settings = () => {
       setObImpulseWindow(settings.ob_impulse_window ?? '5');
       setReconToleranceBase(settings.recon_tolerance_base ?? '0.0001');
       setReconToleranceQuote(settings.recon_tolerance_quote ?? '1.00');
+      setDryRunInitialCapital(settings.dry_run_initial_capital ?? '10000');
       // Alpha Score
       setAlphaInterval(settings.alpha_score_interval || ALPHA_DEFAULTS.alpha_score_interval);
       setAlphaWeightZscore(settings.alpha_score_weight_zscore ?? ALPHA_DEFAULTS.alpha_score_weight_zscore);
@@ -184,6 +186,11 @@ const Settings = () => {
       showMessage('error', 'Stop Resume N muss zwischen 1 und 50 liegen.');
       return;
     }
+    const dryRunCapital = parseFloat(dryRunInitialCapital);
+    if (isNaN(dryRunCapital) || dryRunCapital < 100) {
+      showMessage('error', 'Dry-Run Startkapital muss mindestens 100 EUR betragen.');
+      return;
+    }
     saveMutation.mutate({
       max_order_value_eur: String(value),
       macro_signal_interval: macroSignalInterval,
@@ -209,6 +216,7 @@ const Settings = () => {
       alpha_score_atr_mult_btc: alphaAtrMultBtc,
       alpha_score_atr_mult_xrp: alphaAtrMultXrp,
       alpha_score_stop_resume_n: aResumeN,
+      dry_run_initial_capital: String(parseFloat(dryRunInitialCapital)),
     });
   };
 
@@ -689,6 +697,27 @@ const Settings = () => {
           <div className="settings-hint">
             Maximale Abweichung zwischen Binance- und berechneter Quote-Asset-Balance.
             Differenzen darueber erzeugen Warning-Alerts, &gt;10x Toleranz erzeugt Critical-Alerts.
+          </div>
+        </div>
+      </div>
+
+      <div className="settings-section">
+        <h3>Dry-Run Modus</h3>
+
+        <div className="settings-field">
+          <label className="settings-label">Virtuelles Startkapital</label>
+          <div className="settings-input-group">
+            <input
+              type="number"
+              value={dryRunInitialCapital}
+              onChange={(e) => setDryRunInitialCapital(e.target.value)}
+              min="100"
+              step="1000"
+            />
+            <span className="settings-unit">EUR</span>
+          </div>
+          <div className="settings-hint">
+            Startkapital fuer das virtuelle Dry-Run Portfolio. Kann jederzeit ueber den Reset-Button im Bot Dashboard zurueckgesetzt werden. Standard: 10.000 EUR.
           </div>
         </div>
       </div>

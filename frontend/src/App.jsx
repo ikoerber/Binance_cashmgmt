@@ -6,6 +6,8 @@ import Settings from './components/Settings';
 import Backtest from './components/Backtest';
 import Orderblock from './components/Orderblock';
 import CombinedScore from './components/CombinedScore';
+import BotDashboard from './components/BotDashboard';
+import DecisionLog from './components/DecisionLog';
 import Dashboard from './components/Dashboard';
 import Overview from './components/Overview';
 import SymbolLayout from './components/SymbolLayout';
@@ -48,6 +50,8 @@ function AppContent() {
           <Route path="lots" element={<LotsTable />} />
           <Route path="combined" element={<CombinedScore />} />
           <Route path="orderblock" element={<Orderblock />} />
+          <Route path="bot" element={<BotDashboard />} />
+          <Route path="bot/decisions" element={<DecisionLog />} />
           <Route path="reconciliation" element={<Reconciliation />} />
         </Route>
         <Route path="/settings" element={<Settings />} />

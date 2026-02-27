@@ -136,6 +136,25 @@ export const WebSocketProvider = ({ userId = 'user_123', children }) => {
             break;
           }
 
+          case 'dry_run_decision': {
+            queryClient.invalidateQueries({ queryKey: ['dry-run-decisions'] });
+            queryClient.invalidateQueries({ queryKey: ['dry-run-status'] });
+            queryClient.invalidateQueries({ queryKey: ['dry-run-portfolio'] });
+            break;
+          }
+
+          case 'dry_run_status': {
+            queryClient.invalidateQueries({ queryKey: ['dry-run-status'] });
+            queryClient.invalidateQueries({ queryKey: ['dry-run-portfolio'] });
+            break;
+          }
+
+          case 'dry_run_portfolio_update': {
+            queryClient.invalidateQueries({ queryKey: ['dry-run-portfolio'] });
+            queryClient.invalidateQueries({ queryKey: ['dry-run-status'] });
+            break;
+          }
+
           case 'pong':
             // Heartbeat Response — nichts zu tun
             break;
