@@ -1,0 +1,700 @@
+/* ─── Backtest Dashboard — Teal/Indigo Accent ─── */
+
+.backtest-container {
+  padding: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+  background: var(--color-bg-card);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-card);
+  border-top: 3px solid var(--color-accent-indigo);
+}
+
+/* ─── Header ─── */
+
+.bt-header {
+  margin-bottom: 20px;
+}
+
+.bt-header h2 {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--color-text-heading);
+  margin: 0 0 4px 0;
+}
+
+.bt-header p {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+/* ─── Message Banner ─── */
+
+.bt-message {
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  animation: bt-fadeIn 0.3s ease;
+}
+
+.bt-message-success {
+  background: var(--color-success-bg);
+  color: var(--color-success-text);
+  border: 1px solid var(--color-success-border);
+}
+
+.bt-message-error {
+  background: var(--color-error-bg);
+  color: var(--color-error-text);
+  border: 1px solid var(--color-error-border);
+}
+
+.bt-message-close {
+  background: none;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+  color: inherit;
+  opacity: 0.7;
+}
+
+.bt-message-close:hover {
+  opacity: 1;
+}
+
+@keyframes bt-fadeIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── Configuration Form ─── */
+
+.bt-form-section {
+  background: linear-gradient(135deg, var(--color-gradient-section-start, var(--color-bg-subtle)), var(--color-gradient-section-end, var(--color-bg-card)));
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.bt-form-section h3 {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-text-secondary);
+  margin: 0 0 16px 0;
+}
+
+.bt-form-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.bt-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bt-form-group label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+  letter-spacing: 0.5px;
+}
+
+.bt-form-group select,
+.bt-form-group input {
+  padding: 8px 12px;
+  border: 1px solid var(--color-border-input);
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  background: var(--color-bg-card);
+}
+
+.bt-form-group select:focus,
+.bt-form-group input:focus {
+  outline: none;
+  border-color: var(--color-accent-indigo);
+  box-shadow: 0 0 0 2px rgba(129, 140, 248, 0.2);
+}
+
+.bt-input-with-unit {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
+.bt-input-with-unit input {
+  border-right: none;
+  border-radius: 6px 0 0 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.bt-unit {
+  padding: 8px 10px;
+  background: var(--color-bg-muted);
+  border: 1px solid var(--color-border-input);
+  border-left: none;
+  border-radius: 0 6px 6px 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.bt-form-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.btn-bt-run {
+  padding: 10px 28px;
+  background: linear-gradient(135deg, var(--color-accent-indigo), var(--color-accent-violet));
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.btn-bt-run:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(129, 140, 248, 0.3);
+}
+
+.btn-bt-run:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.bt-progress-placeholder {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.bt-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--color-border);
+  border-top-color: var(--color-accent-indigo);
+  border-radius: 50%;
+  animation: bt-spin 0.8s linear infinite;
+}
+
+@keyframes bt-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ─── Results Section ─── */
+
+.bt-results {
+  margin-bottom: 24px;
+}
+
+/* ─── Metrics Cards ─── */
+
+.bt-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.bt-metrics-secondary {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.bt-metric-card {
+  background: linear-gradient(135deg, var(--color-gradient-section-start, var(--color-bg-subtle)), var(--color-gradient-section-end, var(--color-bg-card)));
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.bt-metric-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-hover);
+}
+
+.bt-metric-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-text-secondary);
+}
+
+.bt-metric-value {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--color-text-primary);
+}
+
+.bt-metric-card.bt-metric-positive .bt-metric-value {
+  color: var(--color-profit);
+}
+
+.bt-metric-card.bt-metric-negative .bt-metric-value {
+  color: var(--color-loss);
+}
+
+.bt-metric-card.bt-metric-small {
+  padding: 12px 16px;
+}
+
+.bt-metric-card.bt-metric-small .bt-metric-value {
+  font-size: 16px;
+}
+
+/* ─── Chart Sections ─── */
+
+.bt-chart-section {
+  background: linear-gradient(135deg, var(--color-gradient-section-start, var(--color-bg-subtle)), var(--color-gradient-section-end, var(--color-bg-card)));
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.bt-chart-section h3 {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-text-secondary);
+  margin: 0 0 16px 0;
+}
+
+/* ─── Monthly Returns Heatmap ─── */
+
+.bt-heatmap-section {
+  overflow-x: auto;
+}
+
+.bt-heatmap {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 700px;
+}
+
+.bt-heatmap-header,
+.bt-heatmap-row {
+  display: grid;
+  grid-template-columns: 60px repeat(12, 1fr);
+  gap: 2px;
+}
+
+.bt-heatmap-year-label {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-text-secondary);
+}
+
+.bt-heatmap-month-label {
+  text-align: center;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  padding: 4px 0;
+}
+
+.bt-heatmap-cell {
+  text-align: center;
+  padding: 8px 4px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s;
+}
+
+.bt-heatmap-cell:hover {
+  transform: scale(1.05);
+}
+
+/* Heatmap color overrides for dark mode */
+:root {
+  --color-heatmap-strong-green: #166534;
+  --color-heatmap-green: #16a34a;
+  --color-heatmap-light-green: #86efac;
+  --color-heatmap-light-red: #fca5a5;
+  --color-heatmap-red: #dc2626;
+  --color-heatmap-strong-red: #991b1b;
+}
+
+[data-theme="dark"] {
+  --color-heatmap-strong-green: #22c55e;
+  --color-heatmap-green: #16a34a;
+  --color-heatmap-light-green: #065f46;
+  --color-heatmap-light-red: #7f1d1d;
+  --color-heatmap-red: #dc2626;
+  --color-heatmap-strong-red: #ef4444;
+}
+
+/* ─── Trade Section ─── */
+
+.bt-trades-section {
+  margin-bottom: 20px;
+}
+
+.btn-bt-trades-toggle {
+  width: 100%;
+  padding: 10px 16px;
+  background: linear-gradient(135deg, var(--color-gradient-section-start, var(--color-bg-subtle)), var(--color-gradient-section-end, var(--color-bg-card)));
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-bottom: 12px;
+}
+
+.btn-bt-trades-toggle:hover {
+  border-color: var(--color-accent-indigo);
+  color: var(--color-accent-indigo);
+}
+
+/* ─── Tables ─── */
+
+.bt-table-container {
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  overflow-x: auto;
+}
+
+.bt-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.bt-table thead {
+  background: linear-gradient(135deg, var(--color-gradient-section-start, var(--color-bg-subtle)), var(--color-gradient-section-end, var(--color-bg-card)));
+  border-bottom: 2px solid var(--color-border);
+}
+
+.bt-table th {
+  padding: 10px 12px;
+  text-align: left;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.bt-table td {
+  padding: 10px 12px;
+  font-size: 12px;
+  color: var(--color-text-primary);
+  border-bottom: 1px solid var(--color-border-light);
+}
+
+.bt-table tbody tr:hover {
+  background: var(--color-table-row-even, var(--color-bg-hover));
+}
+
+.bt-table .cell-mono {
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.bt-table-compact th,
+.bt-table-compact td {
+  padding: 6px 10px;
+  font-size: 11px;
+}
+
+.bt-trade-open {
+  opacity: 0.7;
+}
+
+.bt-profit {
+  color: var(--color-profit);
+}
+
+.bt-loss {
+  color: var(--color-loss);
+}
+
+/* ─── Badges ─── */
+
+.bt-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.bt-badge-open {
+  background: var(--color-badge-blue-bg);
+  color: var(--color-badge-blue-text);
+}
+
+/* ─── History Section ─── */
+
+.bt-history-section {
+  margin-top: 32px;
+  margin-bottom: 24px;
+}
+
+.bt-history-section h3 {
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-text-secondary);
+  margin: 0 0 14px 0;
+}
+
+.bt-history-empty {
+  text-align: center;
+  padding: 40px;
+  color: var(--color-text-muted);
+  font-size: 14px;
+  background: var(--color-bg-subtle);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.bt-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bt-run-card {
+  background: linear-gradient(135deg, var(--color-gradient-section-start, var(--color-bg-subtle)), var(--color-gradient-section-end, var(--color-bg-card)));
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  overflow: hidden;
+  transition: all 0.2s;
+}
+
+.bt-run-card:hover {
+  border-color: var(--color-accent-indigo);
+}
+
+.bt-run-expanded {
+  border-color: var(--color-accent-indigo);
+  box-shadow: 0 2px 12px rgba(129, 140, 248, 0.15);
+}
+
+.bt-run-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.bt-run-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.bt-run-date {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.bt-run-symbol {
+  padding: 2px 8px;
+  background: var(--color-badge-slate-bg);
+  color: var(--color-badge-slate-text);
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.bt-run-period {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+}
+
+.bt-run-metrics {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.bt-run-return {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.bt-run-detail {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  font-family: var(--font-mono);
+}
+
+.bt-run-expand-icon {
+  font-size: 10px;
+  color: var(--color-text-muted);
+  margin-left: 8px;
+}
+
+/* Run body (expanded) */
+.bt-run-body {
+  border-top: 1px solid var(--color-border);
+  padding: 16px;
+  animation: bt-fadeIn 0.3s ease;
+}
+
+.bt-run-loading {
+  text-align: center;
+  padding: 24px;
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
+.bt-run-chart {
+  margin-bottom: 16px;
+}
+
+.bt-run-trades {
+  margin-top: 12px;
+}
+
+.bt-run-trades-count {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.bt-run-trades-table {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.bt-run-trades-more {
+  text-align: center;
+  padding: 8px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+/* ─── Disclaimer ─── */
+
+.bt-disclaimer {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  text-align: center;
+  padding: 16px 24px 0;
+  border-top: 1px solid var(--color-border-light);
+  line-height: 1.5;
+  margin-top: 24px;
+}
+
+/* ─── Responsive ─── */
+
+@media (max-width: 1024px) {
+  .bt-form-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .bt-metrics-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .bt-metrics-secondary {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .backtest-container {
+    padding: 16px;
+  }
+
+  .bt-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .bt-metrics-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .bt-metrics-secondary {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .bt-run-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .bt-run-metrics {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .bt-table-container {
+    overflow-x: auto;
+  }
+
+  .bt-heatmap {
+    min-width: 550px;
+  }
+}
+
+@media (max-width: 480px) {
+  .bt-metrics-secondary {
+    grid-template-columns: 1fr;
+  }
+
+  .bt-run-info {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+}
