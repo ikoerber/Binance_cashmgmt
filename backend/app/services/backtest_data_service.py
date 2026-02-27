@@ -11,6 +11,9 @@ Datenquellen: Binance REST API (oeffentliche Klines, kein API Key noetig).
 """
 
 import asyncio
+import csv
+import io
+import itertools
 import logging
 import threading
 import time
@@ -60,6 +63,9 @@ BACKTEST_SYMBOLS = {"BTCEUR", "XRPEUR", "XRPBTC"}
 
 # Maximum months for backtest data (limits API load)
 MAX_MONTHS = 24
+
+# Maximum sweep combinations (hard cap)
+MAX_SWEEP_COMBINATIONS = 500
 
 
 # --- Kline Parsing ---
@@ -526,6 +532,588 @@ class BacktestDataService:
                 return True
         return False
 
+    # --- Parameter Sweep ---
+
+    @staticmethod
+    def _generate_sweep_combinations(sweep_config: dict) -> List[dict]:
+        """
+        Generiert alle Parameter-Kombinationen aus Sweep-Konfiguration.
+
+        Args:
+            sweep_config: Dict mit Parameternamen als Keys, jeweils
+                          {"min": N, "max": M, "step": S}.
+
+        Returns:
+            Liste von Override-Dicts, eine pro Kombination.
+
+        Raises:
+            ValueError: Wenn mehr als MAX_SWEEP_COMBINATIONS Kombinationen.
+        """
+        param_names = []
+        param_values = []
+
+        for param_name, range_def in sweep_config.items():
+            min_val = float(range_def["min"])
+            max_val = float(range_def["max"])
+            step_val = float(range_def["step"])
+
+            if step_val <= 0:
+                raise ValueError(f"Step fuer '{param_name}' muss positiv sein")
+            if min_val > max_val:
+                raise ValueError(
+                    f"Min ({min_val}) > Max ({max_val}) fuer '{param_name}'"
+                )
+
+            # Generate range values
+            values = []
+            current = min_val
+            while current <= max_val + step_val * 0.001:  # Small epsilon for float
+                values.append(current)
+                current += step_val
+            # Clamp last value if it exceeds max due to float precision
+            values = [v for v in values if v <= max_val + step_val * 0.001]
+
+            param_names.append(param_name)
+            param_values.append(values)
+
+        # Compute combination count before generating
+        combo_count = 1
+        for vals in param_values:
+            combo_count *= len(vals)
+
+        if combo_count > MAX_SWEEP_COMBINATIONS:
+            raise ValueError(
+                f"Zu viele Kombinationen: {combo_count} (Maximum: {MAX_SWEEP_COMBINATIONS})"
+            )
+
+        # Generate combinations
+        combinations = []
+        for combo in itertools.product(*param_values):
+            override = {}
+            for name, val in zip(param_names, combo):
+                # Integer params stay integer
+                if name in ("zscore_window", "leadlag_window", "hurst_lookback"):
+                    override[name] = int(val)
+                else:
+                    override[name] = str(val)
+            combinations.append(override)
+
+        return combinations
+
+    async def run_sweep(
+        self,
+        user_id: str,
+        symbol: str,
+        months: int,
+        initial_capital: Decimal,
+        base_config: dict,
+        sweep_config: dict,
+        db: Session,
+        settings: dict,
+        ws_manager=None,
+    ) -> dict:
+        """
+        Fuehrt einen Parameter-Sweep ueber mehrere Backtest-Konfigurationen durch.
+
+        1. Generiert alle Kombinationen aus sweep_config
+        2. Fetcht Kline-Daten einmalig (shared)
+        3. Fuehrt Backtests sequentiell fuer jede Kombination durch
+        4. Broadcastet Sweep-Progress via WebSocket
+        5. Persistiert jedes Ergebnis mit gemeinsamer sweep_id
+
+        Args:
+            user_id: User ID
+            symbol: Trading-Symbol
+            months: Datenlookback
+            initial_capital: Startkapital
+            base_config: Basis-Konfiguration (non-sweep parameters)
+            sweep_config: Parameter-Ranges fuer Sweep
+            db: SQLAlchemy Session
+            settings: User-Settings Dict
+            ws_manager: Optional WebSocket Manager
+
+        Returns:
+            Sweep-Summary Dict mit allen Ergebnissen.
+        """
+        sweep_id = f"sweep_{uuid.uuid4().hex[:12]}"
+        start_time_exec = time.monotonic()
+
+        # Cancel event for the entire sweep
+        cancel_event = threading.Event()
+        with self._lock:
+            self._active_runs[sweep_id] = cancel_event
+
+        try:
+            # 1. Generate combinations
+            combinations = self._generate_sweep_combinations(sweep_config)
+            total = len(combinations)
+
+            logger.info(
+                "Sweep %s: %d Kombinationen fuer %s (%d Monate)",
+                sweep_id,
+                total,
+                symbol,
+                months,
+            )
+
+            # 2. Parse base config for interval (needed for data fetch)
+            interval = base_config.get(
+                "interval",
+                settings.get("alpha_score_interval", "15m"),
+            )
+
+            # Build a sample config for warmup computation
+            sample_overrides = {**base_config, **combinations[0]}
+            sample_config = self._build_backtest_config(
+                symbol, initial_capital, sample_overrides, settings
+            )
+
+            # 3. Fetch candle data ONCE (shared across all combinations)
+            now = datetime.now(timezone.utc).replace(tzinfo=None)
+            user_start = now - timedelta(days=months * 30)
+            warmup_candles = compute_warmup_period(sample_config)
+            fetch_start = self._compute_warmup_start(
+                user_start, interval, warmup_candles
+            )
+
+            # Broadcast: fetching data
+            if ws_manager:
+                try:
+                    await ws_manager._broadcast_to_user(
+                        user_id,
+                        {
+                            "type": "backtest_progress",
+                            "data": {
+                                "run_id": sweep_id,
+                                "phase": "fetching_data",
+                                "combination_current": 0,
+                                "combination_total": total,
+                                "progress_pct": 0,
+                                "elapsed_seconds": 0,
+                            },
+                        },
+                    )
+                except Exception:
+                    pass
+
+            xrpbtc_candles, btceur_candles, xrpeur_candles = await asyncio.to_thread(
+                self._fetch_all_candles, fetch_start, now, interval
+            )
+
+            # 4. Run backtests for each combination
+            results = []
+            for i, combo in enumerate(combinations):
+                # Check cancellation
+                if cancel_event.is_set():
+                    logger.info(
+                        "Sweep %s: Abgebrochen nach %d/%d Kombinationen",
+                        sweep_id,
+                        i,
+                        total,
+                    )
+                    break
+
+                # Merge base_config + combo overrides
+                merged_overrides = {**base_config, **combo}
+                config = self._build_backtest_config(
+                    symbol, initial_capital, merged_overrides, settings
+                )
+
+                # Run simulation in thread (no per-run progress for sweep)
+                try:
+                    result: BacktestResult = await asyncio.to_thread(
+                        run_alpha_backtest,
+                        xrpbtc_candles,
+                        btceur_candles,
+                        xrpeur_candles,
+                        config,
+                        None,  # No per-candle progress for sweep
+                        cancel_event,
+                    )
+                except Exception as e:
+                    logger.error(
+                        "Sweep %s: Kombination %d/%d fehlgeschlagen: %s",
+                        sweep_id,
+                        i + 1,
+                        total,
+                        e,
+                    )
+                    continue
+
+                # Persist with sweep_id
+                run_id = f"abt_{uuid.uuid4().hex[:12]}"
+                self._save_result(
+                    db, user_id, result, run_id, interval, sweep_id=sweep_id
+                )
+
+                # Build summary row
+                row = {
+                    "run_id": run_id,
+                    **combo,
+                    "net_return_pct": str(result.metrics.net_return_pct),
+                    "sharpe_ratio": _dec_str(result.metrics.sharpe_ratio),
+                    "max_drawdown_pct": str(result.metrics.max_drawdown_pct),
+                    "trade_count": result.metrics.trade_count,
+                    "win_rate": _dec_str(result.metrics.win_rate),
+                    "total_fees": str(result.metrics.total_fees),
+                    "total_slippage": str(result.metrics.total_slippage),
+                    "benchmark_return_pct": str(result.benchmark.return_pct),
+                    "excess_return_pct": str(
+                        (
+                            result.metrics.net_return_pct - result.benchmark.return_pct
+                        ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                    ),
+                }
+                results.append(row)
+
+                # Broadcast sweep progress
+                elapsed = time.monotonic() - start_time_exec
+                if ws_manager:
+                    try:
+                        pct = int((i + 1) / total * 100)
+                        await ws_manager._broadcast_to_user(
+                            user_id,
+                            {
+                                "type": "backtest_progress",
+                                "data": {
+                                    "run_id": sweep_id,
+                                    "phase": "sweep",
+                                    "combination_current": i + 1,
+                                    "combination_total": total,
+                                    "progress_pct": pct,
+                                    "elapsed_seconds": round(elapsed, 1),
+                                },
+                            },
+                        )
+                    except Exception:
+                        pass
+
+            # 5. Broadcast completion
+            duration = time.monotonic() - start_time_exec
+            cancelled = cancel_event.is_set()
+
+            if ws_manager:
+                try:
+                    await ws_manager._broadcast_to_user(
+                        user_id,
+                        {
+                            "type": "backtest_progress",
+                            "data": {
+                                "run_id": sweep_id,
+                                "phase": "cancelled" if cancelled else "complete",
+                                "combination_current": len(results),
+                                "combination_total": total,
+                                "progress_pct": 100,
+                                "elapsed_seconds": round(duration, 1),
+                            },
+                        },
+                    )
+                except Exception:
+                    pass
+
+            logger.info(
+                "Sweep %s: %s in %.1fs (%d/%d Kombinationen)",
+                sweep_id,
+                "Abgebrochen" if cancelled else "Abgeschlossen",
+                duration,
+                len(results),
+                total,
+            )
+
+            return {
+                "sweep_id": sweep_id,
+                "combination_count": total,
+                "completed_count": len(results),
+                "cancelled": cancelled,
+                "duration_seconds": round(duration, 1),
+                "results": results,
+            }
+
+        finally:
+            with self._lock:
+                self._active_runs.pop(sweep_id, None)
+
+    def _build_backtest_config(
+        self,
+        symbol: str,
+        initial_capital: Decimal,
+        overrides: dict,
+        settings: dict,
+    ) -> BacktestConfig:
+        """
+        Baut BacktestConfig aus Overrides + Settings.
+
+        Extrahiert aus run_backtest() fuer Wiederverwendung in Sweep.
+        """
+        fee_rate = Decimal(str(overrides.get("fee_rate", "0.001")))
+        slippage_pct = Decimal(str(overrides.get("slippage_pct", "0.0005")))
+        position_fraction = Decimal(str(overrides.get("position_fraction", "0.10")))
+        entry_threshold = Decimal(
+            str(
+                overrides.get(
+                    "entry_threshold",
+                    settings.get("alpha_score_threshold", "3.0"),
+                )
+            )
+        )
+        atr_period = int(overrides.get("atr_period", 14))
+        atr_multiplier = Decimal(
+            str(
+                overrides.get(
+                    "atr_multiplier",
+                    settings.get("alpha_score_atr_mult_btc", "2.0"),
+                )
+            )
+        )
+        zscore_window = int(
+            overrides.get(
+                "zscore_window",
+                settings.get("alpha_score_zscore_window", 60),
+            )
+        )
+        leadlag_window = int(
+            overrides.get(
+                "leadlag_window",
+                settings.get("alpha_score_leadlag_window", 30),
+            )
+        )
+        hurst_lookback = int(
+            overrides.get(
+                "hurst_lookback",
+                settings.get("alpha_score_hurst_lookback", 100),
+            )
+        )
+        hurst_trending = Decimal(
+            str(
+                overrides.get(
+                    "hurst_trending",
+                    settings.get("alpha_score_hurst_trending", "0.55"),
+                )
+            )
+        )
+        hurst_reverting = Decimal(
+            str(
+                overrides.get(
+                    "hurst_reverting",
+                    settings.get("alpha_score_hurst_reverting", "0.45"),
+                )
+            )
+        )
+
+        # Build weight dict
+        w_zscore = Decimal(
+            str(
+                overrides.get(
+                    "weight_zscore",
+                    settings.get("alpha_score_weight_zscore", "40"),
+                )
+            )
+        )
+        w_leadlag = Decimal(
+            str(
+                overrides.get(
+                    "weight_leadlag",
+                    settings.get("alpha_score_weight_leadlag", "30"),
+                )
+            )
+        )
+        w_imbalance = Decimal(
+            str(
+                overrides.get(
+                    "weight_imbalance",
+                    settings.get("alpha_score_weight_imbalance", "20"),
+                )
+            )
+        )
+        w_funding = Decimal(
+            str(
+                overrides.get(
+                    "weight_funding",
+                    settings.get("alpha_score_weight_funding", "10"),
+                )
+            )
+        )
+        w_sum = w_zscore + w_leadlag + w_imbalance + w_funding
+        if w_sum > 0:
+            weights = {
+                "zscore": (w_zscore / w_sum).quantize(
+                    Decimal("0.0001"), rounding=ROUND_HALF_UP
+                ),
+                "leadlag": (w_leadlag / w_sum).quantize(
+                    Decimal("0.0001"), rounding=ROUND_HALF_UP
+                ),
+                "imbalance": (w_imbalance / w_sum).quantize(
+                    Decimal("0.0001"), rounding=ROUND_HALF_UP
+                ),
+                "funding": (w_funding / w_sum).quantize(
+                    Decimal("0.0001"), rounding=ROUND_HALF_UP
+                ),
+            }
+        else:
+            weights = {
+                "zscore": Decimal("0.40"),
+                "leadlag": Decimal("0.30"),
+                "imbalance": Decimal("0.20"),
+                "funding": Decimal("0.10"),
+            }
+
+        # Ensure sum = 1.0
+        total = sum(weights.values())
+        diff = Decimal("1.0") - total
+        if diff != 0:
+            largest_key = max(weights, key=lambda k: weights[k])
+            weights[largest_key] += diff
+
+        return BacktestConfig(
+            symbol=symbol,
+            initial_capital=initial_capital,
+            position_fraction=position_fraction,
+            entry_threshold=entry_threshold,
+            fee_rate=fee_rate,
+            slippage_pct=slippage_pct,
+            atr_period=atr_period,
+            atr_multiplier=atr_multiplier,
+            zscore_window=zscore_window,
+            leadlag_window=leadlag_window,
+            hurst_lookback=hurst_lookback,
+            weights=weights,
+            hurst_trending=hurst_trending,
+            hurst_reverting=hurst_reverting,
+        )
+
+    # --- CSV Export ---
+
+    def generate_sweep_csv(
+        self,
+        db: Session,
+        user_id: str,
+        sweep_id: str,
+    ) -> Optional[str]:
+        """
+        Generiert CSV-String fuer alle Runs eines Sweeps.
+
+        Returns:
+            CSV-String oder None wenn kein Sweep gefunden.
+        """
+        from app.db.models import AlphaBacktestRunDB
+
+        runs = (
+            db.query(AlphaBacktestRunDB)
+            .filter(
+                AlphaBacktestRunDB.sweep_id == sweep_id,
+                AlphaBacktestRunDB.user_id == user_id,
+            )
+            .order_by(AlphaBacktestRunDB.created_at.asc())
+            .all()
+        )
+
+        if not runs:
+            return None
+
+        output = io.StringIO()
+
+        # Extract config overrides from first run to determine sweep columns
+        config_keys = sorted(runs[0].config_json.keys()) if runs[0].config_json else []
+
+        fieldnames = (
+            ["run_id"]
+            + config_keys
+            + [
+                "net_return_pct",
+                "sharpe_ratio",
+                "max_drawdown_pct",
+                "trade_count",
+                "win_rate",
+                "total_fees",
+                "total_slippage",
+                "benchmark_return_pct",
+                "excess_return_pct",
+            ]
+        )
+
+        writer = csv.DictWriter(output, fieldnames=fieldnames, extrasaction="ignore")
+        writer.writeheader()
+
+        for run in runs:
+            row = {"run_id": run.id}
+            # Config columns
+            if run.config_json:
+                for k in config_keys:
+                    val = run.config_json.get(k)
+                    if isinstance(val, dict):
+                        row[k] = str(val)
+                    else:
+                        row[k] = val
+            # Metric columns
+            row["net_return_pct"] = _dec_str(run.net_return_pct)
+            row["sharpe_ratio"] = _dec_str(run.sharpe_ratio)
+            row["max_drawdown_pct"] = _dec_str(run.max_drawdown_pct)
+            row["trade_count"] = int(run.trade_count) if run.trade_count else 0
+            row["win_rate"] = _dec_str(run.win_rate)
+            row["total_fees"] = _dec_str(run.total_fees)
+            row["total_slippage"] = _dec_str(run.total_slippage)
+            row["benchmark_return_pct"] = _dec_str(run.benchmark_return_pct)
+            row["excess_return_pct"] = _dec_str(run.excess_return_pct)
+            writer.writerow(row)
+
+        return output.getvalue()
+
+    # --- Sweep Query ---
+
+    def get_sweep_runs(
+        self,
+        db: Session,
+        user_id: str,
+        sweep_id: str,
+    ) -> Optional[dict]:
+        """
+        Gibt alle Runs eines Sweeps als Summary zurueck (ohne grosse JSON-Blobs).
+
+        Returns:
+            Dict mit sweep_id, runs und count, oder None wenn nicht gefunden.
+        """
+        from app.db.models import AlphaBacktestRunDB
+
+        runs = (
+            db.query(AlphaBacktestRunDB)
+            .filter(
+                AlphaBacktestRunDB.sweep_id == sweep_id,
+                AlphaBacktestRunDB.user_id == user_id,
+            )
+            .order_by(AlphaBacktestRunDB.created_at.asc())
+            .all()
+        )
+
+        if not runs:
+            return None
+
+        run_summaries = []
+        for run in runs:
+            run_summaries.append(
+                {
+                    "id": run.id,
+                    "symbol": run.symbol,
+                    "interval": run.interval,
+                    "net_return_pct": _dec_str(run.net_return_pct),
+                    "sharpe_ratio": _dec_str(run.sharpe_ratio),
+                    "max_drawdown_pct": _dec_str(run.max_drawdown_pct),
+                    "trade_count": int(run.trade_count) if run.trade_count else 0,
+                    "win_rate": _dec_str(run.win_rate),
+                    "total_fees": _dec_str(run.total_fees),
+                    "total_slippage": _dec_str(run.total_slippage),
+                    "benchmark_return_pct": _dec_str(run.benchmark_return_pct),
+                    "excess_return_pct": _dec_str(run.excess_return_pct),
+                    "config_json": run.config_json,
+                    "created_at": _utc_iso(run.created_at),
+                }
+            )
+
+        return {
+            "sweep_id": sweep_id,
+            "runs": run_summaries,
+            "count": len(run_summaries),
+        }
+
     # --- Persistence ---
 
     def _save_result(
@@ -535,6 +1123,7 @@ class BacktestDataService:
         result: BacktestResult,
         run_id: str,
         interval: str,
+        sweep_id: Optional[str] = None,
     ) -> str:
         """Persistiert BacktestResult als AlphaBacktestRunDB."""
         from app.db.models import AlphaBacktestRunDB
@@ -570,6 +1159,7 @@ class BacktestDataService:
             total_slippage=result.metrics.total_slippage,
             benchmark_return_pct=benchmark_return,
             excess_return_pct=excess_return,
+            sweep_id=sweep_id,
             config_json=config_json,
             metrics_json=metrics_json,
             trades_json=trades_json,
