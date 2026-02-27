@@ -20,16 +20,16 @@ Requirements for this milestone. Each maps to roadmap phases.
 - [x] **SCORE-02**: System computes Lead-Lag Momentum by detecting BTC price movements that XRP has not yet followed (cross-correlation with rolling window)
 - [x] **SCORE-03**: System computes Orderbook Imbalance from Binance depth data (bid/ask volume differential within 1% of mid-price)
 - [x] **SCORE-04**: System computes Funding Rate score from existing OKX data (reuses SentimentDataService cache)
-- [ ] **SCORE-05**: System computes Global Alpha Score (-5 to +5) as weighted sum of 4 factors (Z-Score 40%, Lead-Lag 30%, Imbalance 20%, Funding 10%)
-- [ ] **SCORE-06**: User can configure Alpha Score weights and trade threshold (default ±3.0) via Settings
+- [x] **SCORE-05**: System computes Global Alpha Score (-5 to +5) as weighted sum of 4 factors (Z-Score 40%, Lead-Lag 30%, Imbalance 20%, Funding 10%)
+- [x] **SCORE-06**: User can configure Alpha Score weights and trade threshold (default ±3.0) via Settings
 - [x] **SCORE-07**: Alpha Score gracefully degrades when data sources are unavailable (partial score with quality indicator)
 - [x] **SCORE-08**: Alpha Score returns warmup status during cold start (MIN_WINDOW_SIZE guard, no extreme values)
-- [ ] **SCORE-09**: System detects market regime (trending vs mean-reverting) and adjusts Z-Score factor weight accordingly
+- [x] **SCORE-09**: System detects market regime (trending vs mean-reverting) and adjusts Z-Score factor weight accordingly
 
 ### Exit Management
 
-- [ ] **EXIT-01**: System computes ATR-Adaptive Trailing stop distances (ATR×2 for BTC, ATR×3 for XRP, configurable multipliers)
-- [ ] **EXIT-02**: Trailing stops freeze during data gaps (WebSocket disconnect) and resume after N consecutive fresh data points
+- [x] **EXIT-01**: System computes ATR-Adaptive Trailing stop distances (ATR×2 for BTC, ATR×3 for XRP, configurable multipliers)
+- [x] **EXIT-02**: Trailing stops freeze during data gaps (WebSocket disconnect) and resume after N consecutive fresh data points
 
 ### Backtesting
 
@@ -113,13 +113,13 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SCORE-02 | Phase 14 | Complete |
 | SCORE-03 | Phase 14 | Complete |
 | SCORE-04 | Phase 14 | Complete |
-| SCORE-05 | Phase 14 | Pending |
-| SCORE-06 | Phase 14 | Pending |
+| SCORE-05 | Phase 14 | Complete |
+| SCORE-06 | Phase 14 | Complete |
 | SCORE-07 | Phase 14 | Complete |
 | SCORE-08 | Phase 14 | Complete |
-| SCORE-09 | Phase 14 | Pending |
-| EXIT-01 | Phase 14 | Pending |
-| EXIT-02 | Phase 14 | Pending |
+| SCORE-09 | Phase 14 | Complete |
+| EXIT-01 | Phase 14 | Complete |
+| EXIT-02 | Phase 14 | Complete |
 | BT-01 | Phase 15 | Complete |
 | BT-02 | Phase 15 | Complete |
 | BT-03 | Phase 15 | Complete |
