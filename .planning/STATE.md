@@ -23,19 +23,19 @@ See: .planning/PROJECT.md (updated 2026-02-25)
 ## Current Position
 
 Milestone: v3.0 Multi-Factor Omni-Bot
-Phase: 16 of 17 (Dry-Run Mode & Bot Dashboard)
-Plan: 3 of 3 complete
-Status: Phase Complete
-Last activity: 2026-02-27 — Completed 16-03-PLAN.md (Bot Dashboard + Decision Log Frontend)
+Phase: 17 of 17 (Combined Score Integration)
+Plan: 1 of 2 complete
+Status: In Progress
+Last activity: 2026-02-27 — Completed 17-01-PLAN.md (Combined Score Alpha Integration)
 
 Progress: [████████████████████] 100%
 
 ## Performance Metrics
 
 **Velocity (all milestones):**
-- Total plans completed: 40 (8 v1.0 + 9 v1.1 + 12 v2.0 + 11 v3.0)
-- Average duration: 3.4min
-- Total execution time: 139min
+- Total plans completed: 41 (8 v1.0 + 9 v1.1 + 12 v2.0 + 12 v3.0)
+- Average duration: 3.5min
+- Total execution time: 144min
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
@@ -53,6 +53,7 @@ Progress: [████████████████████] 100%
 | 16-01 | Dry-Run Backend Foundation | 5min | 2 | 4 |
 | 16-02 | DryRunService + API Routes | 5min | 2 | 4 |
 | 16-03 | Bot Dashboard + Decision Log Frontend | 12min | 2 | 10 |
+| 17-01 | Combined Score Alpha Integration (TDD) | 5min | 1 | 4 |
 
 ## Accumulated Context
 
@@ -137,6 +138,11 @@ v1.0 decision log archived in milestones/v1.0-phases/ SUMMARY.md files.
 - WebSocket handlers for dry_run_decision, dry_run_status, dry_run_portfolio_update
 - Settings: dry_run_initial_capital input with 100 EUR minimum validation
 - Phase 16 complete: all BOT-01 through BOT-06 and DRY-01 through DRY-05 requirements met
+- Combined Score Alpha Integration (17-01): AlphaInput dataclass, 50/30/20 three-signal weights with 60/40 fallback
+- Fixed three-way weights rather than user-configurable (preserves calibration, one-constant change later if needed)
+- Alpha quality warmup/unavailable triggers exact existing 60/40 code path
+- Combined route now loads user settings from DB (Depends(get_db)) for Alpha Score computation
+- _detect_conflict extended with alpha-vs-macro divergence, _assess_quality with three-signal coverage
 
 ### Pending Todos
 
@@ -149,5 +155,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-27
-Stopped at: Completed 16-03-PLAN.md (Phase 16 complete)
+Stopped at: Completed 17-01-PLAN.md (Combined Score Alpha Integration)
 Resume file: None

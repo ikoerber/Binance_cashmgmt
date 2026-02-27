@@ -133,10 +133,11 @@ Plans:
 **Success Criteria** (what must be TRUE):
   1. When Alpha Score is available, Combined Score incorporates it as a third signal and the factor breakdown in the dashboard details view shows the Alpha Score contribution
   2. When Alpha Score is unavailable (cold start, data gap, or dry-run not active), Combined Score falls back to existing 60/40 MacroSignal/Sentiment weights with no change in behavior
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 17-01: TBD
+- [x] 17-01-PLAN.md -- TDD: Alpha Score domain integration + service + API (backward-compatible three-signal weighting)
+- [ ] 17-02-PLAN.md -- Frontend: Combined Score dashboard with Alpha Score sub-signal card
 
 ## Progress
 
@@ -161,4 +162,4 @@ Phases execute in numeric order: 13 → 14 → 15 → 16 → 17
 | 14. Multi-Factor Scoring Engine | 4/4 | Complete    | 2026-02-26 | - |
 | 15. Backtesting Engine | 4/4 | Complete    | 2026-02-27 | - |
 | 16. Dry-Run Mode + Bot Dashboard | 3/3 | Complete    | 2026-02-27 | - |
-| 17. Combined Score Integration | v3.0 | 0/? | Not started | - |
+| 17. Combined Score Integration | v3.0 | 1/2 | In Progress | - |
