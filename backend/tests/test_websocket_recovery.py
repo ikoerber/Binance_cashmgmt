@@ -121,10 +121,10 @@ def test_reconciliation_uses_disconnect_time():
     mock_db = MagicMock()
 
     with (
-        patch("app.services.websocket_manager.SessionLocal", return_value=mock_db),
-        patch("app.services.websocket_manager.BinanceService") as mock_bs_cls,
+        patch("app.db.database.SessionLocal", return_value=mock_db),
+        patch("app.services.binance.BinanceService") as mock_bs_cls,
         patch(
-            "app.services.websocket_manager.ReconciliationService",
+            "app.services.reconciliation_service.ReconciliationService",
             return_value=mock_recon_service,
         ),
         patch.dict("os.environ", {
@@ -205,12 +205,12 @@ async def test_last_user_data_message_updated_on_execution_report():
     }
 
     with (
-        patch(
-            "app.services.websocket_manager.BinanceStreamManager._broadcast_to_user",
+        patch.object(
+            manager, "_broadcast_to_user",
             new_callable=AsyncMock,
         ),
         patch(
-            "app.services.websocket_manager.handle_order_update",
+            "app.services.websocket_event_handler.handle_order_update",
             new_callable=AsyncMock,
         ),
     ):
@@ -271,8 +271,7 @@ async def test_reconnect_on_connection_drop():
 
     import aiohttp
 
-    # Create a mock WS that immediately sends a subscribe response then CLOSED
-    mock_ws = AsyncMock()
+    # Create a mock WS that yields a subscribe response then CLOSED
     subscribe_response = MagicMock()
     subscribe_response.type = aiohttp.WSMsgType.TEXT
     subscribe_response.data = '{"id": "1", "result": null}'
@@ -280,19 +279,39 @@ async def test_reconnect_on_connection_drop():
     closed_msg = MagicMock()
     closed_msg.type = aiohttp.WSMsgType.CLOSED
 
-    mock_ws.__aiter__ = MagicMock(
-        return_value=iter([subscribe_response, closed_msg])
-    )
+    # Use a proper async iterator
+    class AsyncWSIter:
+        def __init__(self, items):
+            self._items = iter(items)
+
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            try:
+                return next(self._items)
+            except StopIteration:
+                raise StopAsyncIteration
+
+    mock_ws = AsyncMock()
+    mock_ws.send_json = AsyncMock()
+    ws_iter = AsyncWSIter([subscribe_response, closed_msg])
+    mock_ws.__aiter__ = lambda self: ws_iter
+
+    # Build async context managers for session and ws_connect
+    mock_ws_cm = AsyncMock()
+    mock_ws_cm.__aenter__ = AsyncMock(return_value=mock_ws)
+    mock_ws_cm.__aexit__ = AsyncMock(return_value=False)
 
     mock_session = AsyncMock()
-    mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-    mock_session.__aexit__ = AsyncMock(return_value=False)
-    mock_session.ws_connect = MagicMock(return_value=AsyncMock())
-    mock_session.ws_connect.return_value.__aenter__ = AsyncMock(return_value=mock_ws)
-    mock_session.ws_connect.return_value.__aexit__ = AsyncMock(return_value=False)
+    mock_session.ws_connect = MagicMock(return_value=mock_ws_cm)
+
+    mock_session_cm = AsyncMock()
+    mock_session_cm.__aenter__ = AsyncMock(return_value=mock_session)
+    mock_session_cm.__aexit__ = AsyncMock(return_value=False)
 
     with (
-        patch("aiohttp.ClientSession", return_value=mock_session),
+        patch("aiohttp.ClientSession", return_value=mock_session_cm),
         patch.object(manager, "_post_reconnect_reconciliation", new_callable=AsyncMock),
     ):
         # Should complete without error (exits cleanly for retry)

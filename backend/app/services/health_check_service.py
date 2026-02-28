@@ -216,6 +216,22 @@ class HealthCheckService:
                     detail="Running but no prices received",
                 )
 
+            # WSRC-02: User data stream freshness check
+            # Only check if there are active user data subscribers (stream is expected)
+            if manager.user_data_subscribers:
+                last_msg = manager.last_user_data_message_at
+                if last_msg is not None:
+                    age_seconds = (
+                        datetime.now(timezone.utc) - last_msg
+                    ).total_seconds()
+                    if age_seconds > 90:
+                        return ServiceStatus(
+                            name="websocket",
+                            status="degraded",
+                            last_checked=now_iso,
+                            detail=f"User data stream silent for {int(age_seconds)}s",
+                        )
+
             return ServiceStatus(name="websocket", status="ok", last_checked=now_iso)
         except Exception as e:
             return ServiceStatus(
