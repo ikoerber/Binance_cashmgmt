@@ -33,3 +33,6 @@ mypy==1.19.1
 
 # Redis (für später - Worker)
 redis==7.1.1
+
+# Telegram Notifications
+python-telegram-bot==22.6
