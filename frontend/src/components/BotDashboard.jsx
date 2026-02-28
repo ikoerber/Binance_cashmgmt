@@ -464,6 +464,57 @@ const BotDashboard = () => {
           </div>
         </div>
       </div>
+
+      {/* Trailing Stops */}
+      {trailingStops?.stops && Object.keys(trailingStops.stops).length > 0 && (
+        <div className="bot-trailing-stops">
+          <h3>Trailing Stops</h3>
+          <div className="bot-trailing-stops-grid">
+            {Object.entries(trailingStops.stops).map(([sym, stop]) => (
+              <div key={sym} className={`bot-trailing-stop-card ${stop.frozen ? 'frozen' : ''}`}>
+                <div className="bot-trailing-stop-header">
+                  <span className="bot-trailing-stop-symbol">{sym}</span>
+                  {stop.frozen && (
+                    <span className="bot-trailing-stop-frozen-badge">
+                      FROZEN {stop.data_points_needed > 0 && `(${stop.data_points_needed} Punkte fehlen)`}
+                    </span>
+                  )}
+                  {!stop.frozen && stop.direction && (
+                    <span className={`bot-trailing-stop-direction ${stop.direction === 'LONG' ? 'long' : 'short'}`}>
+                      {stop.direction}
+                    </span>
+                  )}
+                </div>
+                <div className="bot-trailing-stop-body">
+                  <div className="bot-trailing-stop-row">
+                    <span>Stop-Level</span>
+                    <span className="bot-trailing-stop-value">
+                      {stop.stop_level != null ? formatNumber(parseFloat(stop.stop_level), sym === 'BTCEUR' ? 2 : 4) : '--'}
+                    </span>
+                  </div>
+                  <div className="bot-trailing-stop-row">
+                    <span>ATR-Distanz</span>
+                    <span className="bot-trailing-stop-value">
+                      {stop.atr_distance != null ? formatNumber(parseFloat(stop.atr_distance), sym === 'BTCEUR' ? 2 : 4) : '--'}
+                    </span>
+                  </div>
+                  <div className="bot-trailing-stop-row">
+                    <span>Letzter Preis</span>
+                    <span className="bot-trailing-stop-value">
+                      {stop.last_price != null ? formatNumber(parseFloat(stop.last_price), sym === 'BTCEUR' ? 2 : 4) : '--'}
+                    </span>
+                  </div>
+                  {stop.last_updated && (
+                    <div className="bot-trailing-stop-updated">
+                      Aktualisiert: {new Date(stop.last_updated).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

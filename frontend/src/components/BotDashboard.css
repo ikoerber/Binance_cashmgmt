@@ -432,6 +432,113 @@
   50% { opacity: 0.4; }
 }
 
+/* --- Trailing Stops --- */
+
+.bot-trailing-stops {
+  margin-top: 20px;
+}
+
+.bot-trailing-stops h3 {
+  margin: 0 0 12px 0;
+  font-size: 16px;
+  color: var(--color-text-primary, #1e293b);
+}
+
+.bot-trailing-stops-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.bot-trailing-stop-card {
+  background: var(--color-bg-card, #fff);
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: var(--radius-lg, 12px);
+  padding: 16px;
+  box-shadow: var(--shadow-card, 0 1px 3px rgba(0,0,0,0.1));
+  border-left: 3px solid #d97706;
+}
+
+.bot-trailing-stop-card.frozen {
+  border-left-color: #dc2626;
+  background: var(--color-alert-red-severity-bg, rgba(220, 38, 38, 0.04));
+}
+
+.bot-trailing-stop-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.bot-trailing-stop-symbol {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-text-primary, #1e293b);
+}
+
+.bot-trailing-stop-frozen-badge {
+  background: #fee2e2;
+  color: #dc2626;
+  padding: 2px 8px;
+  border-radius: var(--radius-md, 8px);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+[data-theme="dark"] .bot-trailing-stop-frozen-badge {
+  background: rgba(220, 38, 38, 0.15);
+  color: #f87171;
+}
+
+.bot-trailing-stop-direction {
+  padding: 2px 8px;
+  border-radius: var(--radius-md, 8px);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.bot-trailing-stop-direction.long {
+  background: var(--color-success-bg, #dcfce7);
+  color: var(--color-profit, #16a34a);
+}
+
+.bot-trailing-stop-direction.short {
+  background: var(--color-alert-red-severity-bg, #fee2e2);
+  color: var(--color-loss, #dc2626);
+}
+
+.bot-trailing-stop-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.bot-trailing-stop-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  color: var(--color-text-body, #334155);
+}
+
+.bot-trailing-stop-value {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-primary, #1e293b);
+}
+
+.bot-trailing-stop-updated {
+  font-size: 11px;
+  color: var(--color-text-muted, #64748b);
+  margin-top: 4px;
+  text-align: right;
+}
+
 /* --- Responsive --- */
 
 @media (max-width: 768px) {
@@ -455,5 +562,9 @@
 
   .bot-score-value {
     font-size: 32px;
+  }
+
+  .bot-trailing-stops-grid {
+    grid-template-columns: 1fr;
   }
 }
