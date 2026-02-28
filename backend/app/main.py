@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.auth import require_api_key
+from app.api.auth import require_api_key, validate_user_id, validate_startup_config
 from dotenv import load_dotenv
 
 # Load .env file BEFORE importing routes
@@ -31,6 +31,7 @@ from app.api.routes import (
     alpha_score,
     backtest,
     dry_run,
+    health,
 )
 from app.api.routes import websocket as websocket_route
 from app.services.websocket_manager import get_stream_manager
@@ -39,6 +40,9 @@ from app.services.websocket_manager import get_stream_manager
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialisiert DB, Sentiment-Historien und WebSocket Manager beim Start"""
+    # Sicherheitskonfiguration pruefen (blockiert Production ohne API_SECRET_KEY)
+    validate_startup_config()
+
     database_url = os.getenv("DATABASE_URL", "sqlite:///./cashmgnt.db")
     init_db(database_url)
     create_tables()
@@ -101,26 +105,31 @@ async def add_security_headers(request: Request, call_next):
     return response
 
 
-# API-Key Auth als Router-Dependency (statt global, weil APIKeyHeader nicht mit WebSocket kompatibel)
+# API-Key Auth + User-ID-Validierung als Router-Dependencies
+# (nicht global, weil APIKeyHeader nicht mit WebSocket kompatibel)
 api_auth = [Depends(require_api_key)]
+api_auth_with_user = [Depends(require_api_key), Depends(validate_user_id)]
 
-# HTTP Routes (mit API-Key Auth)
-app.include_router(portfolio.router, dependencies=api_auth)
-app.include_router(lots.router, dependencies=api_auth)
-app.include_router(sync.router, dependencies=api_auth)
-app.include_router(pairing.router, dependencies=api_auth)
-app.include_router(orders.router, dependencies=api_auth)
-app.include_router(reconciliation.router, dependencies=api_auth)
-app.include_router(cashflow.router, dependencies=api_auth)
-app.include_router(settings.router, dependencies=api_auth)
+# HTTP Routes mit Auth + User-ID-Validierung (alle Routen mit {user_id} im Pfad)
+app.include_router(portfolio.router, dependencies=api_auth_with_user)
+app.include_router(lots.router, dependencies=api_auth_with_user)
+app.include_router(sync.router, dependencies=api_auth_with_user)
+app.include_router(pairing.router, dependencies=api_auth_with_user)
+app.include_router(orders.router, dependencies=api_auth_with_user)
+app.include_router(reconciliation.router, dependencies=api_auth_with_user)
+app.include_router(cashflow.router, dependencies=api_auth_with_user)
+app.include_router(settings.router, dependencies=api_auth_with_user)
+app.include_router(sentiment.router, dependencies=api_auth_with_user)
+app.include_router(orderblock.router, dependencies=api_auth_with_user)
+app.include_router(combined.router, dependencies=api_auth_with_user)
+app.include_router(alerts.router, dependencies=api_auth_with_user)
+app.include_router(alpha_score.router, dependencies=api_auth_with_user)
+app.include_router(backtest.router, dependencies=api_auth_with_user)
+app.include_router(dry_run.router, dependencies=api_auth_with_user)
+app.include_router(health.router, dependencies=api_auth_with_user)
+
+# HTTP Routes nur mit Auth (keine {user_id} im Pfad)
 app.include_router(macro.router, dependencies=api_auth)
-app.include_router(sentiment.router, dependencies=api_auth)
-app.include_router(orderblock.router, dependencies=api_auth)
-app.include_router(combined.router, dependencies=api_auth)
-app.include_router(alerts.router, dependencies=api_auth)
-app.include_router(alpha_score.router, dependencies=api_auth)
-app.include_router(backtest.router, dependencies=api_auth)
-app.include_router(dry_run.router, dependencies=api_auth)
 
 # WebSocket Route (eigene Auth via Query-Parameter, kein APIKeyHeader)
 app.include_router(websocket_route.router)
