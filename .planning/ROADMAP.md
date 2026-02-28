@@ -144,5 +144,5 @@ Phases execute in numeric order: 19 -> 20 -> 21 -> 22
 | 13-18 | v3.0 | 17/17 | Complete | 2026-02-28 |
 | 19. Health Check Foundation | 2/2 | Complete    | 2026-02-28 | - |
 | 20. Telegram Notifications | 2/2 | Complete    | 2026-02-28 | - |
-| 21. WebSocket Recovery | 2/2 | Complete   | 2026-02-28 | - |
+| 21. WebSocket Recovery | 2/2 | Complete    | 2026-02-28 | - |
 | 22. Status Dashboard | v3.1 | 0/? | Not started | - |
