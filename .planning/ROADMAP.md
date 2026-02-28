@@ -67,7 +67,7 @@ See: `.planning/milestones/v3.0-ROADMAP.md` for full details
 - [x] **Phase 19: Health Check Foundation** — Structured health endpoint with 8 parallel service checks, in-memory state, 3-tier overall status (completed 2026-02-28)
 - [x] **Phase 20: Telegram Notifications** — Out-of-band alerting on service state transitions, graceful no-op, alert routing separation (completed 2026-02-28)
 - [x] **Phase 21: WebSocket Recovery + Listen Key Hardening** — Post-reconnect reconciliation, freshness tracking, keepalive failure handling, frontend reconnect state (completed 2026-02-28)
-- [ ] **Phase 22: Status Dashboard** — Admin-area service status cards, timestamps, WebSocket state, global nav indicator
+- [x] **Phase 22: Status Dashboard** — Admin-area service status cards, timestamps, WebSocket state, global nav indicator (completed 2026-02-28)
 
 ## Phase Details
 
@@ -145,4 +145,4 @@ Phases execute in numeric order: 19 -> 20 -> 21 -> 22
 | 19. Health Check Foundation | 2/2 | Complete    | 2026-02-28 | - |
 | 20. Telegram Notifications | 2/2 | Complete    | 2026-02-28 | - |
 | 21. WebSocket Recovery | 2/2 | Complete    | 2026-02-28 | - |
-| 22. Status Dashboard | 1/2 | In Progress|  | - |
+| 22. Status Dashboard | 2/2 | Complete   | 2026-02-28 | - |
