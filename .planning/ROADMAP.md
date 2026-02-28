@@ -63,6 +63,10 @@ See: `.planning/milestones/v3.0-ROADMAP.md` for full details
 **Goal:** BotDashboard correctly displays Alpha Score, factor bars, backtest summary, and trailing stop levels
 **Requirements:** BOT-02, BOT-05, EXIT-01, EXIT-02
 **Gap Closure:** Closes 4 gaps from v3.0 audit (field name mismatches, envelope shape, orphaned endpoint)
+**Plans:** 1 plan
+
+Plans:
+- [ ] 18-01-PLAN.md — Fix field name mismatches, backtest envelope, add trailing stop display
 
 ## Progress
 
