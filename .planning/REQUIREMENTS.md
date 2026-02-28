@@ -9,11 +9,11 @@ Requirements for Hardening + Monitoring milestone. Each maps to roadmap phases.
 
 ### Health Check
 
-- [ ] **HLTH-01**: Health Endpoint prueft 8 Kern-Services parallel (Backend, DB, WebSocket, Dry-Run, Alpha Score, Sentiment, Macro, Binance REST)
-- [ ] **HLTH-02**: Jeder Service liefert strukturierten Status (ok/stale/degraded/stopped/unavailable/error) mit Timestamps
-- [ ] **HLTH-03**: Overall-Status aggregiert als healthy/degraded/critical (3-Tier)
-- [ ] **HLTH-04**: Health-State lebt ausschliesslich in-memory (kein SQLite-Write, kein Lock-Contention)
-- [ ] **HLTH-05**: Health-Response wird 5s gecacht (verhindert excessive Polling-Last)
+- [x] **HLTH-01**: Health Endpoint prueft 8 Kern-Services parallel (Backend, DB, WebSocket, Dry-Run, Alpha Score, Sentiment, Macro, Binance REST)
+- [x] **HLTH-02**: Jeder Service liefert strukturierten Status (ok/stale/degraded/stopped/unavailable/error) mit Timestamps
+- [x] **HLTH-03**: Overall-Status aggregiert als healthy/degraded/critical (3-Tier)
+- [x] **HLTH-04**: Health-State lebt ausschliesslich in-memory (kein SQLite-Write, kein Lock-Contention)
+- [x] **HLTH-05**: Health-Response wird 5s gecacht (verhindert excessive Polling-Last)
 
 ### Telegram
 
@@ -66,11 +66,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| HLTH-01 | Phase 19 | Pending |
-| HLTH-02 | Phase 19 | Pending |
-| HLTH-03 | Phase 19 | Pending |
-| HLTH-04 | Phase 19 | Pending |
-| HLTH-05 | Phase 19 | Pending |
+| HLTH-01 | Phase 19 | Complete |
+| HLTH-02 | Phase 19 | Complete |
+| HLTH-03 | Phase 19 | Complete |
+| HLTH-04 | Phase 19 | Complete |
+| HLTH-05 | Phase 19 | Complete |
 | TELE-01 | Phase 20 | Pending |
 | TELE-02 | Phase 20 | Pending |
 | TELE-03 | Phase 20 | Pending |
