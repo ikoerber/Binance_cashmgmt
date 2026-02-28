@@ -1,14 +1,14 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: milestone
-status: unknown
-last_updated: "2026-02-28T05:59:41.653Z"
+milestone: v3.1
+milestone_name: Hardening + Monitoring
+status: defining_requirements
+last_updated: "2026-02-28T12:00:00.000Z"
 progress:
-  total_phases: 1
-  completed_phases: 1
-  total_plans: 1
-  completed_plans: 1
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
 ---
 
 # Project State
@@ -18,15 +18,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-28)
 
 **Core value:** Ledger-first, deterministisches, auditierbares Cashflow-Tracking und automatisiertes Trading-System
-**Current focus:** Planning next milestone
+**Current focus:** v3.1 Hardening + Monitoring
 
 ## Current Position
 
-Milestone: v3.0 Multi-Factor Omni-Bot — SHIPPED 2026-02-28
-Status: Complete (all 35 requirements satisfied, 6 phases, 17 plans)
-Last activity: 2026-02-28 — Milestone v3.0 archived
+Milestone: v3.1 Hardening + Monitoring
+Phase: Not started (defining requirements)
+Status: Defining requirements
+Last activity: 2026-02-28 — Milestone v3.1 started
 
-Progress: [████████████████████] 100%
+Progress: [░░░░░░░░░░░░░░░░░░░░] 0%
 
 ## Performance Metrics
 
@@ -57,11 +58,12 @@ Progress: [████████████████████] 100%
 
 ## Accumulated Context
 
+v3.0 decision log archived in milestones/v3.0-phases/ SUMMARY.md files.
 v2.0 decision log archived in milestones/v2.0-phases/ SUMMARY.md files.
 v1.1 decision log archived in milestones/v1.1-phases/ SUMMARY.md files.
 v1.0 decision log archived in milestones/v1.0-phases/ SUMMARY.md files.
 
-### Key Context for v3.0
+### Key Context from v3.0 (relevant for v3.1)
 
 - XRPBTC re-added in Phase 13-01: KNOWN_PAIRS entry, is_eur_quoted/is_pairing_enabled/is_order_creation_enabled helpers
 - `quote_to_eur_rate` column re-added via migration b2f6ed7bb098 (570 EUR lots backfilled with rate=1.0)
@@ -166,5 +168,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-28
-Stopped at: Completed 18-01-PLAN.md (BotDashboard Integration Fixes) -- Phase 18 complete
+Stopped at: Milestone v3.1 started, defining requirements
 Resume file: None

@@ -60,7 +60,10 @@ Ledger-first, deterministisches, auditierbares Cashflow-Tracking und automatisie
 
 <!-- Current scope. Building toward these. -->
 
-(None yet — planning next milestone)
+- [ ] Health-Check Endpoints fuer alle 8 Kern-Services (Backend, DB, WebSocket, Dry-Run, Alpha Score, Sentiment, Macro, Binance REST)
+- [ ] Status Dashboard im Admin-Bereich mit Service-Status, Freshness, Letzter-Aktivitaet
+- [ ] Telegram Bot Notifications bei Service-Ausfall und kritischen Alerts
+- [ ] WebSocket Recovery: Automatisches Reconnect mit Exponential Backoff bei Verbindungsverlust
 
 ### Out of Scope
 
@@ -70,14 +73,19 @@ Ledger-first, deterministisches, auditierbares Cashflow-Tracking und automatisie
 - Live Execution (Auto-Placing Orders) — Follow-up nach Backtesting + Dry-Run validiert
 - German Tax Veto (365-Tage Haltefrist) — Deferred bis Live Execution Milestone
 - Cross-Pair Pairing fuer XRPBTC — Removed in v2.0, nicht wieder eingefuehrt
-- Hardening: Monitoring + WebSocket-Recovery — WebSocket-Hardening spaeter
-- Frontend-Tests (Vitest) — Separater Milestone
+- Frontend-Tests (Vitest) — Vitest-Infrastruktur in v3.0 aufgesetzt (41 Tests), umfassende Test-Suite separater Milestone
 - Light/Dark Toggle — Dark-only in v2.0, Toggle kann spaeter ergaenzt werden
 - Responsive/Mobile Layout — Desktop-fokussiert
 
-## Current Milestone: Planning Next
+## Current Milestone: v3.1 Hardening + Monitoring
 
-v3.0 Multi-Factor Omni-Bot shipped 2026-02-28 (incl. gap closure). Next milestone TBD via `/gsd:new-milestone`.
+**Goal:** Die App soll unbeaufsichtigt laufen koennen — Service-Gesundheit auf einen Blick, aktive Benachrichtigungen bei Ausfaellen, automatische WebSocket-Recovery.
+
+**Target features:**
+- Health-Check System fuer alle 8 Kern-Services
+- Status Dashboard im Admin-Bereich
+- Telegram Bot Notifications
+- WebSocket Auto-Reconnect mit Backoff
 
 ## Context
 
@@ -93,13 +101,15 @@ Symbol Registry kennt 3 EUR-Pairs (BTCEUR, ETHEUR, XRPEUR) + XRPBTC (re-added in
 Frontend: Dark Mode (dark-only), 4-Bereichs-Navigation (Trading/Analyse/Bot/Admin), Bot Dashboard mit Alpha Score Hero, Signal History Chart, Regime Badge, Trailing Stop Anzeige mit Freeze-State. Decision Log mit filterbarer Tabelle und aufklappbaren Faktor-Details. Plain CSS mit 79+ CSS Custom Properties.
 
 ### Known Tech Debt
-- backfill_cost_eur.py verwendet float() statt Decimal fuer SQL-Writes (v1.0)
 - Single-Pairing GET Endpoint liefert routing_decision_json nicht (v1.0)
 - getQuoteDecimals(symbol) wird mit ignoriertem Argument aufgerufen (v2.0)
-- XRPEUR price_precision=4 Backend vs getQuoteDecimals()=2 Frontend (pre-existing)
 - orderblockHelpers.jsx hardcoded Fallback-Gradients (unerreichbar im Normalbetrieb) (v2.0)
-- Keine Frontend-Tests (Vitest geplant)
-- Pytest ResourceWarning: 52 unclosed database connections in Test-Fixtures (v2.0 Code Review)
+
+### Resolved Tech Debt (2026-02-28)
+- ~~backfill_fee_eur_value.py float()~~ → str() (Decimal-Praezision)
+- ~~XRPEUR price_precision mismatch~~ → quoteDecimals Feld in Frontend KNOWN_PAIRS
+- ~~52 unclosed DB connections~~ → engine.dispose() in 4 Test-Fixtures
+- ~~Keine Frontend-Tests~~ → Vitest-Infrastruktur + 41 Tests (formatters + symbolRegistry)
 
 ## Constraints
 
@@ -147,4 +157,4 @@ Frontend: Dark Mode (dark-only), 4-Bereichs-Navigation (Trading/Analyse/Bot/Admi
 | Gap Closure via Milestone Audit | v3.0 Audit deckte 4 Frontend-Integrationsfehler auf (Feldnamen, Envelope, Orphaned Endpoint) | ✓ Good — Phase 18 schloss alle Gaps, 6/6 must-haves verifiziert |
 
 ---
-*Last updated: 2026-02-28 after v3.0 milestone completion (incl. Phase 18 gap closure)*
+*Last updated: 2026-02-28 after v3.1 milestone start (Hardening + Monitoring)*
