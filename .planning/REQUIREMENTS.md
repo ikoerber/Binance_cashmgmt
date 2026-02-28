@@ -66,28 +66,28 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| HLTH-01 | — | Pending |
-| HLTH-02 | — | Pending |
-| HLTH-03 | — | Pending |
-| HLTH-04 | — | Pending |
-| HLTH-05 | — | Pending |
-| TELE-01 | — | Pending |
-| TELE-02 | — | Pending |
-| TELE-03 | — | Pending |
-| WSRC-01 | — | Pending |
-| WSRC-02 | — | Pending |
-| WSRC-03 | — | Pending |
-| WSRC-04 | — | Pending |
-| DASH-01 | — | Pending |
-| DASH-02 | — | Pending |
-| DASH-03 | — | Pending |
-| DASH-04 | — | Pending |
+| HLTH-01 | Phase 19 | Pending |
+| HLTH-02 | Phase 19 | Pending |
+| HLTH-03 | Phase 19 | Pending |
+| HLTH-04 | Phase 19 | Pending |
+| HLTH-05 | Phase 19 | Pending |
+| TELE-01 | Phase 20 | Pending |
+| TELE-02 | Phase 20 | Pending |
+| TELE-03 | Phase 20 | Pending |
+| WSRC-01 | Phase 21 | Pending |
+| WSRC-02 | Phase 21 | Pending |
+| WSRC-03 | Phase 21 | Pending |
+| WSRC-04 | Phase 21 | Pending |
+| DASH-01 | Phase 22 | Pending |
+| DASH-02 | Phase 22 | Pending |
+| DASH-03 | Phase 22 | Pending |
+| DASH-04 | Phase 22 | Pending |
 
 **Coverage:**
-- v3.1 requirements: 15 total
-- Mapped to phases: 0
-- Unmapped: 15
+- v3.1 requirements: 16 total
+- Mapped to phases: 16
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-02-28*
-*Last updated: 2026-02-28 after initial definition*
+*Last updated: 2026-02-28 after roadmap creation (traceability populated)*
