@@ -125,11 +125,11 @@ Plans:
   2. Each service card shows the last-check timestamp and a relative age indicator (e.g. "12s ago")
   3. WebSocket reconnect state (current attempt count and error message) is displayed on the dashboard, sourced from WebSocketContext
   4. A status dot in the global navigation (green/amber/red) reflects overall system health and links to the Status Dashboard
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 22-01: TBD
-- [ ] 22-02: TBD
+- [ ] 22-01-PLAN.md — TDD: StatusDashboard.jsx with 8 service cards, relative-age timestamps, WS reconnect panel, API client function, /status route, 10 tests
+- [ ] 22-02-PLAN.md — GlobalNav status dot (green/amber/red) with health polling, SymbolLayout admin link, 6 tests
 
 ## Progress
 
