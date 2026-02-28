@@ -18,6 +18,7 @@ import { useUser } from '../contexts/UserContext';
 import { useChartTheme } from '../hooks/useChartTheme';
 import {
   getAlphaScore,
+  getTrailingStops,
   getDryRunStatus,
   getDryRunPortfolio,
   getDryRunDecisions,
@@ -103,6 +104,12 @@ const BotDashboard = () => {
     staleTime: 60000,
   });
 
+  const { data: trailingStops } = useQuery({
+    queryKey: ['trailing-stops', userId],
+    queryFn: () => getTrailingStops(userId),
+    refetchInterval: 30000,
+  });
+
   // Mutations
   const toggleMutation = useMutation({
     mutationFn: () => toggleDryRun(userId),
@@ -129,8 +136,8 @@ const BotDashboard = () => {
 
   // Derived data
   const isDryRunActive = dryRunStatus?.is_active ?? false;
-  const score = alphaScore?.composite_score ?? alphaScore?.alpha_score ?? null;
-  const signal = alphaScore?.signal ?? alphaScore?.trade_signal ?? 'NEUTRAL';
+  const score = alphaScore?.score ?? null;
+  const signal = alphaScore?.trade_signal ?? 'NEUTRAL';
   const quality = alphaScore?.quality ?? 'degraded';
   const regime = alphaScore?.regime ?? null;
   const threshold = alphaScore?.threshold ?? 3.0;
@@ -153,7 +160,7 @@ const BotDashboard = () => {
     if (Array.isArray(factors) && factors.length > 0) {
       return factors.map(f => ({
         name: factorLabels[f.name] || factorLabels[f.factor] || f.name || f.factor || 'Unknown',
-        score: f.score ?? f.value ?? 0,
+        score: parseFloat(f.sub_score ?? 0),
         quality: f.quality ?? 'full',
       }));
     }
@@ -209,10 +216,9 @@ const BotDashboard = () => {
       fullTime: d.evaluated_at,
     }));
 
-  // Latest backtest
-  const latestBacktest = Array.isArray(backtestRuns) && backtestRuns.length > 0
-    ? backtestRuns[0]
-    : null;
+  // Latest backtest (unwrap envelope: API returns { runs: [...], count })
+  const runs = backtestRuns?.runs ?? [];
+  const latestBacktest = runs.length > 0 ? runs[0] : null;
 
   // Virtual P&L
   const realizedPnl = parseFloat(portfolio?.realized_pnl ?? 0);

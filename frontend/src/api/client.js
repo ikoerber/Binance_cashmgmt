@@ -234,9 +234,7 @@ export const getAlerts = async (userId, includeAcknowledged = false) => {
 };
 
 export const acknowledgeAlert = async (alertId, userId) => {
-  const response = await apiClient.patch(`/api/alerts/${alertId}/acknowledge`, null, {
-    params: { user_id: userId },
-  });
+  const response = await apiClient.patch(`/api/alerts/${userId}/${alertId}/acknowledge`);
   return response.data;
 };
 
@@ -304,10 +302,15 @@ export const getBacktestSweepCsvUrl = (userId, sweepId) => {
 };
 
 // Alpha Score API
-export const getAlphaScore = async (userId, symbol = 'BTCEUR') => {
+export const getAlphaScore = async (userId, symbol = 'XRPBTC') => {
   const response = await apiClient.get(`/api/alpha-score/${userId}/score`, {
     params: { symbol },
   });
+  return response.data;
+};
+
+export const getTrailingStops = async (userId) => {
+  const response = await apiClient.get(`/api/alpha-score/${userId}/trailing-stops`);
   return response.data;
 };
 
