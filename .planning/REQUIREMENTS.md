@@ -28,8 +28,8 @@ Requirements for this milestone. Each maps to roadmap phases.
 
 ### Exit Management
 
-- [x] **EXIT-01**: System computes ATR-Adaptive Trailing stop distances (ATR×2 for BTC, ATR×3 for XRP, configurable multipliers)
-- [x] **EXIT-02**: Trailing stops freeze during data gaps (WebSocket disconnect) and resume after N consecutive fresh data points
+- [ ] **EXIT-01**: System computes ATR-Adaptive Trailing stop distances (ATR×2 for BTC, ATR×3 for XRP, configurable multipliers) — *backend complete, frontend display missing*
+- [ ] **EXIT-02**: Trailing stops freeze during data gaps (WebSocket disconnect) and resume after N consecutive fresh data points — *backend complete, frontend display missing*
 
 ### Backtesting
 
@@ -57,10 +57,10 @@ Requirements for this milestone. Each maps to roadmap phases.
 ### Bot Dashboard
 
 - [x] **BOT-01**: New "Bot" section in navigation (4th area: Trading/Analyse/Bot/Admin)
-- [x] **BOT-02**: Bot dashboard shows current Alpha Score with factor breakdown (visual bars per factor)
+- [ ] **BOT-02**: Bot dashboard shows current Alpha Score with factor breakdown (visual bars per factor) — *field name mismatch*
 - [x] **BOT-03**: Bot dashboard shows signal history (recent Alpha Score values over time, chart)
 - [x] **BOT-04**: Bot dashboard shows dry-run status (active/inactive, current virtual positions, virtual P&L)
-- [x] **BOT-05**: Bot dashboard shows backtest results (most recent run summary, link to full history)
+- [ ] **BOT-05**: Bot dashboard shows backtest results (most recent run summary, link to full history) — *envelope shape mismatch*
 - [x] **BOT-06**: Bot dashboard shows regime indicator (trending/mean-reverting with confidence)
 
 ## Future Requirements
@@ -118,8 +118,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SCORE-07 | Phase 14 | Complete |
 | SCORE-08 | Phase 14 | Complete |
 | SCORE-09 | Phase 14 | Complete |
-| EXIT-01 | Phase 14 | Complete |
-| EXIT-02 | Phase 14 | Complete |
+| EXIT-01 | Phase 18 | Pending |
+| EXIT-02 | Phase 18 | Pending |
 | BT-01 | Phase 15 | Complete |
 | BT-02 | Phase 15 | Complete |
 | BT-03 | Phase 15 | Complete |
@@ -133,10 +133,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DRY-04 | Phase 16 | Complete |
 | DRY-05 | Phase 16 | Complete |
 | BOT-01 | Phase 16 | Complete |
-| BOT-02 | Phase 16 | Complete |
+| BOT-02 | Phase 18 | Pending |
 | BOT-03 | Phase 16 | Complete |
 | BOT-04 | Phase 16 | Complete |
-| BOT-05 | Phase 16 | Complete |
+| BOT-05 | Phase 18 | Pending |
 | BOT-06 | Phase 16 | Complete |
 | COMB-01 | Phase 17 | Complete |
 | COMB-02 | Phase 17 | Complete |
@@ -148,4 +148,4 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-02-25*
-*Last updated: 2026-02-25 after roadmap creation (traceability populated)*
+*Last updated: 2026-02-28 after gap closure planning (BOT-02, BOT-05, EXIT-01, EXIT-02 reassigned to Phase 18)*

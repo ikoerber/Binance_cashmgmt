@@ -5,7 +5,7 @@
 - ✅ **v1.0 XRP Cross-Pair Pairing** — Phases 1-4 (shipped 2026-02-22)
 - ✅ **v1.1 API Hardening** — Phases 5-8 (shipped 2026-02-23)
 - ✅ **v2.0 Frontend Redesign + EUR-Fokus** — Phases 9-12 (shipped 2026-02-25)
-- ✅ **v3.0 Multi-Factor Omni-Bot** — Phases 13-17 (shipped 2026-02-27)
+- **v3.0 Multi-Factor Omni-Bot** — Phases 13-18 (gap closure in progress)
 
 ## Phases
 
@@ -53,10 +53,16 @@ See: `.planning/milestones/v2.0-ROADMAP.md` for full details
 - [x] Phase 15: Backtesting Engine (4/4 plans) — completed 2026-02-27
 - [x] Phase 16: Dry-Run Mode + Bot Dashboard (3/3 plans) — completed 2026-02-27
 - [x] Phase 17: Combined Score Integration (2/2 plans) — completed 2026-02-27
+- [ ] Phase 18: BotDashboard Integration Fixes (0/1 plans) — gap closure
 
 See: `.planning/milestones/v3.0-ROADMAP.md` for full details
 
 </details>
+
+### Phase 18: BotDashboard Integration Fixes
+**Goal:** BotDashboard correctly displays Alpha Score, factor bars, backtest summary, and trailing stop levels
+**Requirements:** BOT-02, BOT-05, EXIT-01, EXIT-02
+**Gap Closure:** Closes 4 gaps from v3.0 audit (field name mismatches, envelope shape, orphaned endpoint)
 
 ## Progress
 
@@ -79,3 +85,4 @@ See: `.planning/milestones/v3.0-ROADMAP.md` for full details
 | 15. Backtesting Engine | v3.0 | 4/4 | Complete | 2026-02-27 |
 | 16. Dry-Run Mode + Bot Dashboard | v3.0 | 3/3 | Complete | 2026-02-27 |
 | 17. Combined Score Integration | v3.0 | 2/2 | Complete | 2026-02-27 |
+| 18. BotDashboard Integration Fixes | v3.0 | 0/1 | Pending | — |
