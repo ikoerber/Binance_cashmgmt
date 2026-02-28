@@ -21,6 +21,7 @@ from app.services.dry_run_service import get_dry_run_service
 from app.services.alpha_score_data_service import get_alpha_score_data_service
 from app.services.sentiment_data_service import get_sentiment_data_service
 from app.services.macro_data_service import get_macro_data_service
+from app.services.telegram_notifier import get_telegram_notifier
 
 logger = logging.getLogger(__name__)
 
@@ -143,11 +144,20 @@ class HealthCheckService:
 
         overall = compute_overall_status(statuses)
 
-        return {
+        result = {
             "overall_status": overall,
             "services": {name: asdict(s) for name, s in statuses.items()},
             "checked_at": now_iso,
         }
+
+        # Notify on state transitions (TELE-01)
+        try:
+            notifier = get_telegram_notifier()
+            await notifier.check_transitions(result)
+        except Exception:
+            logger.exception("TelegramNotifier.check_transitions() failed")
+
+        return result
 
     # -------------------------------------------------------------------
     # Individual service checks
