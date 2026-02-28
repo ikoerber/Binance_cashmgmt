@@ -81,11 +81,11 @@ See: `.planning/milestones/v3.0-ROADMAP.md` for full details
   3. Response includes an overall_status field aggregated as healthy/degraded/critical based on individual service states
   4. Health state lives entirely in memory — zero writes to production SQLite during health checks
   5. Repeated rapid polling (multiple requests within 5 seconds) returns cached results without re-executing service checks
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 19-01: TBD
-- [ ] 19-02: TBD
+- [ ] 19-01-PLAN.md — TDD: HealthCheckService with 8 parallel checks, in-memory TTL cache, overall status aggregation + 10 tests
+- [ ] 19-02-PLAN.md — Health route registration (GET /api/health/{user_id}) + main.py wiring
 
 ### Phase 20: Telegram Notifications
 **Goal**: Operator receives immediate Telegram messages when a service goes down and does not get spammed during sustained outages
@@ -142,7 +142,7 @@ Phases execute in numeric order: 19 -> 20 -> 21 -> 22
 | 5-8 | v1.1 | 9/9 | Complete | 2026-02-23 |
 | 9-12 | v2.0 | 12/12 | Complete | 2026-02-25 |
 | 13-18 | v3.0 | 17/17 | Complete | 2026-02-28 |
-| 19. Health Check Foundation | v3.1 | 0/? | Not started | - |
+| 19. Health Check Foundation | v3.1 | 0/2 | Planned | - |
 | 20. Telegram Notifications | v3.1 | 0/? | Not started | - |
 | 21. WebSocket Recovery | v3.1 | 0/? | Not started | - |
 | 22. Status Dashboard | v3.1 | 0/? | Not started | - |
