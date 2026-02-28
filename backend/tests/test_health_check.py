@@ -45,7 +45,12 @@ def _make_mock_engine():
     return mock_engine, mock_conn
 
 
-def _make_mock_stream_manager(running=True, has_prices=True):
+def _make_mock_stream_manager(
+    running=True,
+    has_prices=True,
+    last_user_data_message_at=None,
+    user_data_subscribers=None,
+):
     mgr = MagicMock()
     mgr.get_stats.return_value = {
         "running": running,
@@ -53,8 +58,10 @@ def _make_mock_stream_manager(running=True, has_prices=True):
         "price_subscribers": 1,
         "user_data_streams": 0,
         "active_tasks": 1,
-        "has_async_client": True,
+        "has_api_credentials": True,
     }
+    mgr.last_user_data_message_at = last_user_data_message_at
+    mgr.user_data_subscribers = user_data_subscribers if user_data_subscribers is not None else {}
     return mgr
 
 
@@ -374,3 +381,70 @@ async def test_cache_expiry():
 
         await service.get_health()
         assert call_count == 2, f"Expected 2 check runs after cache expiry, got {call_count}"
+
+
+# ---------------------------------------------------------------------------
+# Tests — WSRC-02: User data stream freshness
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_websocket_user_data_degraded_90s():
+    """WSRC-02: User data stream silent >90s with active subscribers -> degraded."""
+    service = HealthCheckService()
+    stale_time = datetime.now(timezone.utc) - timedelta(seconds=120)
+    mock_ws = MagicMock()
+
+    mgr = _make_mock_stream_manager(
+        running=True,
+        has_prices=True,
+        last_user_data_message_at=stale_time,
+        user_data_subscribers={"user_123": {mock_ws}},
+    )
+
+    with _patch_all_services(stream_manager=mgr):
+        result = await service.get_health()
+
+    ws_status = result["services"]["websocket"]
+    assert ws_status["status"] == "degraded"
+    assert "silent" in ws_status["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_websocket_user_data_ok():
+    """WSRC-02: Recent user data message -> ok."""
+    service = HealthCheckService()
+    recent_time = datetime.now(timezone.utc) - timedelta(seconds=30)
+    mock_ws = MagicMock()
+
+    mgr = _make_mock_stream_manager(
+        running=True,
+        has_prices=True,
+        last_user_data_message_at=recent_time,
+        user_data_subscribers={"user_123": {mock_ws}},
+    )
+
+    with _patch_all_services(stream_manager=mgr):
+        result = await service.get_health()
+
+    ws_status = result["services"]["websocket"]
+    assert ws_status["status"] == "ok"
+
+
+@pytest.mark.asyncio
+async def test_websocket_no_user_data_subscribers_ok():
+    """WSRC-02: No user data subscribers (no stream expected) -> ok, not degraded."""
+    service = HealthCheckService()
+
+    mgr = _make_mock_stream_manager(
+        running=True,
+        has_prices=True,
+        last_user_data_message_at=None,
+        user_data_subscribers={},
+    )
+
+    with _patch_all_services(stream_manager=mgr):
+        result = await service.get_health()
+
+    ws_status = result["services"]["websocket"]
+    assert ws_status["status"] == "ok"
