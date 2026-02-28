@@ -53,7 +53,7 @@ See: `.planning/milestones/v2.0-ROADMAP.md` for full details
 - [x] Phase 15: Backtesting Engine (4/4 plans) — completed 2026-02-27
 - [x] Phase 16: Dry-Run Mode + Bot Dashboard (3/3 plans) — completed 2026-02-27
 - [x] Phase 17: Combined Score Integration (2/2 plans) — completed 2026-02-27
-- [ ] Phase 18: BotDashboard Integration Fixes (0/1 plans) — gap closure
+- [x] Phase 18: BotDashboard Integration Fixes (0/1 plans) — gap closure (completed 2026-02-28)
 
 See: `.planning/milestones/v3.0-ROADMAP.md` for full details
 
@@ -63,7 +63,7 @@ See: `.planning/milestones/v3.0-ROADMAP.md` for full details
 **Goal:** BotDashboard correctly displays Alpha Score, factor bars, backtest summary, and trailing stop levels
 **Requirements:** BOT-02, BOT-05, EXIT-01, EXIT-02
 **Gap Closure:** Closes 4 gaps from v3.0 audit (field name mismatches, envelope shape, orphaned endpoint)
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
 - [ ] 18-01-PLAN.md — Fix field name mismatches, backtest envelope, add trailing stop display
@@ -89,4 +89,4 @@ Plans:
 | 15. Backtesting Engine | v3.0 | 4/4 | Complete | 2026-02-27 |
 | 16. Dry-Run Mode + Bot Dashboard | v3.0 | 3/3 | Complete | 2026-02-27 |
 | 17. Combined Score Integration | v3.0 | 2/2 | Complete | 2026-02-27 |
-| 18. BotDashboard Integration Fixes | v3.0 | 0/1 | Pending | — |
+| 18. BotDashboard Integration Fixes | 1/1 | Complete   | 2026-02-28 | — |

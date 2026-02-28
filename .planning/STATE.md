@@ -1,14 +1,14 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
+milestone: v3.0
 milestone_name: Multi-Factor Omni-Bot
-status: unknown
-last_updated: "2026-02-27T21:54:09.881Z"
+status: complete
+last_updated: "2026-02-28T05:52:46.895Z"
 progress:
-  total_phases: 5
-  completed_phases: 5
-  total_plans: 16
-  completed_plans: 16
+  total_phases: 6
+  completed_phases: 6
+  total_plans: 17
+  completed_plans: 17
 ---
 
 # Project State
@@ -18,24 +18,24 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-25)
 
 **Core value:** Ledger-first, deterministisches, auditierbares Cashflow-Tracking und automatisiertes Trading-System
-**Current focus:** Phase 17 — Combined Score Integration (COMPLETE)
+**Current focus:** Phase 18 — BotDashboard Integration Fixes (IN PROGRESS)
 
 ## Current Position
 
-Milestone: v3.0 Multi-Factor Omni-Bot
-Phase: 17 of 17 (Combined Score Integration)
-Plan: 2 of 2 complete
+Milestone: v3.0 Multi-Factor Omni-Bot (Gap Closure)
+Phase: 18 of 18 (BotDashboard Integration Fixes)
+Plan: 1 of 1 complete
 Status: Complete
-Last activity: 2026-02-27 — Completed 17-02-PLAN.md (Combined Score Alpha Frontend)
+Last activity: 2026-02-28 — Completed 18-01-PLAN.md (BotDashboard Integration Fixes)
 
 Progress: [████████████████████] 100%
 
 ## Performance Metrics
 
 **Velocity (all milestones):**
-- Total plans completed: 42 (8 v1.0 + 9 v1.1 + 12 v2.0 + 13 v3.0)
-- Average duration: 3.5min
-- Total execution time: 146min
+- Total plans completed: 43 (8 v1.0 + 9 v1.1 + 12 v2.0 + 13 v3.0 + 1 gap closure)
+- Average duration: 3.4min
+- Total execution time: 148min
 
 | Phase | Plan | Duration | Tasks | Files |
 |-------|------|----------|-------|-------|
@@ -55,6 +55,7 @@ Progress: [████████████████████] 100%
 | 16-03 | Bot Dashboard + Decision Log Frontend | 12min | 2 | 10 |
 | 17-01 | Combined Score Alpha Integration (TDD) | 5min | 1 | 4 |
 | 17-02 | Combined Score Alpha Frontend | 2min | 1 | 2 |
+| 18-01 | BotDashboard Integration Fixes | 2min | 2 | 3 |
 
 ## Accumulated Context
 
@@ -150,6 +151,11 @@ v1.0 decision log archived in milestones/v1.0-phases/ SUMMARY.md files.
 - 3-column grid layout via combined-subsignals-three CSS class, responsive collapse on mobile
 - Phase 17 complete: all COMB-01 and COMB-02 requirements met
 - v3.0 milestone complete: phases 13-17 all done
+- Phase 18 gap closure (18-01): Fixed 4 BotDashboard integration gaps from v3.0 audit
+- Alpha Score field fix: score (not composite_score), trade_signal (not signal), sub_score (not score/value)
+- Backtest envelope fix: backtestRuns.runs unwrapping (API returns {runs: [...], count})
+- getTrailingStops API client + trailing stop display section with freeze state indicator
+- getAlphaScore default symbol changed from BTCEUR to XRPBTC (Alpha Score engine designed for XRPBTC)
 
 ### Pending Todos
 
@@ -161,6 +167,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-27
-Stopped at: Completed 17-02-PLAN.md (Combined Score Alpha Frontend) -- Phase 17 complete
+Last session: 2026-02-28
+Stopped at: Completed 18-01-PLAN.md (BotDashboard Integration Fixes) -- Phase 18 complete
 Resume file: None
