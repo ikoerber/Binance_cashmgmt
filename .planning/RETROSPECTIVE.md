@@ -2,6 +2,47 @@
 
 *A living document updated after each milestone. Lessons feed forward into future planning.*
 
+## Milestone: v3.1 — Hardening + Monitoring
+
+**Shipped:** 2026-02-28
+**Phases:** 4 (19-22) | **Plans:** 8 | **Commits:** 38
+**Requirements:** 16/16 satisfied
+
+### What Was Built
+- Health Check Foundation: 8 parallel service checks (asyncio.gather), in-memory CachedValue with 5s TTL, 3-tier overall status (healthy/degraded/critical)
+- Telegram Notifications: TelegramNotifier singleton with state machine for healthy→DOWN transition detection, graceful no-op, structural separation from AlertEventDB
+- WebSocket Recovery: subscribe.signature migration (HMAC-SHA256), post-reconnect fill reconciliation for all KNOWN_PAIRS, Listen Key freshness tracking (>90s = DEGRADED)
+- Status Dashboard: 8 color-coded service cards with relative-age timestamps, WebSocket reconnect panel, pulsing red Global Nav status dot
+
+### What Worked
+- Fastest milestone yet (1 calendar day, ~31min total execution for 8 plans) — small scope + well-defined infrastructure patterns
+- Singleton + thread-safe lock pattern reused consistently across HealthCheckService, TelegramNotifier — established in prior milestones
+- In-memory health state (zero SQLite writes) eliminated lock-contention risk with trading writes
+- Alert routing separation (Telegram for health, AlertBanner for business) kept both channels clean
+
+### What Was Inefficient
+- No milestone audit before completion — skipped in yolo mode, but health-check service had two real bugs (DB engine import binding, macro timezone mismatch) discovered during manual testing
+- SUMMARY.md one-liner extraction still returns null — tool format standardization still pending from v3.0
+- Phase 20 metrics missing from STATE.md performance table (only 19, 21, 22 recorded)
+
+### Patterns Established
+- **Module import for mutable globals**: `from app.db import database as _db` instead of `from app.db.database import engine` — Python rebinds module-level variables but the importing module keeps the old reference
+- **Naive datetime consistency**: Services using `datetime.now().replace(tzinfo=None)` must be checked with same timezone awareness — mixing aware/naive causes runtime errors
+- **Health-check as transition detector**: State machine tracks previous_states dict, only fires on state change, prevents alert spam during sustained outages
+
+### Key Lessons
+1. Import-time binding of mutable module variables is a Python gotcha that static analysis doesn't catch — health check appeared to work in tests but failed at runtime because engine was None at import time
+2. Timezone awareness mismatches between services and health checks are silent until runtime — need consistent policy (all naive or all aware)
+3. Small infrastructure milestones (4 phases) complete in a single day — good cadence for operational improvements between feature milestones
+4. Telegram integration is trivial (python-telegram-bot + 2 env vars) but high-value for unattended operation
+
+### Cost Observations
+- Model mix: ~80% opus (executors), ~20% sonnet (verifiers)
+- v3.1 completed in 1 calendar day (2026-02-28), ~31min total plan execution
+- Notable: Bug fixes (engine import, timezone) found during user testing, not during phase verification — verifiers check code structure but not Python import semantics
+
+---
+
 ## Milestone: v3.0 — Multi-Factor Omni-Bot
 
 **Shipped:** 2026-02-28
@@ -64,6 +105,7 @@
 | v1.1 | 4 | 9 | API hardening patterns, reconciliation automation |
 | v2.0 | 4 | 12 | CSS variable foundation, dark mode, nav restructure |
 | v3.0 | 6 | 17 | TDD for domain-heavy plans, structural isolation, regime detection, milestone audit as quality gate |
+| v3.1 | 4 | 8 | Module import gotcha pattern, timezone consistency, health as transition detector |
 
 ### Cumulative Quality
 
@@ -73,6 +115,7 @@
 | v1.1 | ~400 | Clean | 4/4 |
 | v2.0 | ~655 | Clean | 4/4 |
 | v3.0 | 799 | Clean | 6/6 (incl. gap closure) |
+| v3.1 | 799+ | Clean | 4/4 |
 
 ### Top Lessons (Verified Across Milestones)
 
@@ -80,3 +123,4 @@
 2. Research before planning consistently surfaces architectural decisions that save rework during execution (verified v2.0-v3.0)
 3. Phase verification on first attempt correlates with thorough research and plan-checker loops (verified v1.1-v3.0)
 4. Milestone audit as mandatory quality gate catches cross-phase integration issues invisible to per-phase verifiers (verified v3.0 — 4 integration bugs caught)
+5. Python import-time binding of mutable globals is a recurring gotcha — use module imports for variables reassigned after init (verified v3.1 — health check engine was None)
