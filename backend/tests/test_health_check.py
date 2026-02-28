@@ -313,7 +313,10 @@ async def test_no_db_writes():
     mock_conn.execute.assert_called()
     # Verify the execute call used text("SELECT 1")
     call_args = mock_conn.execute.call_args
-    assert "SELECT 1" in str(call_args), "Expected SELECT 1 query"
+    # The first positional arg is the TextClause object
+    text_clause = call_args[0][0]
+    assert hasattr(text_clause, "text"), "Expected a TextClause object"
+    assert text_clause.text == "SELECT 1", f"Expected 'SELECT 1', got '{text_clause.text}'"
 
 
 # ---------------------------------------------------------------------------
