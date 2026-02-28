@@ -14,7 +14,7 @@ from typing import Optional
 
 from sqlalchemy import text
 
-from app.db.database import engine
+from app.db import database as _db
 from app.services.binance_public_client import CachedValue, get_binance_public_client
 from app.services.websocket_manager import get_stream_manager
 from app.services.dry_run_service import get_dry_run_service
@@ -172,7 +172,7 @@ class HealthCheckService:
         """Check SQLite connectivity via read-only SELECT 1."""
         now_iso = datetime.now(timezone.utc).isoformat()
         try:
-            if engine is None:
+            if _db.engine is None:
                 return ServiceStatus(
                     name="db",
                     status="unavailable",
@@ -181,7 +181,7 @@ class HealthCheckService:
                 )
 
             # Use raw connection — NOT get_db() which auto-commits
-            with engine.connect() as conn:
+            with _db.engine.connect() as conn:
                 conn.execute(text("SELECT 1"))
 
             return ServiceStatus(name="db", status="ok", last_checked=now_iso)
@@ -358,7 +358,7 @@ class HealthCheckService:
     async def _check_macro(self) -> ServiceStatus:
         """Check MacroDataService cache freshness."""
         now_iso = datetime.now(timezone.utc).isoformat()
-        now = datetime.now(timezone.utc)
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
         try:
             service = get_macro_data_service()
 
