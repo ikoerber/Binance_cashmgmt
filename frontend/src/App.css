@@ -172,6 +172,48 @@ code {
   gap: 8px;
 }
 
+/* Status Dot in GlobalNav */
+.status-dot-link {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  transition: background-color 0.3s ease;
+}
+
+.status-dot.dot-green {
+  background-color: var(--color-profit);
+  box-shadow: 0 0 6px rgba(22, 163, 74, 0.5);
+}
+
+.status-dot.dot-amber {
+  background-color: var(--color-accent-amber);
+  box-shadow: 0 0 6px rgba(245, 158, 11, 0.5);
+}
+
+.status-dot.dot-red {
+  background-color: var(--color-loss);
+  box-shadow: 0 0 6px rgba(220, 38, 38, 0.5);
+  animation: status-dot-pulse 1.5s ease-in-out infinite;
+}
+
+.status-dot.dot-loading {
+  background-color: rgba(255, 255, 255, 0.4);
+  animation: status-dot-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes status-dot-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
 .settings-pill {
   text-decoration: none;
 }

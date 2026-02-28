@@ -61,6 +61,7 @@ const SymbolLayout = () => {
             <span className="subnav-group-label">Admin</span>
             <NavLink to={`/s/${symbol}/reconciliation`}>Reconciliation</NavLink>
             <NavLink to="/settings">Settings</NavLink>
+            <NavLink to="/status">Status</NavLink>
             <a href="/docs" target="_blank" rel="noopener noreferrer">API Docs</a>
           </div>
         </div>
