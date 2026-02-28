@@ -1,257 +1,190 @@
 # Pitfalls Research
 
-**Domain:** Multi-Factor Omni-Bot addition to existing BTC/EUR Cashflow-Management app -- re-adding removed trading pair, multi-factor scoring engine, real-time signal processing, backtesting, dry-run mode, Combined Score integration
-**Researched:** 2026-02-25
-**Confidence:** HIGH (based on deep codebase analysis of existing WebSocket, Combined Score, Alembic, and Symbol Registry code)
+**Domain:** Hardening + Monitoring additions to BTC/EUR Cashflow-Management Trading App — Health-Check System, Telegram Bot Notifications, WebSocket Auto-Reconnect, Status Dashboard
+**Researched:** 2026-02-28
+**Confidence:** HIGH (based on deep codebase analysis + verified against Binance API docs + Telegram API docs for current rate limits)
+
+---
 
 ## Critical Pitfalls
 
-### Pitfall 1: XRPBTC Re-Addition Collides with Column-Dropping Migration
+### Pitfall 1: Health Checks That Return "Healthy" When Services Are Actually Broken
 
 **What goes wrong:**
-In v2.0, migration `094dac6f695a` explicitly dropped 6 columns across 4 tables that were essential for XRPBTC cross-pair support:
-- `pairings.routing_decision_json` (Text)
-- `pairings.base_asset` (String)
-- `trade_lots.quote_to_eur_rate` (Numeric)
-- `pairing_items.cost_eur` (Numeric)
-- `pairing_items.lot_symbol` (String)
-- `sell_allocations.realized_pnl_eur` (Numeric)
+A health endpoint returns HTTP 200 with `{"status": "healthy"}` even when the services it claims to check are silently failing. This happens when health checks test the wrong thing:
 
-The PROJECT.md states "XRPBTC re-added ... no cross-pair pairing", meaning these columns should NOT be re-added. But XRPBTC lots will have `quote_asset="BTC"` (not EUR). The existing `cost_quote` column stores costs in quote currency -- for XRPBTC lots this will be BTC, not EUR. Every existing code path that treats `cost_quote` as EUR-denominated will produce wrong P&L calculations. The `break_even` calculated from `cost_quote / qty_base_initial` will be in BTC, not EUR.
+- Database health check executes `SELECT 1` (always succeeds even if WAL checkpoint is stuck or disk is full)
+- Binance REST health check tests connectivity to `api.binance.com` (succeeds even if rate limit is exhausted and all real requests are being rejected with 429)
+- Sentiment service health check returns "healthy" because the `SentimentDataService` singleton initialized, but its TTL cache is 3 hours stale and returning degraded data
+- WebSocket health check returns "connected" because `BinanceStreamManager._running == True`, but the actual aiohttp connection to Binance streams is silently dead and has been for 20 minutes
 
-Additionally, the `cost_eur` column on `trade_lots` exists but was designed in v1.0 for EUR-equivalent costs. For XRPBTC lots, `cost_eur` must be populated via BTC-to-EUR conversion at fill time. If the backfill or real-time conversion fails, `cost_eur` will be NULL for some lots, causing NoneType errors in P&L calculations.
+The current `BinanceStreamManager` has a `get_stats()` method that returns `current_prices` — but a price that was received 20 minutes ago looks identical to one received 2 seconds ago. The status dashboard would show "connected" with a stale price timestamp that is easy to miss.
 
 **Why it happens:**
-The decision to "re-add XRPBTC without cross-pair pairing" sounds simple -- just add it to the Symbol Registry. But the v2.0 removal was thorough: it stripped ALL BTC-quote handling infrastructure. Re-adding the symbol without restoring the quote-currency abstraction means every computation that assumes `cost_quote` is in EUR breaks silently with wrong numbers (not crashes).
+Developers proxy internal flags (`_running`, `__initialized`) to health endpoints instead of measuring actual service behavior. A service can be "running" (no exception thrown) while producing wrong or stale data. This is especially insidious for singleton services with TTL caches — they always appear initialized.
 
 **How to avoid:**
-1. XRPBTC needs `quote_to_eur_rate` back on `trade_lots` (new forward migration, NOT a downgrade of 094dac6f695a). This captures the BTC/EUR rate at fill time for deterministic EUR conversion.
-2. Every domain function that reads `cost_quote` must be audited for EUR assumption. Key functions: `compute_portfolio_from_ledger()`, `suggest_pairings()`, `simulate_pairing()`, lot P&L calculations.
-3. The `cost_eur` column already exists on `trade_lots` -- populate it for XRPBTC lots using `cost_quote * quote_to_eur_rate`.
-4. Explicitly test: "XRPBTC lot displays correct EUR break-even on Dashboard" and "XRPBTC lots do NOT appear in EUR-pair Pairing suggestions".
+1. Health checks must measure **freshness**, not just connectivity. Add `last_price_received_at` timestamp to `BinanceStreamManager.get_stats()`. Health is `DEGRADED` if price is older than 2x the expected update interval (ticker stream: updates every ~1 second, so stale if older than 5 seconds).
+2. Database health check must also check write capability: `INSERT INTO health_pings (ts) VALUES (now()); DELETE FROM health_pings;` — but this writes to production DB. Better: check `last_successful_sync_at` from an existing table that has recent write activity.
+3. For Binance REST: health check must issue a real lightweight request (`GET /api/v3/time`) and measure response time. If 429, mark as `DEGRADED`. Do NOT skip the actual request.
+4. For Sentiment service: health is `DEGRADED` if any pillar's `quality == "stale"` (already computed by `SentimentDataService`). Expose this as health signal.
+5. Use three-tier health status: `HEALTHY` / `DEGRADED` / `DOWN`. `DEGRADED` means service is running but output quality is compromised. The status dashboard should show amber for DEGRADED, not green.
 
 **Warning signs:**
-- XRPBTC lots showing break-even in the range of 0.00002 (BTC-denominated) instead of ~0.50 EUR
-- Portfolio aggregation showing wrong totals when XRPBTC lots are included
-- `cost_eur = None` for new XRPBTC lots if conversion fails
+- Status dashboard shows all-green during a Binance API outage
+- Health endpoint response time is < 1ms (it is not checking anything real — just reading flags)
+- Telegram bot never fires "service down" alerts even during known outages
 
 **Phase to address:**
-Phase 1 (XRPBTC Re-Addition) -- must handle quote-currency abstraction BEFORE any scoring/trading logic touches XRPBTC.
+Phase 1 (Health Check System) — the definition of "healthy" must be agreed before building endpoints. Do not build endpoints first and define healthy later.
 
 ---
 
-### Pitfall 2: WebSocket Connection Explosion with Multiple Binance Streams
+### Pitfall 2: Telegram Bot Alert Spam Causing Alert Fatigue
 
 **What goes wrong:**
-The current `BinanceStreamManager` uses a single combined ticker stream (`_run_price_stream`) and a single user data stream per user (`_run_user_data_stream`). Adding depth20 orderbook streams and tick-level trade streams means:
+A service that is flapping (going down and recovering in rapid succession) fires a Telegram notification on every state change. At 1 notification per event, a WebSocket that disconnects and reconnects 20 times in a minute generates 40 messages. The user stops reading Telegram alerts entirely.
 
-1. **Binance enforces a max of 5 WebSocket connections per IP for streams** (documented in Binance API docs). The current architecture opens 2 connections (1 combined ticker + 1 user data). Adding separate depth20 streams per symbol could easily exceed the 5-connection limit: ticker(1) + user_data(1) + depth20_BTCEUR(1) + depth20_XRPEUR(1) + depth20_XRPBTC(1) = 5, leaving zero headroom.
+Specific failure scenario for this codebase: the `BinanceStreamManager` already has exponential backoff for reconnects (5s, 10s, 20s, 40s, 60s). If each reconnect attempt triggers a "service degraded" Telegram notification, the user receives 5+ messages in the first 2 minutes alone. If Binance has a 30-minute maintenance window, that is potentially 10-15 alerts about the same issue.
 
-2. **The depth20 stream pushes every second** (1 Hz) per symbol. With 3 symbols, that is 3 messages/second just from orderbook data. The current `_broadcast_price` method iterates subscribers synchronously -- if any WebSocket send is slow, it blocks ALL updates. At 3 messages/second per stream, a slow client causes cascading delays.
-
-3. **The `aiohttp.ClientSession` is created per connection** in `_run_price_stream` and `_run_user_data_stream` (lines 134 and 279). Creating a new `ClientSession` for each reconnect leaks TCP connections if not properly closed during error paths.
+The existing `AlertBanner` system has no deduplication or cooldown. Alerts are created by `reconciliation_service.py` and stored in `AlertEventDB`. If Telegram is wired to forward all new alerts, it inherits this behavior.
 
 **Why it happens:**
-The existing WebSocket architecture was designed for 2 streams (ticker + user data) with low update frequency (ticker: ~1/sec, user data: event-driven). It was never stress-tested with continuous high-frequency data streams. Adding streams seems like "just add another connection" but hits the Binance connection limit.
+Developers wire Telegram to "on new alert in DB" without thinking about alert frequency. The alert system was designed for human-paced reconciliation events (1-2 per day), not for automated health monitoring (potentially 100s per day). Forwarding all reconciliation alerts directly to Telegram works in development (few events) but fails in production (continuous monitoring).
 
 **How to avoid:**
-1. Use Binance combined streams (`/stream?streams=`) for ALL public data. A single combined stream URL can carry ticker + depth20 + trade streams for multiple symbols. This keeps the connection count at 2 (1 public combined + 1 user data).
-2. Combined stream URL format: `wss://stream.binance.com:9443/stream?streams=btceur@ticker/btceur@depth20/xrpbtc@ticker/xrpbtc@depth20/xrpbtc@trade`
-3. Use a shared `aiohttp.ClientSession` for all stream connections (one per manager lifetime, not per connection).
-4. Add non-blocking broadcast: replace the synchronous subscriber iteration with `asyncio.gather()` with timeouts per client, dropping slow clients.
-5. Track connection count in `get_stats()` to detect approaching the limit.
+1. **Alert state machine, not event stream**: Track service state as HEALTHY → DEGRADED → DOWN → RECOVERING → HEALTHY. Send Telegram only on state *transitions*, not on every health poll. One "WebSocket DOWN" message, then silence until state changes. One "WebSocket RECOVERED" when it recovers.
+2. **Cooldown per alert type**: Do not re-send the same alert type for the same service within a cooldown window (15 minutes for DEGRADED, 1 hour for repeat DOWN). Store `last_notified_at` per `(service, alert_type)` in a new `telegram_notification_log` table or in memory as a singleton dict.
+3. **Minimum severity filter**: Only send Telegram for CRITICAL and DOWN states. DEGRADED shows on the status dashboard but does not page the user. Let users configure their threshold.
+4. **Respect Telegram's rate limit**: Telegram enforces 30 messages/second globally and per-chat limits enforced since February 2025 (per-chat granularity in layer 167). For a single-user bot, the practical limit is 1 message/second to the same chat. Implement an async queue with rate limiting: use `asyncio.sleep(1)` between sends if sending multiple queued messages.
+5. **Test with flapping**: simulate a service cycling UP/DOWN at 1Hz for 60 seconds and verify Telegram receives exactly 2 messages (DOWN once, UP once after settling).
 
 **Warning signs:**
-- "Max reconnect attempts reached" errors appearing within seconds of startup
-- Depth data arriving with 2-3 second delays (queuing behind slow broadcasts)
-- `aiohttp` warnings about unclosed client sessions in logs
+- More than 3 Telegram messages in 5 minutes for the same service
+- `telegram_notification_log` growing faster than 10 rows/hour in steady operation
+- User mutes the Telegram bot (the ultimate alert fatigue indicator)
 
 **Phase to address:**
-Phase 2 (Multi-Factor Scoring Engine) or whenever depth20/trade streams are first needed. Must be addressed BEFORE adding any real-time data consumers.
+Phase 2 (Telegram Bot) — alert state machine must be designed before any Telegram API calls are made. Connecting to Telegram first and adding deduplication later nearly always fails because "we'll add cooldown later" never happens.
 
 ---
 
-### Pitfall 3: Combined Score Weight Rebalancing Breaks Existing Signal Interpretation
+### Pitfall 3: WebSocket Reconnect Causes Missed Fill Events or Duplicate Lot Creation
 
 **What goes wrong:**
-The current Combined Score uses hardcoded weights in `combined_score.py`:
-```python
-DIRECTION_WEIGHT = Decimal("0.60")  # MacroSignal
-SIZING_WEIGHT = Decimal("0.40")     # Sentiment
-```
+When the backend's `BinanceStreamManager` reconnects to the Binance User Data Stream, there is a gap between the last message received and the first message after reconnect. Any `executionReport` events (fills) that occurred during this gap are silently lost. The result: a sell order fills during the disconnect, no `fill_processed` event fires, and the corresponding Lot remains open in the database indefinitely.
 
-Adding Alpha Score as a third signal requires rebalancing. If weights change to, say, MacroSignal 40% + Sentiment 25% + Alpha 35%, the same market conditions will produce different Unified Scores than before. A market state that previously produced +45 (BUY) might now produce +30 (LEAN_BUY). Users who have learned the signal thresholds will be confused.
+The current implementation (`websocket_manager.py`, lines 270-315) simply reconnects and resumes listening — there is no mechanism to request missed events from Binance. Binance does not replay missed User Data Stream events.
 
-Worse, the `ACTION_THRESHOLDS` array maps scores to 7 action levels with fixed breakpoints (-60, -30, -10, +10, +30, +60). If the score distribution shifts due to rebalancing, previously rare actions ("Aggressiv kaufen") could become common or vice versa, making the system feel unreliable.
-
-The conflict detection logic (`_detect_conflict`) currently checks only 2 signals. With 3 signals, you need 3-way conflict detection: MacroSignal bullish + Sentiment bearish + Alpha neutral is qualitatively different from MacroSignal bullish + Sentiment bullish + Alpha bearish.
+The opposite risk also exists: if reconnect is too aggressive (retry without proper deduplication), the same `executionReport` can be processed twice if it arrives just before disconnect AND is re-sent after reconnect (this can happen near Binance maintenance boundaries). The existing fill handler (`websocket_fill_handler.py`) may not be idempotent — processing the same fill twice creates duplicate Lots.
 
 **Why it happens:**
-Developers add Alpha Score as "just another weighted input" without modeling the score distribution change. The existing Combined Score was carefully calibrated -- weights, thresholds, and conflict detection form an interconnected system. Changing any weight changes the output distribution of ALL thresholds.
+WebSocket reconnect is treated as "resume where you left off." But the Binance User Data Stream is not a durable queue — it does not store messages. A gap is permanent. Developers focus on reconnect latency (fast is good) without addressing the data gap itself.
 
 **How to avoid:**
-1. Do NOT change existing MacroSignal/Sentiment weights. Instead, add Alpha Score as a modulating factor that adjusts the existing Combined Score by a bounded amount (e.g., +/- 15 points).
-2. Alternative: Create a separate "Bot Score" that includes Alpha Score, keeping the existing Combined Score intact for the Dashboard widget. The Bot Dashboard uses Bot Score; the Trading area keeps the familiar Combined Score.
-3. If weights must change: run historical simulation comparing old vs. new score distribution, document threshold recalibration, and version the scoring model (v1 = current, v2 = with Alpha).
-4. Extend `_detect_conflict` to handle N signals, not just 2.
+1. **Mandatory reconciliation after reconnect**: After every User Data Stream reconnect, immediately trigger `reconciliation_service.run_orders_reconciliation()`. This REST-based check compares Binance's actual order states to the local DB and catches any fills that occurred during the gap. The reconciliation service already exists — wire it to post-reconnect.
+2. **Idempotent fill processing**: The fill handler (`websocket_fill_handler.py`) must be idempotent. Check if a fill with `tradeId` already exists in `ledger_events` before creating a new Lot. The trade ID is available in `executionReport` as field `t`. Add a unique constraint on `(user_id, binance_trade_id)` to `ledger_events` if not already present.
+3. **Listen Key management on reconnect**: When reconnecting, create a NEW Listen Key rather than reusing the expired one. The current implementation calls `userDataStream.stop` for the old key and creates a new one — verify this happens on every reconnect path, not just on initial connect.
+4. **Gap detection**: Log `(reconnect_at, last_message_at)` pair on every reconnect. If the gap exceeds 30 seconds, emit a DEGRADED health event: "User Data Stream gap detected — manual reconciliation recommended."
+5. **Reconnect counter in health endpoint**: Expose `reconnect_count_last_hour` in the health endpoint. A count > 5 should trigger a DEGRADED health state even if currently connected.
 
 **Warning signs:**
-- The Combined Score Widget on the Dashboard shows different recommendations than before the Alpha Score integration, despite identical market conditions
-- Action distribution shifts noticeably (e.g., "Abwarten" was 40% of the time, now 60%)
-- Users report "the system changed its mind" on familiar market patterns
+- Lots with `status=OPEN` that have corresponding fill events in Binance history but not in local DB
+- Reconciliation consistently finds 1-2 missed fills after every restart
+- `reconnect_count` increasing during Binance maintenance windows (expected) but also during normal operation (unexpected, indicates unstable connection)
 
 **Phase to address:**
-Phase 4 (Combined Score Integration) -- must include score distribution analysis and threshold recalibration. Consider keeping Combined Score unchanged and creating a separate Bot Score.
+Phase 3 (WebSocket Recovery) — reconnect strategy must include the post-reconnect reconciliation trigger. Do NOT ship "reconnect working" without also verifying fill gap handling.
 
 ---
 
-### Pitfall 4: Backtesting Engine Rate-Limited During Historical Data Fetch
+### Pitfall 4: Status Dashboard Adds Write Load to SQLite, Causing Lock Contention
 
 **What goes wrong:**
-The backtesting engine needs 24 months of 1h klines. For a single symbol (BTCEUR), that is ~17,520 candles. Binance returns max 1000 klines per request, requiring 18 paginated requests. For 3 symbols, that is 54 requests.
+The status dashboard polls `/api/health` every few seconds to show live service states. If the health check writes its results to the SQLite database (e.g., `INSERT INTO health_checks (service, status, checked_at)`), and the dashboard polls every 5 seconds, this creates 12 writes per minute from the health system alone. Combined with the existing write paths:
+- `DryRunService` writes decisions every 15 minutes
+- `reconciliation_service` writes run results on each trigger
+- `sync_service` writes Lot records on fill import
+- AlertEventDB writes on new alerts
 
-The existing `orderblock_data_service.py` already handles pagination, but its 1-hour TTL cache is designed for detection (not backtesting). The backtesting engine will need to fetch fresh data on each run if parameters change, and 54 requests in rapid succession risks hitting Binance's IP-based rate limit (1200 requests/minute for public endpoints, but the `requests` library does not track this). Combined with other services (MacroDataService, SentimentDataService) also fetching klines, the cumulative request rate could exceed limits.
+SQLite's single-writer model means these writes contend for the same lock. A health check write that blocks for 100ms delays the DryRunService decision write. More importantly, if the health check itself becomes slow (e.g., checking Binance REST takes 2 seconds), the SQLite write transaction is open during that 2 seconds, blocking ALL other writes.
 
-The `BinancePublicClient` uses `@retry_on_transient_error(max_retries=3)` which waits up to 30 seconds between retries. If rate-limited at request 30 out of 54, the backtest could stall for 90+ seconds (3 retries x 30s) before either succeeding or failing.
+The current `database.py` uses `NullPool` (one connection per request) which is correct for SQLite, but still subjects all writes to global serialization.
 
 **Why it happens:**
-Each service (Orderblock, MacroData, SentimentData, new BacktestEngine) independently fetches from Binance without coordinating request budgets. There is no global rate limiter. Each service has its own retry logic that can collide -- when one service backs off, another keeps firing, and the backed-off service's retry hits again during the other service's active window.
+Persisting health check results to DB feels like good engineering (history, audit trail). But health checks are a monitoring concern, not a business data concern. Health check history belongs in a time-series store or a separate file, not in the trading app's SQLite database.
 
 **How to avoid:**
-1. Implement a global rate limiter in `BinancePublicClient` (token bucket or sliding window). Since `BinancePublicClient` is already a singleton (`get_binance_public_client()`), add rate limiting there. All services already use this client.
-2. Cache historical klines aggressively: 24-month 1h klines change only at the most recent candle. Cache the first 17,500 candles indefinitely, only re-fetch the last 20 candles. Use disk-based cache (SQLite or pickle file) for historical klines, not just in-memory TTL cache.
-3. Stagger requests: insert 50-100ms delays between paginated kline requests to stay well under the 1200/min limit.
-4. Pre-fetch data for all symbols in a single batch job before backtesting, rather than on-demand during backtest execution.
+1. **In-memory health state only**: Do not write health check results to SQLite. Keep health state in a singleton dict in memory: `{"db": {"status": "healthy", "checked_at": ..., "latency_ms": ...}}`. The status dashboard reads this via the health endpoint, which reads from memory.
+2. **If persistence is required**: Use a dedicated SQLite file (`health.db`) with WAL mode, completely separate from `cashmgnt.db`. This eliminates any write contention with production data.
+3. **Health endpoint must NOT hold DB transactions open during external service checks**: Check Binance REST FIRST, THEN open DB connection for the DB health check. Never check Binance inside a DB transaction.
+4. **Rate-limit the health endpoint itself**: Cache the health result for 5 seconds. If the status dashboard polls every 3 seconds, return the cached result rather than re-running all checks. This reduces health check load to 12 checks/minute instead of 20.
+5. **Status dashboard should use WebSocket push, not polling**: Push health state changes via the existing `BinanceStreamManager.broadcast_message()` mechanism when state transitions occur. The dashboard reacts to pushes instead of polling. This eliminates all continuous polling load.
 
 **Warning signs:**
-- Backtest initiation takes 30+ seconds (rate-limit retries)
-- "429 Rate Limit" errors in logs during backtesting
-- Other services (Combined Score Widget) start showing stale data because their retries are being consumed by backtest traffic
+- "database is locked" errors appearing in logs that correlate with health check timing
+- Health endpoint taking > 500ms to respond (indicating it is waiting for DB lock)
+- Dry-Run evaluation loop logging "write delayed" messages during health check windows
 
 **Phase to address:**
-Phase 3 (Backtesting Engine) -- must implement centralized rate limiting and historical kline caching BEFORE allowing multi-symbol backtest runs.
+Phase 1 (Health Check System) — in-memory state design must be decided before any persistence code is written. Adding persistence later requires removing it, which is harder than never adding it.
 
 ---
 
-### Pitfall 5: Z-Score Rolling Window Cold Start Produces False Signals
+### Pitfall 5: Binance Listen Key Expiry Causing Silent User Data Stream Death
 
 **What goes wrong:**
-Z-Score Mean Reversion (40% of Alpha Score) requires a rolling window of historical values to compute mean and standard deviation. During cold start (first application launch or after data gap), the rolling window is empty or too small. Computing Z-Score from 5 data points instead of the intended 50 produces:
-- Wildly inaccurate mean (a few outliers skew it)
-- Near-zero or NaN standard deviation (division by zero if all values are identical)
-- Z-Scores of +50 or -50 for normal price movements, triggering extreme signals
+Binance User Data Stream Listen Keys expire after 60 minutes if not refreshed via keepalive ping. The current implementation (`_keepalive_listen_key` in `websocket_manager.py`, line 323) sends a keepalive every 1800 seconds (30 minutes), which is correct for the intended frequency. However, there is no confirmation that the keepalive succeeded.
 
-The existing `SentimentDataService` has this exact pattern with `_initialize_history()` (line 78 shows `_history_initialized` flag). It solves it by pre-loading 300 days of klines. But the new Z-Score calculator needs sub-hourly data (1m or 5m klines), and 50 rolling periods of 1m klines is only 50 minutes of data -- a much faster initialization. The risk is that developers see "only 50 minutes" and skip the initialization step, assuming data will accumulate naturally.
+The `_ws_api_request` method (line 335) sends the keepalive via WebSocket API and reads the response. If the WebSocket API connection itself fails (the method has a bare `except Exception` that logs and returns `None`), the keepalive silently fails. After 60 minutes from the LAST successful keepalive, the Listen Key expires. The `_user_data_stream_loop` will not detect this — Binance simply stops sending events without sending an explicit expiration notification (documented behavior: "There is no listenKeyExpired event on userDataStream websocket for Spot").
 
-The problem is worse for Lead-Lag Momentum (30% of Alpha Score) which compares XRP price movement to BTC price movement. If one symbol's window is full and the other's is not, the lead-lag correlation is computed from mismatched window sizes, producing spurious correlation values.
+The stream appears "connected" (no WebSocket disconnect) but receives no messages. The health endpoint reports `_running == True` and the `_user_stream_tasks` dict still contains the task entry. Everything looks healthy. All fills during this silent death window are lost.
 
 **Why it happens:**
-Developers implement the steady-state algorithm (rolling window full, Z-Score valid) and forget about the transient state (window filling up). Unit tests typically pre-populate the window, so the cold-start path is never tested.
+Binance's lack of an explicit expiration event means no reconnect is triggered. The stream is alive at the TCP level but dead at the application level. Without a message freshness check, there is no way to detect this from inside the stream loop.
 
 **How to avoid:**
-1. Define a `MIN_WINDOW_SIZE` constant (e.g., 30 data points) below which the Z-Score returns `None` (not 0, not a default). The Alpha Score must handle `None` inputs gracefully by excluding that factor and renormalizing weights.
-2. The initialization function must pre-load enough historical data to fill the window. For 1m klines with a 50-period window, fetch the last 60 minutes of klines on startup.
-3. For Lead-Lag: both symbols' windows must have the SAME timestamps. Use a shared time index. If one symbol has gaps, the other's corresponding data point must be excluded from correlation.
-4. Add a "warmup" status flag to the Alpha Score API response: `{"alpha_score": ..., "warmup": true, "warmup_remaining_pct": 40}`. The UI should show "warming up" instead of displaying unreliable scores.
-5. Write explicit cold-start tests: test Z-Score with 0, 1, 5, 29, 30, and 50 data points.
+1. **Heartbeat detection**: Track `last_user_data_message_at` timestamp per user. If no message received in 90 seconds, the stream is likely stale (User Data Streams send at minimum a keepalive ping every ~20 seconds from Binance's side during quiet periods). Log a warning and force a reconnect.
+2. **Keepalive failure handling**: If `_ws_api_request("userDataStream.ping")` returns `None` (failure), immediately schedule a reconnect — do NOT wait for the next keepalive interval. The current code only logs the error.
+3. **Listen Key refresh strategy**: Create a NEW Listen Key every 45 minutes (not just ping the old one). This gives a 15-minute safety margin before expiry. The new Listen Key stream starts before the old one is closed, ensuring continuity.
+4. **Expose stream message age in health**: `health_endpoint` should return `user_data_stream_last_message_age_seconds`. DEGRADED if > 90 seconds, DOWN if > 300 seconds.
+5. **Post-listen-key-refresh reconciliation**: After creating a new Listen Key (full reconnect), trigger reconciliation to catch any events missed during the Listen Key rotation.
 
 **Warning signs:**
-- Alpha Score showing extreme values (+5 or -5) immediately after app restart
-- Z-Score mean that jumps around wildly during the first hour of operation
-- Lead-Lag correlation flipping between +1 and -1 within minutes
+- User Data Stream task is running but `last_user_data_message_at` shows > 120 seconds ago during active market hours
+- Fill events not arriving during known active trading periods (open orders filling on Binance but not in local DB)
+- Keepalive task logs "Fehler" but stream task log shows no reconnect
 
 **Phase to address:**
-Phase 2 (Multi-Factor Scoring Engine) -- cold start handling must be part of the initial implementation, not bolted on later.
+Phase 3 (WebSocket Recovery) — Listen Key lifecycle management must be explicitly addressed. The current 30-minute ping is necessary but not sufficient.
 
 ---
 
-### Pitfall 6: Dry-Run Mode State Divergence from Live Mode
+### Pitfall 6: Integration With Existing AlertBanner Creates Two Competing Notification Systems
 
 **What goes wrong:**
-Dry-run mode must log decisions (when it would have bought/sold) without placing real orders. The divergence problem occurs because dry-run mode cannot know the ACTUAL fill price, slippage, or partial fill behavior. Dry-run assumes:
-- Fills at the decision price (reality: slippage)
-- Complete fills (reality: partial fills, especially for XRP with lower liquidity)
-- Instant fills (reality: TAKE_PROFIT_LIMIT orders can sit unfilled for hours)
+The existing system has a persistent `AlertBanner` component that polls `/api/alerts/{user_id}` every 30 seconds and shows in-app notifications for reconciliation alerts. The new Telegram bot adds a second notification channel. Without explicit coordination:
 
-Over 24 months of dry-run, these small divergences compound. A dry-run backtest might show +15% returns, but live execution might achieve only +8% because of slippage on every trade.
-
-The deeper issue: the existing system tracks lots, allocations, and orders in the database. Dry-run mode needs a SEPARATE tracking path that does not pollute production data. If dry-run decisions are written to the same `trade_lots` or `orders` tables (even with a flag), queries that filter by status will include dry-run data unless every query adds `AND is_dry_run = FALSE`.
+1. A reconciliation CRITICAL alert gets stored in `AlertEventDB`, shown in the frontend AlertBanner, AND sent to Telegram. The user acknowledges it in the frontend (clicks dismiss), but Telegram already sent the message — no way to retroactively "dismiss" a Telegram message.
+2. The new health check system creates its own alert types (`SERVICE_DOWN`, `DEGRADED`). If these are written to `AlertEventDB`, they appear in the frontend AlertBanner. A status dashboard already shows this information. The user now sees: AlertBanner (top of every page) + Status Dashboard (Admin area) + Telegram (phone). Three channels for the same information.
+3. The AlertBanner is designed for reconciliation alerts (1-2 per day, manual dismiss). Health alerts can fire much more frequently. If `SERVICE_DOWN` events accumulate in `AlertEventDB` faster than users dismiss them, the AlertBanner shows a growing unacknowledged count that never clears, training users to ignore it.
 
 **Why it happens:**
-Dry-run seems like "just don't call the Binance API". But the entire system downstream of order placement (lot creation, sell allocation, portfolio P&L) assumes real fills. Dry-run must simulate the ENTIRE pipeline, not just skip the API call.
+The health monitoring milestone adds new alert types to an existing alert system designed for a different cadence. "Use the existing AlertEventDB" is the path of least resistance, but the existing system was not designed for automated, high-frequency monitoring events.
 
 **How to avoid:**
-1. Dry-run uses a completely separate set of tables or a separate SQLite database file. No production data contamination.
-2. Alternative: Dry-run writes to a `dry_run_decisions` table with its own schema (timestamp, symbol, side, intended_price, intended_qty, alpha_score_at_decision, reason). This is an append-only log, NOT an integration with the lot/allocation system.
-3. Dry-run must include realistic slippage modeling: assume 0.05% slippage for BTC/EUR, 0.15% for XRP/BTC (lower liquidity). These are conservative estimates.
-4. Never add `is_dry_run` boolean to production tables. This is the path to data contamination.
-5. The dry-run log should capture the FULL scoring state at decision time (all 4 factor scores, Alpha Score, trailing stop levels) for later analysis.
+1. **Separate alert categories**: Define two alert categories in `AlertEventDB.alert_type` or as a new `alert_category` column: `BUSINESS` (reconciliation, balance discrepancy — shown in AlertBanner) and `OPERATIONAL` (service health — shown only in Status Dashboard and Telegram, NOT in AlertBanner). The AlertBanner should only show `BUSINESS` alerts.
+2. **Or**: Do not write health alerts to `AlertEventDB` at all. Keep health state in-memory (see Pitfall 4). The Status Dashboard reads from the health endpoint. Telegram reads from the same health state machine. AlertBanner remains reconciliation-only.
+3. **Telegram forwards only CRITICAL + DOWN transitions, never DEGRADED**: This matches the existing AlertBanner severity model (warning/critical) and avoids notification duplication for routine degradations.
+4. **Auto-expire operational alerts**: If health alerts ARE written to `AlertEventDB`, add `auto_expire_at` column (health alerts expire after 24 hours if not acknowledged, reconciliation alerts never expire). This prevents stale operational alerts accumulating.
 
 **Warning signs:**
-- Dry-run P&L looks suspiciously good compared to backtesting results
-- Production queries start returning unexpected data after dry-run mode was activated
-- "Ghost lots" appearing in the Trade Cockpit that do not correspond to real positions
+- `AlertEventDB` growing faster than 10 rows/hour during normal operation
+- Users reporting "I see the same alert on my phone and in the banner at the same time"
+- Unacknowledged alert count permanently > 5 (users stopped dismissing)
 
 **Phase to address:**
-Phase 4 (Dry-Run Mode) -- must be designed as separate data path from day one. Resist the temptation to reuse production infrastructure.
-
----
-
-### Pitfall 7: ATR-Adaptive Trailing Triggers False Exits on Data Gaps
-
-**What goes wrong:**
-ATR-Adaptive Trailing adjusts the trailing stop distance based on current ATR (volatility). This requires continuous price monitoring. If the WebSocket disconnects for 30 seconds (common during Binance maintenance), the next price received after reconnect might be significantly different from the last known price. The trailing stop logic sees this as a sudden price move and may:
-1. Trigger a stop-loss exit because the gap "crosses" the trailing stop level
-2. Tighten the trailing distance because ATR drops during the gap (no price movement = low ATR)
-
-The existing `scheduleReconnect` in `WebSocketContext.jsx` uses exponential backoff (1s, 2s, 4s ... 30s). During a 30-second reconnect, the backend's `BinanceStreamManager` also disconnects from Binance streams. This means NO price data flows for potentially 30+ seconds.
-
-The ATR calculation uses Wilder's Smoothing (the existing `compute_atr()` in `orderblock.py`), which requires continuous data. A gap of 30+ candles in a 1-minute timeframe invalidates the ATR smoothing and produces artificially low volatility readings upon resumption.
-
-**Why it happens:**
-Trailing stop implementations assume a continuous price feed. Real-world WebSocket connections have gaps (network issues, Binance maintenance, rate limiting). The algorithm works perfectly in backtesting (no gaps in historical data) but fails in live operation.
-
-**How to avoid:**
-1. Trailing stop must have a "staleness threshold": if last price update is older than 2x the expected update interval, freeze the trailing stop (do not move it in either direction) until fresh data arrives.
-2. After a data gap, require N consecutive fresh data points (e.g., 5) before resuming trailing stop adjustments. This prevents gap-exit triggers.
-3. ATR must be computed from historical klines (REST API fallback), not solely from the WebSocket stream. On reconnect, fetch the last 25 klines via REST to re-anchor the ATR.
-4. Add a "data quality" flag to the trailing stop state: ACTIVE / FROZEN / RECALIBRATING. The Bot Dashboard should display this state.
-5. Log every trailing stop adjustment with the data quality state for post-mortem analysis.
-
-**Warning signs:**
-- Trailing stops triggering during known Binance maintenance windows
-- ATR values dropping to near-zero after WebSocket reconnection
-- Trailing distance tightening rapidly after a disconnect (false volatility compression)
-
-**Phase to address:**
-Phase 3 (ATR-Adaptive Trailing) -- gap handling must be baked into the initial implementation. Use the existing `connected` state from WebSocketContext as a data quality input.
-
----
-
-### Pitfall 8: Tick Data Processing Blocks the asyncio Event Loop
-
-**What goes wrong:**
-Lead-Lag Momentum Detection requires sub-second tick data (`@trade` stream). Each tick triggers: price update, rolling window update, correlation calculation, and potentially a signal emission. The current `_handle_execution_report` in `websocket_manager.py` uses `asyncio.create_task()` for DB operations (line 372), which correctly offloads to a thread pool. But if the new tick processing also involves DB writes (persisting tick data for analysis) or CPU-intensive calculations (rolling correlation over 500+ ticks), and these run synchronously in the event loop, they block ALL other WebSocket message processing.
-
-The `@trade` stream for BTCEUR alone produces 50-200 messages per second during active trading. Processing each tick synchronously in the event loop means each tick handler must complete in under 5ms to keep up. Rolling window correlation over 500 data points takes 1-5ms in Python (depending on implementation) -- borderline. Adding logging or DB writes pushes it over.
-
-**Why it happens:**
-The existing WebSocket handler works with low-frequency events (ticker: ~1/sec, execution reports: rare). Developers add tick processing using the same pattern without benchmarking the throughput requirements.
-
-**How to avoid:**
-1. Tick data processing must happen in a SEPARATE asyncio task or thread, NOT in the WebSocket message handler. The handler should only: parse the tick, append to an in-memory ring buffer, and return immediately. A separate consumer task processes the buffer periodically (e.g., every 100ms).
-2. Use `collections.deque` for tick buffers (maxlen=1000). Overflow drops oldest ticks automatically.
-3. Correlation and Z-Score calculations should run in `asyncio.to_thread()` (like the existing `handle_fill_event` pattern) to avoid blocking the event loop.
-4. Benchmark: 200 ticks/sec x 5ms/tick = 1 second of processing per second = 100% CPU, event loop starved. Target: < 0.5ms per tick in the handler, batch processing every 100ms.
-5. Consider downsampling: instead of processing every tick, aggregate into 1-second OHLCV bars in-memory. This reduces processing from 200/sec to 1/sec while preserving the essential information.
-
-**Warning signs:**
-- Price updates in the frontend lagging by 2-5 seconds during active trading
-- WebSocket heartbeat (ping/pong every 30s) timing out, triggering reconnects
-- CPU usage of the backend process at 100% during active market hours
-
-**Phase to address:**
-Phase 2 (Multi-Factor Scoring Engine) -- the tick data architecture must be designed for throughput from the start. Do NOT add `@trade` stream handlers in the same pattern as the existing `@ticker` handler.
+Phase 2 (Telegram Bot) — must design the alert routing strategy BEFORE building the Telegram integration. Retrofitting alert categorization after Telegram is wired is painful because existing alerts have no category field.
 
 ---
 
@@ -261,12 +194,15 @@ Shortcuts that seem reasonable but create long-term problems.
 
 | Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
 |----------|-------------------|----------------|-----------------|
-| Storing Alpha Score factors in existing `user_settings` table as JSON blob | Avoids new migration, quick to implement | No schema validation, no queryability, settings table becomes a dumping ground | Never -- Alpha Score config deserves its own table or at minimum typed columns |
-| Using `float` for Z-Score calculations instead of `Decimal` | Faster computation, simpler code | Inconsistent with project's Decimal-everywhere convention, subtle precision drift in rolling calculations over thousands of ticks | Acceptable for intermediate calculations (Z-Score, correlation), but final Alpha Score output and stored values must be Decimal |
-| Sharing the existing `orderblock_data_service` kline cache for backtesting | Avoid building new cache infrastructure | 1-hour TTL designed for detection evicts historical data too quickly for backtesting; backtest runs during cache eviction fetch redundant data | Never for 24-month datasets -- build separate persistent cache |
-| Dry-run writes decisions to production `orders` table with `is_dry_run=TRUE` | Reuses existing order infrastructure, appears in existing UI | Every production query must add filter, easy to forget, data contamination risk | Never -- use separate table or separate database |
-| Using `time.sleep()` in rate limiter inside async code | Simple to implement | Blocks the entire event loop, freezes all WebSocket connections | Never in async context -- use `asyncio.sleep()` or token-bucket pattern |
-| Hardcoding Alpha Score weights (40/30/20/10) as constants | Quick to ship, no UI needed | Cannot tune without code change, no A/B testing capability | Acceptable for MVP/dry-run phase, must move to user_settings before live execution |
+| Writing health results to `cashmgnt.db` (production SQLite) | Audit trail, no new infrastructure | Write contention under load, health checks block trading writes | Never — use in-memory or separate health.db |
+| Polling `/api/health` from status dashboard every 2-3 seconds | Simple implementation | 20-30 DB connections per minute just for monitoring, SQLite lock contention | Never — use WebSocket push for state changes |
+| Reusing `AlertEventDB` for health monitoring events | No new table/migration needed | Alert fatigue, AlertBanner polluted with operational noise | Only if alert category filtering is added first |
+| Telegram bot sending all `alert_type` events without deduplication | Complete coverage | Alert storm during incidents, user disables bot | Never — always deduplicate with state machine |
+| Hardcoded Telegram chat ID and bot token in `.env` | Works immediately | Cannot change chat without restart, no multi-user support | Acceptable for single-user deployment (this app) |
+| Health check with `try: db.execute("SELECT 1") except: return DOWN` | Simple write | Does not detect WAL checkpoint stuck, disk full, or slow queries — only detects total connection failure | Only as a last-resort fallback, not as primary health signal |
+| Using `time.sleep()` inside Telegram send retry logic | Simple to write | Blocks the thread/event loop if called from async context | Never in async context — use `asyncio.sleep()` with retry |
+
+---
 
 ## Integration Gotchas
 
@@ -274,12 +210,16 @@ Common mistakes when connecting to external services.
 
 | Integration | Common Mistake | Correct Approach |
 |-------------|----------------|------------------|
-| Binance Combined WebSocket Stream | Adding depth20 as separate connection (hits 5-connection limit) | Use combined stream URL: `?streams=btceur@ticker/btceur@depth20/xrpbtc@trade` in single connection |
-| Binance Klines API for Backtesting | Fetching 24 months in a single request (returns max 1000 candles, silently truncates) | Paginate with `startTime`/`endTime`, verify candle count matches expected: `24*30*24 = 17,280 for 1h candles` |
-| Binance `@trade` stream | Assuming one message per trade (large orders produce multiple trade events with same orderId but different tradeIds) | Aggregate by orderId for order-level analysis, process each tradeId individually for tick-level analysis |
-| Binance depth20 stream | Treating depth20 snapshot as incremental diff (it is a full snapshot each second, not a diff) | Replace entire local orderbook on each message, do NOT apply as delta |
-| OKX Funding Rate (existing) | Assuming funding rate updates every message (OKX sends rate only every 8 hours) | Cache for 15 minutes (existing behavior), but do NOT increase polling frequency -- no new data will appear |
-| XRPBTC on Binance | Assuming XRPBTC has same liquidity as BTCEUR (XRPBTC daily volume is ~50x lower) | Use wider slippage estimates (0.15% vs 0.05%), larger ATR multipliers, and lower confidence for orderbook signals |
+| Telegram Bot API | Using `requests.get()` synchronously in an async FastAPI handler | Use `httpx.AsyncClient` or `aiohttp` for async Telegram sends; never block the event loop |
+| Telegram Bot API | Sending one message per health check cycle (every 30s) | Send only on state transitions; maintain `last_state` per service in memory |
+| Telegram Bot API (2025) | Ignoring `retry_after` in 429 responses | Since Feb 2025 (layer 167), per-chat `retry_after` values are enforced; parse and respect the header |
+| Binance User Data Stream | Treating keepalive response `None` as "keepalive failed gracefully" | `None` return from `_ws_api_request` means failure; schedule reconnect immediately, do not wait for next interval |
+| Binance User Data Stream | Assuming listen key expiry triggers a WebSocket disconnect | Binance does NOT send a disconnect on key expiry; the connection remains open but receives no messages |
+| FastAPI health endpoint | Not setting `Cache-Control: no-cache` header | HTTP caches (nginx, CDN, browser) may serve stale health status, masking real outages |
+| SQLite WAL mode for health DB | Enabling WAL on existing `cashmgnt.db` mid-production | WAL mode change requires `PRAGMA journal_mode=WAL` with no concurrent writers; safe to add to health.db from creation, risky to change on production DB |
+| Status Dashboard WebSocket | Pushing health updates through the existing user_data channel | Health updates should use the existing `broadcast_message()` method with a distinct `type: "health_update"` message type; do NOT mix health events into order/fill event flow |
+
+---
 
 ## Performance Traps
 
@@ -287,12 +227,13 @@ Patterns that work at small scale but fail as usage grows.
 
 | Trap | Symptoms | Prevention | When It Breaks |
 |------|----------|------------|----------------|
-| Computing Alpha Score on every tick (200/sec) | CPU at 100%, price updates lag 5+ seconds | Batch ticks into 1-second bars, compute Alpha Score on bar close (1/sec) | > 50 ticks/sec per symbol |
-| SQLite NullPool (existing) with concurrent backtest + live trading | "database is locked" errors during backtest writes | Use connection pooling with WAL mode, or separate backtest DB file | When backtest and sync_service write simultaneously |
-| In-memory deque for all rolling windows (no disk persistence) | After restart, all scoring signals invalid for warmup period | Persist rolling window snapshots to DB every 5 minutes for fast recovery | After any restart |
-| Broadcasting tick data to all frontend WebSocket clients | Backend saturated at 200 msgs/sec/client with 3 clients = 600 sends/sec | Downsample to 1-second bars before broadcasting; tick data stays backend-only | > 2 concurrent frontend clients during active trading |
-| Fetching XRPBTC klines alongside BTCEUR/XRPEUR on startup | Triple the API calls, triple the cold-start time | Lazy-load: fetch XRPBTC data only when user selects XRPBTC symbol | On every application start |
-| Backtesting with full-resolution 1m klines for 24 months | 1,051,200 candles per symbol, ~800MB in memory as Python dicts | Use 1h klines for backtesting (17,520 candles), reserve 1m for live signal generation only | > 6 months of 1m data |
+| Health check runs all service checks synchronously (DB, Binance REST, stream manager) | Health endpoint takes 2-3 seconds to respond | Run checks concurrently with `asyncio.gather(check_db(), check_binance(), check_streams())`, total latency = max(individual), not sum | Immediately if Binance REST check takes 1+ second |
+| Status dashboard polls every 2 seconds (frontend `useInterval`) | 30 HTTP requests/minute to `/api/health` when dashboard is open | Cache health result for 5-10 seconds in memory; or use WebSocket push instead of polling | Single user with dashboard open all day = 43,200 requests/day to health endpoint |
+| Health check for `SentimentDataService` initializes the singleton on first call | First health check takes 30-60 seconds (full history initialization), endpoint appears to hang | `SentimentDataService` is already initialized in lifespan; health check must only READ from the existing singleton, never initialize | On first request before lifespan initialization completes (startup race condition) |
+| Telegram message queue growing unbounded during Binance outage | Bot eventually exceeds Telegram's per-chat rate limit, messages dropped | Cap queue at 10 pending messages; drop oldest if queue full; log dropped messages | During any outage lasting > 10 minutes with high alert frequency |
+| Reconnect counter incremented on every attempt including intentional restarts | Counter triggers DEGRADED health alert after every deployment | Distinguish intentional stops (`_running = False`) from failures; only increment failure counter | On every deployment restart if not handled |
+
+---
 
 ## Security Mistakes
 
@@ -300,11 +241,13 @@ Domain-specific security issues beyond general web security.
 
 | Mistake | Risk | Prevention |
 |---------|------|------------|
-| Dry-run mode accepting real money orders if flag is misconfigured | Real money lost on untested strategy | Dry-run mode must have NO access to Binance API credentials (no `api_key` in its service constructor). Structural prevention, not flag-based. |
-| Alpha Score logging raw Binance API responses (may contain IP/account info) | Information leakage in structured logs | Log only computed scores and decisions, never raw API payloads. Follow existing `error_sanitization` pattern. |
-| Backtesting results accessible without authentication | Proprietary trading strategy exposure | Backtest results must be behind existing API key auth (`X-API-Key` header), same as all other endpoints. |
-| XRPBTC orders placed without Max Order Value check in BTC terms | Large unintended BTC positions | Extend `max_order_value_eur` check to convert XRPBTC order value to EUR before validation: `qty * price_xrpbtc * price_btceur`. |
-| WebSocket depth20 data exposure to frontend | Shows exact orderbook state, could be used for front-running | Keep depth20 data backend-only. Only send derived signals (Orderbook Imbalance score) to frontend, never raw depth data. |
+| Exposing Telegram bot token in health endpoint response or logs | Bot token allows anyone to send messages as your bot and read all messages sent to it | Never log the bot token; store in `.env` as `TELEGRAM_BOT_TOKEN`, never expose in API responses |
+| Health endpoint accessible without API key authentication | Internal service state exposed (DB latency, service versions, stream subscriber counts) | Apply existing `require_api_key` dependency to `/api/health` endpoint, same as all other routes |
+| Telegram bot sending alert details that include trade data | Leaks portfolio state (positions, P&L) to Telegram (which may be stored by Telegram indefinitely) | Alerts must contain only operational status, never financial data: "Service DEGRADED" not "Your BTC position is losing 5%" |
+| Health endpoint response reveals internal architecture | `{"services": {"database_path": "/home/user/cashmgnt.db", "api_key": "..."}}` | Sanitize health response: show status and latency only, never paths, keys, or connection strings |
+| Telegram chat ID stored without validation | Wrong chat ID silently discards all alerts (attacker who knows the bot token could enumerate valid chat IDs) | Validate chat ID by sending a test message on startup and confirming delivery; log if test fails |
+
+---
 
 ## UX Pitfalls
 
@@ -312,26 +255,29 @@ Common user experience mistakes in this domain.
 
 | Pitfall | User Impact | Better Approach |
 |---------|-------------|-----------------|
-| Showing Alpha Score during warmup period | User sees extreme values (+5/-5), loses trust in the system | Show "Warming up (85%)" progress indicator until MIN_WINDOW_SIZE reached |
-| Bot Dashboard shows all 4 scoring factors with equal visual weight | User overwhelmed, cannot quickly assess overall signal | Visual hierarchy: Alpha Score prominently on top, factor breakdown in collapsible section (like existing CombinedScore pattern) |
-| Dry-run P&L shown alongside real P&L on Dashboard | User confuses simulated with real performance | Dry-run results ONLY on Bot Dashboard page, never on main Dashboard. Use distinct color scheme (e.g., dotted borders, "SIMULATION" watermark) |
-| Backtest results showing raw numbers without context | "Hit rate 55%" -- is that good or bad? | Always show benchmark comparison: "55% hit rate vs 50% HODL baseline" and risk-adjusted metrics (Sharpe ratio) |
-| Trailing stop parameters exposed as raw numbers (ATR multiplier 2.5) | Non-technical user has no intuition for what 2.5 means | Show translated labels: "Conservative (3.0x)", "Balanced (2.0x)", "Aggressive (1.5x)" with ATR multiplier as tooltip |
-| XRPBTC appearing in symbol selector without clear distinction | User accidentally activates signals for a low-liquidity pair | Show liquidity warning badge next to XRPBTC: "Low liquidity -- wider spreads expected". Default to BTCEUR. |
+| Status dashboard shows all services as green on first load while health checks are still initializing | User trusts a stale/empty "all green" state | Show `CHECKING` state (grey spinner) until all checks complete; never default to green |
+| Health dashboard shows raw latency numbers without context ("DB: 45ms") | User does not know if 45ms is good or bad | Show relative indicator: green < 50ms, amber 50-200ms, red > 200ms, with a one-line explanation on hover |
+| Telegram sends alert at 3am for a DEGRADED state that self-recovers by 3:05am | User woken up unnecessarily; stops trusting alerts | Only notify for states that persist > N minutes (configurable, default 5 min); suppress if service recovers before N minutes elapsed |
+| WebSocket reconnect indicator shows in frontend only during reconnect attempt, then disappears | User has no persistent record that there was a connectivity issue | Show "last disconnect: 3 minutes ago, reconnected successfully" in status dashboard; keep last-disconnect timestamp visible |
+| Status dashboard only accessible in Admin area (requires navigation) | During an incident, user cannot quickly check service health from Trading or Analyse areas | Add a small service status indicator in the nav bar (dot: green/amber/red) that links to the full Status Dashboard in Admin |
+
+---
 
 ## "Looks Done But Isn't" Checklist
 
 Things that appear complete but are missing critical pieces.
 
-- [ ] **XRPBTC Symbol Registry addition:** Often missing -- testing that `parse_symbol("XRPBTC")` returns `TradingPair` with `quote_asset="BTC"`, and that all downstream code correctly identifies BTC as non-EUR quote. Verify: `get_quote_asset("XRPBTC") == "BTC"` and every P&L calculation converts to EUR.
-- [ ] **Alpha Score API endpoint:** Often missing -- warmup status in response. Verify: response includes `warmup: boolean` and `quality: "full" | "partial" | "warming_up"` fields.
-- [ ] **Combined Score Integration:** Often missing -- updated conflict detection for 3+ signals. Verify: `_detect_conflict` handles MacroSignal + Sentiment + Alpha permutations, not just 2-way.
-- [ ] **Backtesting date range validation:** Often missing -- validation that `start_date` is not in the future and `end_date - start_date` does not exceed available data. Verify: meaningful error message instead of empty results.
-- [ ] **Dry-Run table schema:** Often missing -- capturing the FULL scoring state (all 4 factor scores, trailing stop levels, current prices) at each decision point. Without this, dry-run analysis is impossible. Verify: decision log has enough data to reconstruct WHY each decision was made.
-- [ ] **WebSocket stream reconnect for new streams:** Often missing -- reconnect logic for depth20 and trade streams. Verify: depth20 stream recovers within 30 seconds after Binance maintenance.
-- [ ] **XRPBTC lot isolation from Pairing system:** Often missing -- explicit exclusion of XRPBTC lots from EUR-pair pairing suggestions. Verify: `suggest_pairings()` filters by quote_asset or excludes XRPBTC symbol.
-- [ ] **Backtest slippage modeling:** Often missing -- backtests assume perfect fills at exact prices. Verify: backtest engine applies configurable slippage (default: 0.05% BTCEUR, 0.15% XRPBTC).
-- [ ] **ATR gap handling:** Often missing -- trailing stop behavior during WebSocket disconnect. Verify: trailing stop freezes during data gaps and resumes after reconnect + N fresh data points.
+- [ ] **Health endpoint returns HEALTHY:** Often missing — freshness check for price data. Verify: disconnect Binance WebSocket, wait 30 seconds, confirm health endpoint reports DEGRADED (not HEALTHY).
+- [ ] **Telegram bot integrated:** Often missing — alert deduplication. Verify: trigger the same service outage twice within 10 minutes and confirm Telegram receives exactly ONE notification (not two).
+- [ ] **WebSocket auto-reconnect working:** Often missing — post-reconnect reconciliation. Verify: force disconnect during an active sell order fill, reconnect, confirm the fill is reconciled and the Lot status is updated correctly.
+- [ ] **Status dashboard displays all 8 services:** Often missing — DryRunService and AlphaScoreDataService health status. Verify: each service card shows last-check timestamp and latency, not just a status label.
+- [ ] **Listen Key keepalive:** Often missing — keepalive failure handling. Verify: simulate keepalive failure (mock `_ws_api_request` to return None), confirm a reconnect is scheduled within 60 seconds.
+- [ ] **Health check response cached:** Often missing — cache header set. Verify: `/api/health` response includes `Cache-Control: no-cache` header so proxies do not serve stale results.
+- [ ] **Alert routing by category:** Often missing — operational alerts excluded from AlertBanner. Verify: trigger a SERVICE_DOWN health event, confirm it appears in Status Dashboard and Telegram but NOT in the frontend AlertBanner.
+- [ ] **Telegram rate limit handling:** Often missing — `retry_after` respected on 429. Verify: mock Telegram API to return 429 with `retry_after: 5`, confirm bot waits 5 seconds and retries rather than dropping the message or crashing.
+- [ ] **Reconnect counter reset on intentional stop:** Often missing — deployment restarts inflate failure counter. Verify: restart the backend, confirm reconnect failure counter resets to 0 and does not trigger DEGRADED alert.
+
+---
 
 ## Recovery Strategies
 
@@ -339,14 +285,14 @@ When pitfalls occur despite prevention, how to recover.
 
 | Pitfall | Recovery Cost | Recovery Steps |
 |---------|---------------|----------------|
-| XRPBTC lots with wrong EUR P&L | MEDIUM | 1. Write backfill script to populate `cost_eur` from historical BTC/EUR rates. 2. Recalculate all affected sell_allocations. 3. Alembic migration to add `quote_to_eur_rate` column. Existing scripts/backfill_cost_eur.py is a template. |
-| WebSocket connection limit exceeded | LOW | 1. Consolidate into combined streams (config change + restart). 2. No data loss -- missed ticks do not affect persisted state. |
-| Combined Score thresholds miscalibrated after Alpha integration | MEDIUM | 1. Revert to pre-Alpha weights (feature flag). 2. Run score distribution analysis on historical data. 3. Recalibrate thresholds in new deployment. |
-| Rate limiting during backtest | LOW | 1. Cancel running backtest. 2. Wait for rate limit window to reset (60 seconds). 3. Add rate limiter to BinancePublicClient. 4. Re-run backtest. No state corruption. |
-| Z-Score cold start produced false signals | HIGH if orders were placed | 1. If dry-run: simply discard first N minutes of signals. 2. If live: cancel any open orders placed during warmup period. 3. Add MIN_WINDOW_SIZE guard. Recovery cost is HIGH because false signals may have triggered real orders. |
-| Dry-run data in production tables | HIGH | 1. Identify all records with `is_dry_run=TRUE`. 2. Delete from orders, sell_allocations, trade_lots (cascading). 3. Recalculate portfolio state from remaining ledger events. 4. This is why separate tables prevent the issue entirely. |
-| Tick data blocking event loop | LOW | 1. Restart application. 2. Move tick processing to `asyncio.to_thread()`. 3. Add 1-second bar downsampling. No persistent state corruption. |
-| ATR false exit during data gap | HIGH if position was closed | 1. Reconciliation will detect the unexpected sell. 2. If automated: order was real and cannot be undone (this is why dry-run mode exists). 3. Prevention is the ONLY viable strategy here. |
+| Health endpoint returning false-positive healthy | LOW | 1. Add freshness check (timestamp delta) to health logic. 2. Verify with Binance API disconnect test. No data loss, no DB migration. |
+| Telegram alert storm (100+ messages in 10 minutes) | LOW | 1. Temporarily revoke bot token (Telegram BotFather: `/revoke`). 2. Add deduplication to code. 3. Issue new token. 4. Resume. Messages already sent cannot be recalled. |
+| Missed fills during WebSocket gap | MEDIUM | 1. Run manual reconciliation: `POST /api/reconciliation/{user_id}/fills`. 2. The reconciliation service will detect and import any fills missed during gap. 3. The Lot will be updated to correct status. If the Lot was OPEN during the gap and a sell fill was missed, reconciliation creates the sell allocation retroactively. |
+| SQLite lock contention from health writes | LOW | 1. Remove health write code. 2. Switch to in-memory health state. 3. Restart backend. No data loss — health history was not production-critical data. |
+| Listen Key expiry with silent stream death | MEDIUM | 1. Identify time window of silence from logs (`last_user_data_message_at`). 2. Run reconciliation to catch missed fills during the window. 3. Implement freshness check and automatic reconnect. |
+| AlertBanner flooded with health events | LOW | 1. Filter `alert_type IN ('SERVICE_DOWN', 'DEGRADED')` out of AlertBanner query in frontend. 2. Add `alert_category` field to `AlertEventDB` in next migration. 3. Existing alerts remain but new filter prevents future flooding. |
+
+---
 
 ## Pitfall-to-Phase Mapping
 
@@ -354,29 +300,32 @@ How roadmap phases should address these pitfalls.
 
 | Pitfall | Prevention Phase | Verification |
 |---------|------------------|--------------|
-| XRPBTC quote-currency assumption | Phase 1 (XRPBTC Re-Addition) | Unit tests: XRPBTC lot break-even in EUR, portfolio aggregation with mixed EUR/BTC lots, Pairing exclusion |
-| WebSocket connection explosion | Phase 2 (Multi-Factor Scoring) | `get_stats()` shows exactly 2 connections (1 combined public + 1 user data), stress test with all streams active |
-| Combined Score weight rebalancing | Phase 4 (Combined Score Integration) | Score distribution comparison: histogram of old vs new scores over 30-day test data, threshold validation |
-| Kline rate limiting for backtesting | Phase 3 (Backtesting Engine) | Backtest of 24 months / 3 symbols completes in < 60 seconds without any 429 errors in logs |
-| Z-Score cold start | Phase 2 (Multi-Factor Scoring) | Test: Alpha Score returns null/warmup status with < MIN_WINDOW_SIZE data points, no extreme values during warmup |
-| Dry-run state divergence | Phase 4 (Dry-Run Mode) | Verify: production `trade_lots` and `orders` tables have zero dry-run records after 24-hour dry-run test |
-| ATR trailing false exits | Phase 3 (ATR-Adaptive Trailing) | Integration test: simulate 60-second WebSocket gap, verify trailing stop is frozen and no exit triggered |
-| Tick data event loop blocking | Phase 2 (Multi-Factor Scoring) | Load test: inject 200 ticks/sec, verify price broadcast latency stays < 500ms and heartbeat never times out |
+| Stale health checks returning false-positive healthy | Phase 1 (Health Check System) | Disconnect Binance WebSocket — health endpoint must report DEGRADED within 10 seconds |
+| Telegram alert spam / alert fatigue | Phase 2 (Telegram Bot) | Flapping test: cycle service UP/DOWN 10x in 60 seconds — Telegram receives exactly 2 messages |
+| Missed fills on WebSocket reconnect | Phase 3 (WebSocket Recovery) | Force disconnect during known fill event — verify fill captured via post-reconnect reconciliation |
+| SQLite lock contention from health writes | Phase 1 (Health Check System) | Health endpoint uses in-memory state only — verify zero writes to cashmgnt.db during health polling |
+| Listen Key silent expiry | Phase 3 (WebSocket Recovery) | Mock keepalive failure — verify reconnect triggered within 60 seconds and reconciliation runs |
+| Two competing notification systems (AlertBanner vs Telegram) | Phase 2 (Telegram Bot) | Trigger reconciliation CRITICAL alert — verify appears in AlertBanner AND Telegram, NOT duplicated in both; health-only alerts appear in dashboard only |
+| Status dashboard polling adds load | Phase 4 (Status Dashboard) | Open status dashboard for 1 hour — verify zero new writes to cashmgnt.db from health polling |
+| Health check blocks on Binance REST during rate limit | Phase 1 (Health Check System) | Mock Binance to return 429 — health check completes in < 500ms (does not wait for retries) and reports DEGRADED |
+
+---
 
 ## Sources
 
-- Codebase analysis: `backend/app/services/websocket_manager.py` (connection architecture, existing stream management)
-- Codebase analysis: `backend/app/domain/combined_score.py` (hardcoded weights, threshold system, conflict detection)
-- Codebase analysis: `backend/alembic/versions/094dac6f695a_remove_xrpbtc_cross_pair_columns.py` (exact columns dropped)
-- Codebase analysis: `backend/app/symbol_registry.py` (current KNOWN_PAIRS, only 3 EUR pairs)
-- Codebase analysis: `backend/app/services/sentiment_data_service.py` (cold-start initialization pattern, cache TTL design)
-- Codebase analysis: `backend/app/utils/retry.py` (retry/backoff behavior, rate limit handling)
-- Codebase analysis: `backend/app/db/database.py` (NullPool SQLite config, check_same_thread)
-- Codebase analysis: `backend/app/services/websocket_fill_handler.py` (asyncio.to_thread pattern for DB ops)
-- Codebase analysis: `backend/app/services/binance_public_client.py` (request infrastructure, timeout, CachedValue pattern)
-- Binance API documentation (connection limits, stream formats, kline pagination) -- HIGH confidence based on training data, verified against codebase implementation patterns
-- PROJECT.md v3.0 milestone scope (XRPBTC re-addition constraints, no cross-pair pairing)
+- Codebase analysis: `backend/app/services/websocket_manager.py` — `_keepalive_listen_key` (30-min interval), `get_stats()` (no freshness timestamp), `_user_data_stream_loop` (no message-age monitoring)
+- Codebase analysis: `frontend/src/contexts/WebSocketContext.jsx` — `scheduleReconnect` exponential backoff, heartbeat at 30s, no post-reconnect reconciliation trigger
+- Codebase analysis: `backend/app/api/routes/alerts.py` — AlertEventDB structure, unacknowledged_count, no alert category field
+- Codebase analysis: `backend/app/db/database.py` — NullPool SQLite, single-writer constraint relevant to health write load
+- Codebase analysis: `backend/app/main.py` — lifespan initialization order, DryRunService start, stream manager startup sequence
+- Codebase analysis: `backend/app/services/sentiment_data_service.py` — TTL cache structure, quality badges (live/cached/stale/unavailable) — existing freshness model to reuse for health
+- Binance Developer Community: [Avoiding/Detecting stale websocket connections](https://dev.binance.vision/t/avoiding-detecting-stale-websocket-user-data-stream-connections/4248) — Listen Key expiry behavior, no explicit expiration event (MEDIUM confidence — official Binance dev community)
+- Binance Developer Community: [How to detect listenKey expiration](https://dev.binance.vision/t/how-to-detect-listenkey-expiration-on-userdatastream-websocket-for-spot/1370) — confirmed: no `listenKeyExpired` event for Spot stream (HIGH confidence — official forum)
+- Telegram Bot API: Rate limits — 30 msg/sec global, per-chat enforcement since layer 167 (Feb 2025), `retry_after` per-chat granularity (HIGH confidence — verified against [Telegram flood control docs](https://grammy.dev/advanced/flood))
+- AWS Builder's Library: [Implementing health checks](https://aws.amazon.com/builders-library/implementing-health-checks/) — three-tier status, freshness-based health definition (MEDIUM confidence — general engineering practice)
+- SQLite documentation: [Write-Ahead Logging](https://sqlite.org/wal.html) — single-writer constraint, WAL mode read-write concurrency behavior (HIGH confidence — official SQLite docs)
+- Microsoft Q&A: [Missing pubsub messages between client disconnect and reconnect](https://learn.microsoft.com/en-us/answers/questions/482237/missing-pubsub-messages-between-client-disconnect) — WebSocket message gap behavior (MEDIUM confidence — platform-specific but pattern applies generally)
 
 ---
-*Pitfalls research for: v3.0 Multi-Factor Omni-Bot addition to BTC/EUR Cashflow-Management*
-*Researched: 2026-02-25*
+*Pitfalls research for: v3.1 Hardening + Monitoring — Health-Check, Telegram Bot, WebSocket Recovery, Status Dashboard*
+*Researched: 2026-02-28*

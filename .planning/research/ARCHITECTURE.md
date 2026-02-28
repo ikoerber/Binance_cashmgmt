@@ -1,1121 +1,626 @@
-# Architecture Patterns: Multi-Factor Omni-Bot Integration
+# Architecture Research: v3.1 Hardening + Monitoring
 
-**Domain:** Multi-Factor Scoring Engine, Backtesting, and Dry-Run Mode for existing BTC/EUR Cashflow-Management App
-**Researched:** 2026-02-25
-**Overall Confidence:** HIGH (based on thorough analysis of 20+ source files, all patterns verified against existing codebase)
+**Domain:** Health-Check System, Status Dashboard, Telegram Notifications, WebSocket Recovery for existing BTC/EUR Cashflow-Management trading app
+**Researched:** 2026-02-28
+**Confidence:** HIGH (based on direct codebase analysis of 15+ source files, supplemented with web research on integration patterns)
 
 ---
 
-## 1. Existing Architecture Summary
+## 1. Existing Architecture (Relevant Parts)
 
-The codebase follows a strict 3-layer architecture with well-established patterns:
+The codebase follows a strict 3-layer architecture. New code for v3.1 must fit within it without breaking existing invariants.
 
 ```
 API Routes (thin)  -->  Services (DB + External APIs)  -->  Domain (pure, no I/O)
      |                         |                                |
   FastAPI                SQLAlchemy ORM                  Dataclasses + Decimal
-  Pydantic               Binance REST/WS                 Deterministic Logic
-  Auth deps              Singleton + TTL Cache            Pure functions
+  Pydantic               Singletons + TTL Cache          Pure functions only
+  Auth deps              asyncio background tasks        No imports from services
 ```
 
-**Key patterns that new code MUST follow (verified in codebase):**
+### Existing singletons to monitor (all in `backend/app/services/`)
 
-| Pattern | Verified In | Implication for New Code |
-|---------|-------------|------------------------|
-| Domain = pure, no I/O | `domain/macro_signal.py` (516 lines), `domain/sentiment.py`, `domain/combined_score.py` | `domain/alpha_score.py` must have zero imports from services |
-| Service = singleton + `threading.Lock` + `CachedValue` with TTL | `SentimentDataService.__init__()`: `self._lock = threading.Lock()`, `self._cache: dict[str, CachedValue]` | `AlphaDataService` uses identical pattern |
-| CachedValue with TTL + stale detection (6x factor) | `services/binance_public_client.py:CachedValue.is_stale()` | Reuse `CachedValue` class from `binance_public_client.py` |
-| Combined Score = orchestration service composing sub-signals | `CombinedScoreService.get_combined_score()` fetches macro + sentiment, calls pure domain `compute_combined_score()` | Alpha Score becomes 3rd input via same pattern |
-| WebSocket = `BinanceStreamManager` singleton, `aiohttp.ClientSession` | `websocket_manager.py:_run_price_stream()` uses combined stream format | Depth data via REST, not WS (see Section 4.2) |
-| API route = thin, `asyncio.wait_for(asyncio.to_thread(...), timeout=30)` | `api/routes/combined.py:get_combined_score()` | All new routes follow this exact pattern |
-| DB = Alembic with `render_as_batch=True`, JSON columns for config snapshots | `BacktestRunDB.config_json`, `BacktestRunDB.trades_json` | New tables use same JSON-snapshot pattern |
-| Frontend = TanStack Query + WebSocket context, component-per-page, Plain CSS | `App.jsx` routes, `SymbolLayout.jsx` sub-nav groups | New pages under new Bot nav group |
-| Funding Rate = OKX public API (EU-compliant), shared across modules | `SentimentDataService._get_funding_rate()` with `OKX_FUNDING_URL` | Alpha Score reuses cached funding rate, no duplication |
+| Singleton | Constructor Pattern | Has Status/Health Info |
+|-----------|--------------------|-----------------------|
+| `BinanceStreamManager` | `get_stream_manager()` | `get_stats()` already returns running, subscriber counts, current_prices |
+| `DryRunService` | `get_dry_run_service()` | `_running`, `_task` attributes expose loop state |
+| `AlphaScoreDataService` | `get_alpha_score_data_service()` | `_cache` dict with `CachedValue` TTL; `_initialized` flag |
+| `SentimentDataService` | `get_sentiment_data_service()` | `_history_initialized` flag; `_cache` dict |
+| `MacroDataService` | (imported in routes) | Cache dict |
+| `BinancePublicClient` | `get_binance_public_client()` | Wraps requests; no explicit health |
+| `BinanceService` | (instantiated per route call) | Auth client; connectivity = call success |
+
+### Existing lifespan hook in `main.py`
+
+```python
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    validate_startup_config()
+    init_db(database_url)
+    create_tables()
+    # sentiment init
+    # stream_manager.start() + start_user_data_stream()
+    # dry_run_svc.start()
+    yield
+    # dry_run_svc.stop()
+    # stream_manager.stop()
+```
+
+New services (Telegram notifier) start/stop here following the same pattern.
+
+### Existing WebSocket frontend reconnection (in `WebSocketContext.jsx`)
+
+Already has exponential backoff: `Math.min(1000 * Math.pow(2, attempts), 30000)`. The current implementation is missing:
+- Jitter to prevent thundering-herd on server restart
+- Maximum retry cap (attempts are unbounded)
+- Visibility-based reconnect (reconnect faster when tab regains focus)
+- `connected` state is exposed but not surfaced in the Admin UI
+
+### Existing alert system (already in place)
+
+- `AlertEventDB` table + `alerts.py` route (CRUD: list, acknowledge, bulk-acknowledge)
+- `AlertBanner.jsx` polls every 30s, displays severity-colored banners with dismiss
+- `reconciliation_service.py` creates `AlertEventDB` records on threshold breach
+
+Health-check failures will reuse this same `AlertEventDB` table — no new notification table needed.
 
 ---
 
-## 2. New Components Inventory
+## 2. New vs. Modified Components
 
-### Complete list of new and modified components:
+### New Components
 
-| Layer | Component | Type | Description |
-|-------|-----------|------|-------------|
-| **Domain** | `domain/alpha_score.py` | NEW | Pure scoring: 4 factors to Alpha Score (-5 to +5) |
-| **Domain** | `domain/trailing_exit.py` | NEW | Pure ATR-adaptive trailing stop logic |
-| **Domain** | `domain/alpha_backtest.py` | NEW | Pure walk-forward backtest engine with equity curve |
-| **Domain** | `domain/combined_score.py` | MODIFIED | Add optional `AlphaInput` as 3rd signal (backward-compatible) |
-| **Service** | `services/alpha_data_service.py` | NEW | Singleton, fetches klines + depth + reuses funding, TTL cache |
-| **Service** | `services/alpha_backtest_service.py` | NEW | Orchestrates backtest runs, persists results |
-| **Service** | `services/dry_run_service.py` | NEW | Async real-time signal logging loop, no order execution |
-| **Service** | `services/combined_score_service.py` | MODIFIED | Add alpha score as 3rd input with graceful degradation |
-| **Service** | `services/binance_public_client.py` | MODIFIED | Add `get_depth()` method for orderbook snapshots |
-| **DB** | `DryRunLogDB` | NEW TABLE | Logged decisions with factor breakdowns |
-| **DB** | `AlphaBacktestRunDB` | NEW TABLE | Backtest results (separate from OB backtest) |
-| **DB** | `UserSettingsDB` | MODIFIED | Add bot-related settings columns |
-| **API** | `api/routes/alpha.py` | NEW | Alpha Score endpoints |
-| **API** | `api/routes/backtest.py` | NEW | Backtest endpoints (scoped to alpha, not OB) |
-| **API** | `api/routes/dryrun.py` | NEW | Dry-run mode endpoints |
-| **API** | `main.py` | MODIFIED | Register 3 new routers, optional lifespan init |
-| **Frontend** | `components/AlphaScore.jsx` | NEW | Alpha Score detail page |
-| **Frontend** | `components/Backtest.jsx` | NEW | Backtest results + equity curve charts |
-| **Frontend** | `components/DryRunLog.jsx` | NEW | Dry-run decision log |
-| **Frontend** | `components/SymbolLayout.jsx` | MODIFIED | Add Bot nav group (4th section) |
-| **Frontend** | `App.jsx` | MODIFIED | Add 3 new routes under `:symbol` |
-| **Frontend** | `api/client.js` | MODIFIED | Add new API functions |
-| **Frontend** | `components/CombinedScore.jsx` | MODIFIED | Show alpha as 3rd sub-signal card |
-| **Frontend** | `components/Dashboard.jsx` | MODIFIED | CombinedScoreWidget gains alpha indicator |
+| Component | Layer | File | Purpose |
+|-----------|-------|------|---------|
+| `HealthCheckService` | Service | `services/health_check_service.py` | Orchestrates all 8 service checks; returns structured health dict |
+| `TelegramNotifier` | Service | `services/telegram_notifier.py` | Sends Telegram messages via `python-telegram-bot` Bot API; async-compatible |
+| `health.py` (route) | API Route | `api/routes/health.py` | `GET /api/health/{user_id}` — returns full health status |
+| `StatusDashboard.jsx` | Frontend | `components/StatusDashboard.jsx` | Admin-area status page; polls `/api/health/{user_id}` every 15s |
+| `StatusDashboard.css` | Frontend | `components/StatusDashboard.css` | Plain CSS, dark theme, status badge colors |
+
+### Modified Components
+
+| Component | File | Change |
+|-----------|------|--------|
+| `main.py` | `backend/app/main.py` | Register `health.py` router; start/stop `TelegramNotifier` in lifespan |
+| `SymbolLayout.jsx` | `frontend/src/components/SymbolLayout.jsx` | Add "Status" link in Admin subnav group |
+| `App.jsx` | `frontend/src/App.jsx` | Add `/status` route pointing to `StatusDashboard` |
+| `WebSocketContext.jsx` | `frontend/src/contexts/WebSocketContext.jsx` | Add jitter to backoff, cap retry attempts, expose `reconnectCount` in context value |
+| `reconciliation_service.py` | `backend/app/services/reconciliation_service.py` | (optional) Call `TelegramNotifier` on critical reconciliation alerts — or handled in `HealthCheckService` on next poll |
 
 ---
 
-## 3. Domain Layer: New Modules (Pure, No I/O)
+## 3. System Overview: v3.1 Additions
 
-### 3.1 `domain/alpha_score.py` -- Multi-Factor Scoring Engine
-
-**Design principle:** Identical pattern to `domain/macro_signal.py` (SignalScore dataclass, pure scoring functions, composite computation) and `domain/sentiment.py` (pillar weights, renormalization on missing data).
-
-```python
-# --- Dataclasses ---
-
-@dataclass
-class AlphaFactorScore:
-    """Score for a single alpha factor. Pattern: SignalScore from macro_signal.py."""
-    factor: str              # "z_score_mean_reversion", "lead_lag_momentum", etc.
-    raw_value: Decimal       # The raw indicator value (e.g., z-score of -1.5)
-    normalized_score: Decimal  # -1.0 to +1.0 (clamped)
-    weight: Decimal          # Factor weight (sum of active = 1.0 after renorm)
-    quality: str             # "live", "cached", "stale", "unavailable"
-    reason: str              # Human-readable explanation
-
-@dataclass
-class AlphaScoreResult:
-    """Complete alpha score output. Pattern: MacroSignalResult."""
-    alpha_score: Decimal         # -5.0 to +5.0
-    direction: str               # "LONG", "SHORT", "NEUTRAL"
-    confidence: Decimal          # 0.0 to 1.0 (active_factors / total_factors)
-    factor_scores: List[AlphaFactorScore]
-    active_factors: int
-    total_factors: int
-    symbol: str
-    timestamp: datetime
 ```
-
-**Four factors with empirical weights:**
-
-| Factor | Weight | Input Data | Scoring Logic | Rationale |
-|--------|--------|------------|---------------|-----------|
-| Z-Score Mean Reversion | 40% | 50-period close prices (klines) | `z = (price - SMA_50) / std_50`; score = `-z` (contrarian); clamped to [-1, +1] | Mean reversion is the strongest signal in range-bound crypto markets; negative z-score = below mean = buy signal |
-| Lead-Lag Momentum | 30% | BTC/USDT 5m klines + symbol 5m klines | Cross-correlation at lags 1-5; if BTC leads and is rising, symbol expected to follow | BTC leads altcoin price movements by 1-5 candles; well-documented in crypto microstructure |
-| Orderbook Imbalance | 20% | Binance depth20 snapshot | `ratio = bid_vol / (bid_vol + ask_vol)`; score = `2 * (ratio - 0.5)`; clamped | Immediate supply/demand pressure; short-lived but impactful for timing |
-| Funding Rate | 10% | OKX public API (REUSED from SentimentDataService) | Contrarian: high positive funding = overleveraged longs = bearish; score via existing `_FUNDING_RATE_BRACKETS` | Reuses existing scoring logic from `domain/sentiment.py:score_funding_rate()` |
-
-**Core computation function:**
-
-```python
-# Factor weights (renormalized when factors unavailable)
-ALPHA_FACTOR_WEIGHTS = {
-    "z_score": Decimal("0.40"),
-    "lead_lag": Decimal("0.30"),
-    "orderbook": Decimal("0.20"),
-    "funding": Decimal("0.10"),
-}
-
-def compute_alpha_score(
-    factor_scores: List[AlphaFactorScore],
-    weights: Dict[str, Decimal] = ALPHA_FACTOR_WEIGHTS,
-) -> AlphaScoreResult:
-    """
-    Weighted sum of normalized factor scores, scaled to -5..+5.
-
-    Pattern: follows compute_sentiment_v3() for weight renormalization:
-    - If a factor is unavailable, redistribute its weight proportionally
-    - Confidence = active / total (pattern from combined_score.py)
-    - Direction: score > 1.5 = LONG, < -1.5 = SHORT, else NEUTRAL
-
-    All Decimal, no float. Deterministic for same inputs.
-    """
-```
-
-**Why -5 to +5 range:** Provides sufficient granularity (11 integer values) for the 5 direction levels (STRONG LONG / LONG / NEUTRAL / SHORT / STRONG SHORT) without matching the macro signal's -8..+8 (which has 6 underlying factors). Both get normalized to -1..+1 before feeding into Combined Score.
-
-### 3.2 `domain/trailing_exit.py` -- ATR-Adaptive Trailing Stop
-
-```python
-@dataclass
-class TrailingStopState:
-    """Immutable state snapshot for trailing stop. New state returned per candle."""
-    active: bool
-    direction: str               # "LONG" or "SHORT"
-    entry_price: Decimal
-    current_stop: Decimal
-    atr_value: Decimal
-    atr_multiplier: Decimal
-    highest_since_entry: Decimal  # For LONG: ratchets up
-    lowest_since_entry: Decimal   # For SHORT: ratchets down
-    triggered: bool              # True if stop was hit
-
-def init_trailing_stop(
-    direction: str,
-    entry_price: Decimal,
-    atr: Decimal,
-    multiplier: Decimal = Decimal("2.0"),
-) -> TrailingStopState:
-    """Initialize trailing stop state at trade entry."""
-
-def update_trailing_stop(
-    state: TrailingStopState,
-    high: Decimal,
-    low: Decimal,
-    close: Decimal,
-    atr: Decimal,
-) -> TrailingStopState:
-    """
-    Pure function: given current state + new candle OHLC, returns new state.
-
-    For LONG:
-      new_highest = max(state.highest_since_entry, high)
-      new_stop = max(state.current_stop, new_highest - atr * multiplier)
-      triggered = low <= new_stop
-
-    For SHORT:
-      new_lowest = min(state.lowest_since_entry, low)
-      new_stop = min(state.current_stop, new_lowest + atr * multiplier)
-      triggered = high >= new_stop
-    """
-```
-
-**ATR reuse:** `compute_atr()` exists in `domain/orderblock.py` (Wilder's Smoothing). Import it directly -- the function is pure and has no orderblock-specific logic. If the team prefers cleaner separation, extract to `domain/indicators.py` as a shared module. For phase 1, importing from `orderblock.py` is pragmatic and avoids unnecessary refactoring.
-
-### 3.3 `domain/alpha_backtest.py` -- Walk-Forward Backtesting Engine
-
-```python
-@dataclass
-class AlphaBacktestConfig:
-    symbol: str
-    months: int                       # Lookback (default: 24)
-    signal_threshold: Decimal         # Alpha score for entry (default: Decimal("2.0"))
-    exit_threshold: Decimal           # Alpha score for exit (default: Decimal("0.0"))
-    atr_trailing_multiplier: Decimal  # Trailing stop ATR mult (default: Decimal("2.0"))
-    position_size_pct: Decimal        # Percent of capital per trade (default: Decimal("5"))
-    fee_pct: Decimal                  # Trading fee (default: Decimal("0.1"))
-    initial_capital: Decimal          # Starting capital EUR (default: Decimal("10000"))
-
-@dataclass
-class AlphaBacktestTrade:
-    entry_timestamp: datetime
-    exit_timestamp: Optional[datetime]
-    direction: str                 # "LONG" or "SHORT"
-    entry_price: Decimal
-    exit_price: Optional[Decimal]
-    alpha_score_at_entry: Decimal
-    exit_reason: str              # "signal_reversal", "trailing_stop", "time_exit", "open"
-    pnl_eur: Optional[Decimal]
-    pnl_pct: Optional[Decimal]
-    holding_duration_candles: int
-
-@dataclass
-class AlphaBacktestMetrics:
-    total_trades: int
-    win_rate: Optional[Decimal]
-    total_pnl_eur: Decimal
-    total_pnl_pct: Decimal
-    max_drawdown_pct: Decimal
-    sharpe_ratio: Optional[Decimal]     # Annualized, based on daily returns
-    sortino_ratio: Optional[Decimal]    # Downside deviation only
-    hodl_pnl_pct: Decimal               # Benchmark: buy-and-hold
-    alpha_vs_hodl: Decimal              # Strategy return - HODL return
-    avg_holding_duration: Decimal
-    longest_drawdown_candles: int
-    trades_per_month: Decimal
-
-@dataclass
-class AlphaBacktestResult:
-    config: AlphaBacktestConfig
-    metrics: AlphaBacktestMetrics
-    trades: List[AlphaBacktestTrade]
-    equity_curve: List[dict]    # [{"timestamp": ..., "equity": ...}, ...]
-    drawdown_curve: List[dict]  # [{"timestamp": ..., "drawdown_pct": ...}, ...]
-    timestamp: datetime
-
-def run_alpha_backtest(
-    candles: List[Candle],
-    config: AlphaBacktestConfig,
-) -> AlphaBacktestResult:
-    """
-    Walk-forward backtest: at each candle, compute alpha score using
-    only data available at that point (no look-ahead bias).
-
-    Algorithm:
-    1. For each candle i (starting at warmup period = 50):
-       a. Compute Z-Score from candles[i-50:i] (trailing window)
-       b. Compute Lead-Lag from cross-asset klines (if available)
-       c. Score = weighted sum of available factors
-       d. If no position and |score| > signal_threshold: ENTER
-       e. If position and score crosses exit_threshold: EXIT (signal reversal)
-       f. If position: update trailing stop, check trigger
-       g. Track equity curve point
-    2. Compute HODL benchmark: (last_close / first_close - 1)
-    3. Compute Sharpe from daily equity returns
-
-    Critical: This is DIFFERENT from orderblock backtesting.
-    OB backtest: detect zones offline, then simulate zone touches.
-    Alpha backtest: compute score at each candle, enter/exit on score.
-    No shared logic beyond the Candle dataclass.
-    """
+┌──────────────────────────────────────────────────────────────────────┐
+│                         Frontend (React 19)                           │
+│                                                                       │
+│  GlobalNav → SymbolLayout → AdminGroup → [StatusDashboard (NEW)]     │
+│                                                                       │
+│  WebSocketContext.jsx (MODIFIED: jitter + retry cap)                 │
+│  AlertBanner.jsx (unchanged — reuses existing alert system)          │
+└────────────────────┬─────────────────────────────────────────────────┘
+                     │ REST polling (15s refetchInterval)
+                     │ GET /api/health/{user_id}
+┌────────────────────▼─────────────────────────────────────────────────┐
+│                     API Layer (FastAPI)                               │
+│                                                                       │
+│  health.py router (NEW) ← api_auth_with_user dependency              │
+│  alerts.py router (unchanged)                                        │
+└────────────────────┬─────────────────────────────────────────────────┘
+                     │
+┌────────────────────▼─────────────────────────────────────────────────┐
+│                   Service Layer                                        │
+│                                                                       │
+│  HealthCheckService (NEW, singleton)                                 │
+│    ├── check_db()          → SELECT 1 via SessionLocal               │
+│    ├── check_websocket()   → get_stream_manager().get_stats()        │
+│    ├── check_dry_run()     → get_dry_run_service()._running          │
+│    ├── check_alpha_score() → get_alpha_score_data_service()._cache   │
+│    ├── check_sentiment()   → get_sentiment_data_service()._history.. │
+│    ├── check_macro()       → get_macro_data_service()._cache         │
+│    ├── check_binance_rest()→ BinancePublicClient ping (cache hit ok) │
+│    └── check_fastapi()     → always OK if we got here                │
+│                                                                       │
+│  TelegramNotifier (NEW, singleton)                                   │
+│    ├── send_alert(title, body, severity)                             │
+│    ├── _bot: telegram.Bot (python-telegram-bot v22)                  │
+│    └── _chat_id: str (from .env TELEGRAM_CHAT_ID)                   │
+│                                                                       │
+│  [Existing singletons unchanged — health checks read their state]    │
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 4. Service Layer: New and Modified
+## 4. Data Flow
 
-### 4.1 `services/alpha_data_service.py` -- Data Provider (NEW)
+### Health Check Request Flow
 
-**Pattern:** Identical to `SentimentDataService` -- singleton via module-level instance, `threading.Lock`, `CachedValue` with TTL, graceful degradation.
+```
+GET /api/health/{user_id}
+         |
+   health.py route (thin)
+         |
+   HealthCheckService.get_health_status()
+         |  (asyncio.gather for parallel checks)
+         |
+   ├── check_db()           → try: SessionLocal().execute("SELECT 1") → "ok" / "error"
+   ├── check_websocket()    → get_stream_manager().get_stats()["running"] → "ok" / "degraded"
+   ├── check_dry_run()      → get_dry_run_service()._running → "ok" / "stopped"
+   ├── check_alpha_score()  → cache age check → "ok" / "stale" / "unavailable"
+   ├── check_sentiment()    → _history_initialized flag + cache age → "ok" / "stale"
+   ├── check_macro()        → cache age check → "ok" / "stale" / "unavailable"
+   ├── check_binance_rest() → BinancePublicClient.get_ticker_price("BTCEUR") cached → "ok" / "error"
+   └── check_fastapi()      → always "ok"
+         |
+   Aggregate: "healthy" / "degraded" / "critical"
+         |
+   If status changed from last check → TelegramNotifier.send_alert()
+   If status critical → AlertEventDB.create() [reuses existing alert table]
+         |
+   Return JSON response to frontend
+```
+
+### Telegram Notification Flow
+
+```
+HealthCheckService detects service failure
+         |
+   TelegramNotifier.send_alert(title, body, severity)
+         |  (async — does not block health check response)
+   asyncio.create_task(bot.send_message(chat_id, text))
+         |
+   Telegram Bot API (https://api.telegram.org)
+         |
+   User's Telegram client receives notification
+```
+
+Notification conditions (fire once on transition, not every poll):
+- Any service transitions from "ok" to "error" / "critical"
+- Any service transitions back to "ok" (recovery notification)
+- Reconciliation critical alert (existing `reconciliation_service.py` calls notifier)
+
+### WebSocket Recovery (Frontend Enhancement)
+
+```
+Current: scheduleReconnect() → Math.min(1000 * 2^attempts, 30000)
+
+Enhanced:
+  onclose (not 4001) → scheduleReconnect()
+      delay = Math.min(BASE_DELAY * 2^attempts, MAX_DELAY)
+      delay += Math.random() * JITTER_MS   // NEW: prevents thundering herd
+      attempts = Math.min(attempts + 1, MAX_ATTEMPTS)  // NEW: cap at 10
+      if (attempts >= MAX_ATTEMPTS) → stop reconnecting, show persistent error
+
+  document.addEventListener('visibilitychange')  // NEW: fast reconnect on tab focus
+      if (document.visibilityState === 'visible' && !connected)
+          → reset attempts to 0, connect()
+
+  Context value additions:
+      reconnectCount: reconnectAttempts.current  // NEW: for StatusDashboard display
+      wsError: string | null  // NEW: "Max reconnect attempts reached"
+```
+
+---
+
+## 5. Component Boundaries
+
+### HealthCheckService
+
+**Responsibility:** Read-only introspection of all existing singletons. Returns a structured dict. Does NOT modify any service state. Does NOT call Telegram directly — it delegates to `TelegramNotifier`.
+
+**Critical design rule:** Health checks must be non-blocking and fast. Each check has a 2-second timeout. Failures do not propagate exceptions — they return `{"status": "error", "detail": "..."}`.
+
+**State tracking:** The service maintains `_last_status: dict[str, str]` to detect transitions (ok → error) and avoid duplicate Telegram notifications.
 
 ```python
-# Cache TTLs (aligned with existing service patterns)
-KLINE_CACHE_TTL = timedelta(seconds=30)    # Same as MacroDataService.BINANCE_CACHE_TTL
-DEPTH_CACHE_TTL = timedelta(seconds=5)     # Orderbook is very short-lived
-CROSS_KLINE_CACHE_TTL = timedelta(seconds=30)  # BTC/USDT for lead-lag
-
-class AlphaDataService:
-    """
-    Singleton service for Alpha Score data.
-
-    Data sources:
-    1. Binance Public REST: Symbol klines (for Z-Score) -- via BinancePublicClient
-    2. Binance Public REST: BTC/USDT klines (for Lead-Lag) -- via BinancePublicClient
-    3. Binance Public REST: depth20 (orderbook imbalance) -- NEW method on BinancePublicClient
-    4. OKX Funding Rate -- REUSED from SentimentDataService (no new fetch)
-
-    Thread-safe. Graceful degradation: missing data source = factor unavailable,
-    weight redistributed to available factors (pattern from sentiment.py).
-    """
-
+class HealthCheckService:
     def __init__(self):
-        self._cache: dict[str, CachedValue] = {}
+        self._last_status: dict[str, str] = {}
         self._lock = threading.Lock()
 
-    def get_alpha_score(self, symbol: str = "BTCEUR") -> dict:
-        """
-        Fetches all factor data, computes alpha score, returns serialized dict.
-
-        Steps:
-        1. Fetch/cache symbol klines (50 candles, 5m interval)
-        2. Fetch/cache BTC/USDT klines (50 candles, 5m)
-        3. Fetch/cache depth20 snapshot
-        4. Read funding rate from SentimentDataService cache
-        5. Build factor inputs
-        6. Call domain/alpha_score.compute_alpha_score()
-        7. Serialize and return
-        """
-
-    def _get_klines(self, symbol: str, now: datetime) -> Tuple[list, str]:
-        """Fetch klines via BinancePublicClient with TTL cache."""
-
-    def _get_depth(self, symbol: str, now: datetime) -> Tuple[dict, str]:
-        """Fetch depth20 via BinancePublicClient.get_depth() with TTL cache."""
-
-    def _get_funding_rate(self, base_asset: str) -> Tuple[Optional[Decimal], str]:
-        """Reuse funding rate from SentimentDataService cache. No new fetch."""
-        sentiment_svc = get_sentiment_data_service()
-        with sentiment_svc._lock:
-            return sentiment_svc._get_funding_rate(
-                datetime.now(timezone.utc),
-                f"{base_asset}-USDT-SWAP"
-            )
-```
-
-**Singleton pattern (copy of existing):**
-
-```python
-_service_instance: Optional[AlphaDataService] = None
-_service_lock = threading.Lock()
-
-def get_alpha_data_service() -> AlphaDataService:
-    global _service_instance
-    if _service_instance is None:
-        with _service_lock:
-            if _service_instance is None:
-                _service_instance = AlphaDataService()
-    return _service_instance
-```
-
-### 4.2 Orderbook Depth Integration Decision: REST over WebSocket
-
-**Current WebSocket streams in `BinanceStreamManager`:**
-- `{symbol}@ticker` for each KNOWN_PAIR (price updates)
-- `userDataStream` (executionReport, outboundAccountPosition)
-
-**Decision: Use REST polling for depth20, NOT WebSocket.**
-
-| Criterion | WebSocket `depth20@1000ms` | REST `GET /api/v3/depth?limit=20` |
-|-----------|--------------------------|-----------------------------------|
-| Latency | ~1s real-time | ~5s (TTL cache) |
-| Bandwidth | Always-on, even when bot tab not active | On-demand only |
-| Complexity | Modify `BinanceStreamManager`, add depth parsing | New `get_depth()` on existing `BinancePublicClient` |
-| Factor weight | 20% of alpha score | 20% of alpha score |
-| Acceptable staleness | 5s is fine for 20%-weight factor | Yes |
-
-**Verdict: REST.** The 5s staleness is acceptable for a factor that contributes 20% weight to a score that itself contributes 30% to the Combined Score. The effective impact of 5s staleness is `20% * 30% = 6%` of the final signal. Adding always-on depth streaming to the WebSocket manager increases bandwidth and complexity with negligible signal quality improvement.
-
-**New method on `BinancePublicClient`:**
-
-```python
-class BinancePublicClient:
-    # ... existing methods ...
-
-    @retry_on_transient_error()
-    def get_depth(self, symbol: str, limit: int = 20) -> dict:
-        """
-        Fetch orderbook depth snapshot.
-
-        GET /api/v3/depth?symbol=BTCEUR&limit=20
-
-        Returns:
-            {"bids": [[price, qty], ...], "asks": [[price, qty], ...]}
-        """
-        resp = requests.get(
-            f"{BASE_URL}/api/v3/depth",
-            params={"symbol": symbol, "limit": limit},
-            timeout=self.timeout,
+    async def get_health_status(self) -> dict:
+        checks = await asyncio.gather(
+            self._check_db(),
+            self._check_websocket(),
+            self._check_dry_run(),
+            self._check_alpha_score(),
+            self._check_sentiment(),
+            self._check_macro(),
+            self._check_binance_rest(),
+            return_exceptions=True,
         )
-        resp.raise_for_status()
-        return resp.json()
+        # assemble, detect transitions, fire notifications
+        ...
 ```
 
-### 4.3 `services/combined_score_service.py` (MODIFIED)
+### TelegramNotifier
 
-**Current flow (verified in codebase):**
+**Responsibility:** Fire-and-forget async Telegram messages. No retry loop (Telegram's Bot API is reliable; failed notifications are logged, not re-queued).
+
+**Isolation:** Never imported by domain modules. Never imported by route modules directly — only by `HealthCheckService` and (optionally) `reconciliation_service.py`.
+
+**Config:** `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` from `.env`. If either is missing, `TelegramNotifier` is a no-op (graceful degradation — no exception raised).
+
 ```python
-def get_combined_score(self, interval_minutes, symbol):
-    macro_result = macro_service.get_signal(...)        # DirectionInput
-    sentiment_data = sentiment_service.get_sentiment(...)  # SizingInput
-    result = compute_combined_score(direction, sizing)  # Pure domain
-    return self._serialize(result, macro_result, sentiment_data)
+class TelegramNotifier:
+    def __init__(self):
+        token = os.getenv("TELEGRAM_BOT_TOKEN")
+        chat_id = os.getenv("TELEGRAM_CHAT_ID")
+        self._enabled = bool(token and chat_id)
+        if self._enabled:
+            from telegram import Bot
+            self._bot = Bot(token=token)
+            self._chat_id = chat_id
+
+    async def send_alert(self, title: str, body: str, severity: str = "warning"):
+        if not self._enabled:
+            return
+        text = f"[{severity.upper()}] {title}\n{body}"
+        try:
+            await self._bot.send_message(chat_id=self._chat_id, text=text)
+        except Exception:
+            logger.exception("Telegram notification failed")
 ```
 
-**New flow (backward-compatible):**
-```python
-def get_combined_score(self, interval_minutes, symbol):
-    macro_result = macro_service.get_signal(...)
-    sentiment_data = sentiment_service.get_sentiment(...)
+### health.py Route
 
-    # NEW: Try to get alpha score (graceful degradation)
-    alpha_input = None
+**Responsibility:** Thin HTTP layer. Calls `HealthCheckService.get_health_status()`. Returns structured JSON. Uses `api_auth_with_user` dependency (same as all other routes with `{user_id}`).
+
+**No-cache header:** Health responses should not be cached by browsers (`Cache-Control: no-store`).
+
+**Route:** `GET /api/health/{user_id}` — user-scoped to follow existing IDOR protection pattern, even though health data is not user-specific. This avoids creating a new auth pattern.
+
+### StatusDashboard.jsx
+
+**Responsibility:** Display-only admin panel. Polls `/api/health/{user_id}` every 15 seconds via TanStack Query. Shows per-service status badges, last-check timestamp, and WebSocket connection state from `useWebSocket()`.
+
+**Navigation integration:** Added to the Admin subnav group in `SymbolLayout.jsx`:
+```
+Admin
+├── Status (NEW)         →  /status  (global, not symbol-scoped)
+├── Reconciliation
+├── Settings
+└── API Docs
+```
+
+`/status` is NOT symbol-scoped (placed at `/status`, not `/s/:symbol/status`) because health is a global concern. It maps to the global `App.jsx` routing.
+
+---
+
+## 6. Architectural Patterns to Follow
+
+### Pattern: Non-Blocking Health Probe with asyncio.gather
+
+All 8 service checks run in parallel to keep the health endpoint fast (under 2s total response time).
+
+```python
+async def _check_db(self) -> dict:
     try:
-        alpha_service = get_alpha_data_service()
-        alpha_data = alpha_service.get_alpha_score(symbol=symbol)
-        alpha_input = AlphaInput(
-            alpha_score=Decimal(str(alpha_data["alpha_score"])),
-            direction=alpha_data["direction"],
-            confidence=Decimal(str(alpha_data["confidence"])),
-            active_factors=alpha_data["active_factors"],
-            total_factors=alpha_data["total_factors"],
+        await asyncio.wait_for(
+            asyncio.to_thread(self._sync_check_db),
+            timeout=2.0
         )
-    except Exception:
-        logger.warning("Alpha Score unavailable, using 2-signal mode")
+        return {"status": "ok"}
+    except asyncio.TimeoutError:
+        return {"status": "error", "detail": "DB query timeout"}
+    except Exception as e:
+        return {"status": "error", "detail": "DB unavailable"}
 
-    result = compute_combined_score(direction, sizing, alpha=alpha_input)
-    return self._serialize(result, macro_result, sentiment_data, alpha_data)
+def _sync_check_db(self):
+    db = SessionLocal()
+    try:
+        db.execute(text("SELECT 1"))
+    finally:
+        db.close()
 ```
 
-**Weight redistribution in `domain/combined_score.py`:**
+**Why asyncio.to_thread:** `SessionLocal()` is synchronous (SQLAlchemy with NullPool). Wrapping in `to_thread` prevents blocking the async event loop during the health check.
 
-| Signal | Without Alpha (current) | With Alpha |
-|--------|------------------------|------------|
-| MacroSignal (Direction) | 60% | 40% |
-| Sentiment (Sizing) | 40% | 30% |
-| Alpha Score (Precision) | -- | 30% |
+### Pattern: State-Transition-Only Notifications
+
+Telegram messages fire only on state change, not on every poll. Prevents notification spam during sustained outages.
 
 ```python
-# In domain/combined_score.py
-
-# Existing constants (unchanged for backward compatibility)
-DIRECTION_WEIGHT = Decimal("0.60")
-SIZING_WEIGHT = Decimal("0.40")
-
-# New constants for 3-signal mode
-DIRECTION_WEIGHT_WITH_ALPHA = Decimal("0.40")
-SIZING_WEIGHT_WITH_ALPHA = Decimal("0.30")
-ALPHA_WEIGHT = Decimal("0.30")
-
-@dataclass
-class AlphaInput:
-    """Normalized Alpha Score input for Combined Scoring."""
-    alpha_score: Decimal          # -5.0 to +5.0
-    direction: str                # "LONG", "SHORT", "NEUTRAL"
-    confidence: Decimal           # 0.0 to 1.0
-    active_factors: int
-    total_factors: int
-
-def compute_combined_score(
-    direction: DirectionInput,
-    sizing: SizingInput,
-    alpha: Optional[AlphaInput] = None,  # NEW parameter, backward-compatible
-) -> CombinedScoreResult:
-    """
-    When alpha is None: uses existing 60/40 weights (zero behavior change).
-    When alpha is provided: uses 40/30/30 weights.
-
-    Alpha normalization: score / 5.0 -> -1.0..+1.0 (same as macro's raw/8)
-    """
+def _detect_transitions(self, new_statuses: dict) -> list[dict]:
+    transitions = []
+    with self._lock:
+        for service, new_status in new_statuses.items():
+            old_status = self._last_status.get(service, "unknown")
+            if old_status != new_status:
+                transitions.append({
+                    "service": service,
+                    "from": old_status,
+                    "to": new_status,
+                })
+        self._last_status = new_statuses
+    return transitions
 ```
 
-### 4.4 `services/dry_run_service.py` (NEW)
+### Pattern: Graceful Degradation for Optional Config
 
-**Architecture decision: DB-based logging (not file-based).**
+`TelegramNotifier` checks for config at construction time and becomes a no-op if unconfigured. This means the health system works without Telegram credentials — no test failures, no startup errors.
 
-Reasons:
-1. All persistent state in this app lives in SQLite -- files would be inconsistent
-2. DB is queryable (filter by symbol, date, decision type) via standard API patterns
-3. Frontend can display via TanStack Query (same as every other data source)
-4. Position state reconstructable from log on process restart
+Same pattern as existing `SentimentDataService` graceful degradation for missing pillars.
+
+### Pattern: Status Check via Existing Singleton State
+
+Health checks do NOT make new external API calls for services that have internal caches. They inspect the cache state instead.
 
 ```python
-class DryRunService:
-    """
-    Singleton service for dry-run mode.
-
-    Lifecycle:
-    - start(user_id, symbols) -> creates async task per symbol
-    - stop(user_id) -> cancels all tasks
-    - _tick(user_id, symbol) -> single evaluation cycle (runs every N seconds)
-
-    Each tick:
-    1. Fetch alpha score (via AlphaDataService)
-    2. Fetch combined score (via CombinedScoreService)
-    3. Read current market price (from BinanceStreamManager.current_prices)
-    4. Evaluate entry/exit conditions against virtual position
-    5. Update trailing stop state (in-memory, reconstructed from DB on restart)
-    6. Log decision to DryRunLogDB
-    7. Optionally broadcast via WebSocket to frontend
-
-    State:
-    - _running: Dict[str, bool] -- per-user running state
-    - _tasks: Dict[str, List[asyncio.Task]] -- per-user async tasks
-    - _positions: Dict[Tuple[str, str], VirtualPosition] -- (user_id, symbol) -> position
-    """
-
-    def __init__(self):
-        self._running: Dict[str, bool] = {}
-        self._tasks: Dict[str, List[asyncio.Task]] = {}
-        self._positions: Dict[Tuple[str, str], Optional[VirtualPosition]] = {}
-        self._lock = threading.Lock()
-
-    async def start(self, user_id: str, symbols: List[str], interval_sec: int = 60):
-        """Start dry-run evaluation loop for specified symbols."""
-
-    async def stop(self, user_id: str):
-        """Stop all dry-run tasks for user."""
-
-    async def _tick(self, user_id: str, symbol: str):
-        """
-        Single evaluation cycle. Runs in event loop (async).
-
-        Critical: Uses asyncio.to_thread() for DB writes (same pattern
-        as websocket_fill_handler.py:handle_fill_event).
-        """
-
-    def _reconstruct_position(self, user_id: str, symbol: str) -> Optional[VirtualPosition]:
-        """
-        Reconstruct virtual position from DryRunLogDB on service restart.
-        Queries last ENTRY_LONG/ENTRY_SHORT + subsequent updates.
-        """
+async def _check_alpha_score(self) -> dict:
+    svc = get_alpha_score_data_service()
+    with svc._lock:
+        if not svc._cache:
+            return {"status": "unavailable", "detail": "Cache empty (warmup)"}
+        # Check freshness of most recently updated cache entry
+        ...
+        return {"status": "ok", "cache_entries": len(svc._cache)}
 ```
 
-**Virtual position tracking:**
+**Why this approach:** Making a real API call from the health endpoint would add load and could fail for reasons unrelated to service health. Cache inspection is instant and reflects the actual service state from the perspective of consumers.
 
-```python
-@dataclass
-class VirtualPosition:
-    direction: str           # "LONG" or "SHORT"
-    entry_price: Decimal
-    entry_timestamp: datetime
-    trailing_stop: TrailingStopState
-    alpha_score_at_entry: Decimal
+Exception: `check_binance_rest()` uses `BinancePublicClient.get_ticker_price("BTCEUR")` which itself is cached — so the health check hits the cache first and only makes a real call if the cache has expired. This naturally measures whether Binance REST is reachable.
+
+### Pattern: Frontend Polling with TanStack Query
+
+StatusDashboard uses TanStack Query (matching all other pages) rather than a custom `useEffect` fetch.
+
+```javascript
+const { data: health, isLoading } = useQuery({
+  queryKey: ['health', userId],
+  queryFn: () => getHealth(userId),
+  refetchInterval: 15000,
+  staleTime: 10000,
+  retry: false,  // Don't retry on error — show stale data with error badge
+});
 ```
 
-### 4.5 `services/alpha_backtest_service.py` (NEW)
-
-**Pattern:** Follows `services/orderblock_data_service.py` -- orchestrates data fetching, calls domain logic, persists results to DB.
-
-```python
-class AlphaBacktestService:
-    """
-    Orchestrates alpha score backtesting.
-
-    Flow:
-    1. Fetch historical klines (paginated via BinancePublicClient, up to 24 months)
-    2. Optionally fetch BTC/USDT klines for lead-lag (same period)
-    3. Call domain/alpha_backtest.run_alpha_backtest() (pure)
-    4. Persist to AlphaBacktestRunDB (immutable snapshot)
-    5. Return serialized results
-
-    Runs synchronously (CPU-bound). Called via asyncio.to_thread() from API route.
-    """
-
-    def run_backtest(self, user_id: str, symbol: str, config: dict) -> dict:
-        """Run backtest and persist results. Returns serialized result dict."""
-
-    def get_runs(self, user_id: str, symbol: str) -> List[dict]:
-        """Get historical backtest runs for display."""
-
-    def get_run_detail(self, user_id: str, run_id: str) -> dict:
-        """Get single run with trades + equity curve."""
-```
+`retry: false` is intentional: if the backend itself is down, retrying floods a dead server.
 
 ---
 
-## 5. Database Layer: New Tables and Modifications
+## 7. Anti-Patterns to Avoid
 
-### 5.1 `DryRunLogDB` (NEW TABLE)
+### Anti-Pattern: Health Check That Makes External API Calls
 
-```python
-class DryRunDecisionEnum(str, enum.Enum):
-    ENTRY_LONG = "ENTRY_LONG"
-    ENTRY_SHORT = "ENTRY_SHORT"
-    EXIT_SIGNAL = "EXIT_SIGNAL"      # Score crossed exit threshold
-    EXIT_TRAILING = "EXIT_TRAILING"  # Trailing stop triggered
-    HOLD = "HOLD"                    # Has position, no exit signal
-    NO_SIGNAL = "NO_SIGNAL"          # No position, score below threshold
+**What people do:** `GET /health` calls Binance REST, OKX, alternative.me directly to verify connectivity.
 
-class DryRunLogDB(Base):
-    __tablename__ = "dry_run_logs"
+**Why it's wrong:** Health endpoint becomes slow (10s+ timeout per external call), adds unnecessary API load, and creates false failures when rate-limited.
 
-    id = Column(String, primary_key=True)
-    user_id = Column(String, ForeignKey("users.id"), nullable=False)
-    symbol = Column(String, nullable=False)
+**Do this instead:** Inspect the existing TTL-cache state. If the cache has fresh data, the external API was reachable recently. If cache is stale/empty, report degraded — the service will show this naturally without a new call.
 
-    decision = Column(SQLEnum(DryRunDecisionEnum), nullable=False)
-    alpha_score = Column(Numeric(precision=10, scale=4), nullable=False)
-    combined_score = Column(Numeric(precision=10, scale=4), nullable=True)
-    market_price = Column(Numeric(precision=20, scale=10), nullable=False)
+### Anti-Pattern: Telegram Notification on Every Poll
 
-    # Virtual position state at time of decision
-    has_position = Column(Boolean, nullable=False, default=False)
-    position_direction = Column(String, nullable=True)   # "LONG" or "SHORT"
-    position_entry_price = Column(Numeric(precision=20, scale=10), nullable=True)
-    trailing_stop_price = Column(Numeric(precision=20, scale=10), nullable=True)
-    virtual_pnl_pct = Column(Numeric(precision=10, scale=4), nullable=True)
+**What people do:** Send Telegram message every time a service is detected as unhealthy during a health poll.
 
-    # Factor breakdown (JSON for flexibility -- same pattern as config_json on zones/backtest)
-    factor_scores_json = Column(JSON, nullable=False)
-    reason = Column(Text, nullable=False)  # Human-readable decision rationale
+**Why it's wrong:** A 15-second poll interval with a 1-hour outage produces 240 Telegram messages. Notification spam causes users to ignore or mute the bot.
 
-    created_at = Column(DateTime, nullable=False, default=_utcnow)
+**Do this instead:** Track last known state per service in `HealthCheckService._last_status`. Only notify on state transition (ok → error, error → ok).
 
-    __table_args__ = (
-        Index("idx_dryrun_user_symbol_created", "user_id", "symbol", "created_at"),
-        Index("idx_dryrun_user_decision", "user_id", "decision"),
-    )
-```
+### Anti-Pattern: Blocking Health Check
 
-**Growth estimate:** At 1 log/minute per symbol, 3 symbols = 4,320 rows/day = ~130K rows/month. With index on `(user_id, symbol, created_at)`, queries remain fast. Add 30-day retention cleanup as a scheduled task (not blocking for v3.0).
+**What people do:** `def health():` (sync) with blocking DB calls.
 
-### 5.2 `AlphaBacktestRunDB` (NEW TABLE)
+**Why it's wrong:** A slow health check blocks the FastAPI event loop during the request, degrading all concurrent requests. SQLite with NullPool creates a new connection per call, which can be slow.
 
-```python
-class AlphaBacktestRunDB(Base):
-    __tablename__ = "alpha_backtest_runs"
+**Do this instead:** `async def health():` + `asyncio.gather()` for parallel checks, each wrapped in `asyncio.wait_for(..., timeout=2.0)`.
 
-    id = Column(String, primary_key=True)
-    user_id = Column(String, ForeignKey("users.id"), nullable=False)
-    symbol = Column(String, nullable=False)
+### Anti-Pattern: New Route Auth Pattern for Health
 
-    data_start = Column(DateTime, nullable=False)
-    data_end = Column(DateTime, nullable=False)
-    candle_count = Column(Numeric(precision=10, scale=0), nullable=False)
+**What people do:** Create an unauthenticated `/health` endpoint that returns detailed service status.
 
-    # Core metrics (denormalized for list queries without JSON parsing)
-    total_trades = Column(Numeric(precision=10, scale=0), nullable=False)
-    win_rate = Column(Numeric(precision=10, scale=4), nullable=True)
-    total_pnl_pct = Column(Numeric(precision=10, scale=4), nullable=False)
-    max_drawdown_pct = Column(Numeric(precision=10, scale=4), nullable=True)
-    sharpe_ratio = Column(Numeric(precision=10, scale=4), nullable=True)
-    hodl_pnl_pct = Column(Numeric(precision=10, scale=4), nullable=False)
-    alpha_vs_hodl = Column(Numeric(precision=10, scale=4), nullable=False)
+**Why it's wrong:** Detailed service internals (cache state, service versions, DB path) are sensitive. The existing unauthenticated `/health` in `main.py` only returns `{"status": "healthy"}` — sufficient for external monitoring. The new detailed health endpoint must use `api_auth_with_user` like all admin routes.
 
-    # Full results as JSON (immutable snapshot -- pattern from BacktestRunDB)
-    config_json = Column(JSON, nullable=False)
-    metrics_json = Column(JSON, nullable=False)
-    trades_json = Column(JSON, nullable=False)
-    equity_curve_json = Column(JSON, nullable=True)  # Can be large, optional
+**Do this instead:** Keep the existing `GET /health` (unauthenticated, returns `{"status": "healthy"}`) for external uptime monitors. Add new `GET /api/health/{user_id}` (authenticated) for detailed status.
 
-    created_at = Column(DateTime, nullable=False, default=_utcnow)
+### Anti-Pattern: Symbol-Scoped Status Dashboard
 
-    __table_args__ = (
-        Index("idx_alpha_bt_user_symbol", "user_id", "symbol"),
-    )
-```
+**What people do:** Add Status to `/s/:symbol/status` like all other admin pages.
 
-### 5.3 `UserSettingsDB` Column Additions (MODIFIED)
+**Why it's wrong:** Health status is global, not symbol-specific. Placing it under SymbolLayout forces the user to select a symbol to see global health — confusing UX.
 
-```python
-# New columns added to existing UserSettingsDB:
+**Do this instead:** Route `/status` at the App.jsx level (not under SymbolLayout), same as `/settings` and `/backtest`.
 
-# Bot Configuration
-bot_enabled = Column(Boolean, nullable=False, server_default="0")
-bot_mode = Column(String, nullable=False, server_default="dry_run")  # "dry_run" or "disabled"
+### Anti-Pattern: WebSocket Recovery Without Jitter
 
-# Alpha Score Tuning
-alpha_signal_threshold = Column(Numeric(precision=10, scale=4), nullable=True)   # Default: 2.0
-alpha_exit_threshold = Column(Numeric(precision=10, scale=4), nullable=True)     # Default: 0.0
-alpha_trailing_atr_mult = Column(Numeric(precision=10, scale=4), nullable=True)  # Default: 2.0
-alpha_eval_interval_sec = Column(Numeric(precision=5, scale=0), nullable=True)   # Default: 60
-```
+**What people do:** Simple exponential backoff: `delay = Math.min(BASE * 2^n, MAX)`.
 
-All nullable with defaults handled in service layer -- follows exact pattern of existing `ob_interval`, `ob_atr_multiplier` etc.
+**Why it's wrong:** On server restart, all connected clients reconnect simultaneously at the same backoff intervals, creating a thundering herd that overwhelms the freshly started server.
+
+**Do this instead:** Add random jitter: `delay += Math.random() * 2000` (up to 2s additional randomness). This spreads reconnections across time.
 
 ---
 
-## 6. API Layer: New Routes
+## 8. New vs. Modified: Build Order
 
-### 6.1 `api/routes/alpha.py` (NEW)
+Build order is driven by dependency direction. Later phases depend on earlier ones.
 
-| Route | Method | Description | Pattern Source |
-|-------|--------|-------------|---------------|
-| `/api/alpha/{user_id}/score` | GET | Current alpha score for symbol (`?symbol=BTCEUR`) | `combined.py:get_combined_score` |
-| `/api/alpha/{user_id}/factors` | GET | Detailed factor breakdown (`?symbol=BTCEUR`) | `sentiment.py:get_sentiment` |
+| Order | Component | Type | Depends On |
+|-------|-----------|------|-----------|
+| 1 | `TelegramNotifier` (service) | NEW | `.env` config only; no other services |
+| 2 | `HealthCheckService` (service) | NEW | All existing singletons (read-only); `TelegramNotifier` |
+| 3 | `health.py` (route) | NEW | `HealthCheckService` |
+| 4 | `main.py` (lifespan) | MODIFIED | Register health route; start/stop `TelegramNotifier` |
+| 5 | Backend `.env.example` | MODIFIED | Add `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` |
+| 6 | `WebSocketContext.jsx` (jitter + cap) | MODIFIED | No backend deps; pure frontend change |
+| 7 | `StatusDashboard.jsx` + `.css` | NEW | `GET /api/health/{user_id}` (Phase 3); `useWebSocket()` |
+| 8 | `App.jsx` (add `/status` route) | MODIFIED | `StatusDashboard.jsx` |
+| 9 | `SymbolLayout.jsx` (add "Status" nav link) | MODIFIED | `/status` route |
+| 10 | `api/client.js` (add `getHealth`) | MODIFIED | `GET /api/health/{user_id}` endpoint |
 
-### 6.2 `api/routes/backtest.py` (NEW)
-
-| Route | Method | Description | Pattern Source |
-|-------|--------|-------------|---------------|
-| `/api/backtest/{user_id}/alpha/run` | POST | Run alpha backtest (body: config JSON) | `orderblock.py:analyze` |
-| `/api/backtest/{user_id}/alpha/runs` | GET | List backtest runs (`?symbol=`) | `orderblock.py:get_backtest_runs` |
-| `/api/backtest/{user_id}/alpha/runs/{run_id}` | GET | Backtest detail with trades + equity curve | `orderblock.py:get_backtest_run` |
-
-### 6.3 `api/routes/dryrun.py` (NEW)
-
-| Route | Method | Description | Pattern Source |
-|-------|--------|-------------|---------------|
-| `/api/dryrun/{user_id}/start` | POST | Start dry-run (`body: {symbols: [...]}`) | New (lifecycle management) |
-| `/api/dryrun/{user_id}/stop` | POST | Stop dry-run | New |
-| `/api/dryrun/{user_id}/status` | GET | Current status + virtual positions | New |
-| `/api/dryrun/{user_id}/log` | GET | Decision log (`?symbol=&limit=100&decision=`) | Similar to `alerts.py:get_alerts` |
-| `/api/dryrun/{user_id}/log/stats` | GET | Aggregated performance stats | New |
-
-### 6.4 Modified Routes
-
-| Route | Modification |
-|-------|-------------|
-| `/api/combined/{user_id}/score` | Response gains `alpha` sub-signal object when available |
-| `/api/settings/{user_id}` GET/PUT | Gains bot-related fields in request/response |
-
-### 6.5 `main.py` Registration
-
-```python
-from app.api.routes import alpha, backtest, dryrun
-
-# In route registration block (after existing routers):
-app.include_router(alpha.router, dependencies=api_auth)
-app.include_router(backtest.router, dependencies=api_auth)
-app.include_router(dryrun.router, dependencies=api_auth)
-```
+**Rationale for order:**
+- `TelegramNotifier` has no dependencies → build first; safe to ship without wiring
+- `HealthCheckService` depends on `TelegramNotifier` but not the other way around
+- Health route depends on service → backend completes before frontend
+- `WebSocketContext.jsx` changes are pure frontend with no backend dependency → can be parallelized with backend work
+- `StatusDashboard` requires the health endpoint to be live; wiring into routing last
 
 ---
 
-## 7. Frontend Layer: New Components and Modifications
+## 9. Integration Points
 
-### 7.1 Navigation: 4-Area Sub-Nav
+### Backend: New Route Integration
 
-**Current in `SymbolLayout.jsx`:** 3 groups (Trading / Analyse / Admin)
-**New:** 4 groups (Trading / Analyse / Bot / Admin)
+`health.py` registers with `api_auth_with_user` dependency (same pattern as `dry_run.py`, `backtest.py`, etc.):
+
+```python
+# main.py — add to existing imports and include_router calls
+from app.api.routes import health
+
+app.include_router(health.router, dependencies=api_auth_with_user)
+```
+
+`TelegramNotifier` starts in lifespan (same pattern as `DryRunService`):
+
+```python
+# main.py lifespan — add after dry_run_svc.start()
+from app.services.telegram_notifier import get_telegram_notifier
+telegram = get_telegram_notifier()
+await telegram.start()  # validates config, logs status
+
+yield
+
+await telegram.stop()  # no-op if not enabled
+```
+
+### Backend: `.env` + `.env.example` additions
+
+```
+# Telegram Bot Notifications (optional — health alerts disabled if not set)
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_CHAT_ID=
+```
+
+### Frontend: Route addition in `App.jsx`
 
 ```jsx
-// NEW group added to SymbolLayout.jsx subnav:
+import StatusDashboard from './components/StatusDashboard';
+
+// Inside <Routes>:
+<Route path="/status" element={<StatusDashboard />} />
+```
+
+### Frontend: Nav link in `SymbolLayout.jsx` Admin group
+
+```jsx
 <div className="subnav-group">
-  <span className="subnav-group-label">Bot</span>
-  <NavLink to={`/s/${symbol}/alpha`}>Alpha Score</NavLink>
-  <NavLink to={`/s/${symbol}/backtest`}>Backtest</NavLink>
-  <NavLink to={`/s/${symbol}/dryrun`}>Dry Run</NavLink>
+  <span className="subnav-group-label">Admin</span>
+  <NavLink to="/status">Status</NavLink>   {/* NEW */}
+  <NavLink to={`/s/${symbol}/reconciliation`}>Reconciliation</NavLink>
+  <NavLink to="/settings">Settings</NavLink>
+  <a href="/docs" target="_blank" rel="noopener noreferrer">API Docs</a>
 </div>
 ```
 
-**New routes in `App.jsx`:**
-```jsx
-// Inside <Route path="s/:symbol" element={<SymbolLayout />}>:
-<Route path="alpha" element={<AlphaScore />} />
-<Route path="backtest" element={<Backtest />} />
-<Route path="dryrun" element={<DryRunLog />} />
-```
+### Frontend: `api/client.js` addition
 
-### 7.2 `AlphaScore.jsx` (NEW)
-
-- Hero card: Alpha Score gauge (-5 to +5) with direction badge (LONG/SHORT/NEUTRAL)
-- 4 Factor cards: Raw value, normalized bar (-1..+1), weight badge, quality indicator
-- Trailing stop panel (when dry-run position active): entry price, current stop, distance
-- Score history chart (Recharts line chart, last 50 data points from polling)
-- Accent color: Teal `#0d9488` (distinct from existing amber/indigo/sky-blue)
-
-### 7.3 `Backtest.jsx` (NEW)
-
-- Config form: Symbol selector, months (6/12/18/24), threshold slider, ATR multiplier
-- Run button (POST, loading state)
-- KPI cards: Total PnL%, Win Rate%, Sharpe, Max Drawdown%, vs HODL delta
-- Equity curve chart (Recharts area chart): Strategy line + HODL line overlay
-- Trade table (sortable): Entry/Exit timestamps, direction, PnL%, duration, exit reason
-- Historical runs list (collapsible, showing key metrics)
-- Accent color: Follows Bot group color
-
-### 7.4 `DryRunLog.jsx` (NEW)
-
-- Status card: Running/Stopped badge, Start/Stop buttons
-- Virtual position card (when active): Direction, entry price, current PnL, trailing stop level
-- Decision timeline: Chronological list with alpha score sparkline, color-coded by decision type
-- Filter bar: Symbol, decision type, date range
-- Performance summary cards: Virtual trades count, virtual win rate, virtual total PnL
-- Auto-refresh: TanStack Query polling every 10s when running
-
-### 7.5 Modified Components
-
-**`CombinedScore.jsx`:** Add 3rd sub-signal card for Alpha Score:
-```jsx
-// Existing: direction card (MacroSignal) + sizing card (Sentiment)
-// NEW: alpha card when data.alpha is present
-{data.alpha && (
-  <div className="sub-signal-card alpha-card">
-    <h4>Alpha Score (30%)</h4>
-    <span className="alpha-score">{data.alpha.alpha_score}</span>
-    <span className="alpha-direction">{data.alpha.direction}</span>
-    {/* Expandable factor details */}
-  </div>
-)}
-```
-
-**`Dashboard.jsx`:** The CombinedScoreWidget (already integrated in v2.0) automatically shows the alpha signal because it reads from the same `/api/combined/{user_id}/score` endpoint.
-
-**`api/client.js`:** Add new API functions:
 ```javascript
-// Alpha Score
-export const getAlphaScore = async (userId, symbol = 'BTCEUR') => { ... };
-
-// Backtest
-export const runAlphaBacktest = async (userId, config) => { ... };
-export const getAlphaBacktestRuns = async (userId, symbol) => { ... };
-export const getAlphaBacktestRun = async (userId, runId) => { ... };
-
-// Dry Run
-export const startDryRun = async (userId, symbols) => { ... };
-export const stopDryRun = async (userId) => { ... };
-export const getDryRunStatus = async (userId) => { ... };
-export const getDryRunLog = async (userId, params) => { ... };
-export const getDryRunStats = async (userId) => { ... };
+export const getHealth = (userId) =>
+  apiClient.get(`/api/health/${userId}`).then(r => r.data);
 ```
+
+### Frontend: WebSocket context additions
+
+```javascript
+// Expose in context value:
+const value = {
+  // existing...
+  connected,
+  prices,
+  // NEW:
+  reconnectCount: reconnectAttempts.current,
+  wsError,  // null | "Max attempts reached"
+};
+```
+
+`StatusDashboard` consumes `reconnectCount` and `wsError` from `useWebSocket()` to show WebSocket connection health without needing a separate API call.
 
 ---
 
-## 8. Data Flow Diagrams
+## 10. Health Response Schema
 
-### 8.1 Alpha Score Computation (Real-Time)
+The `GET /api/health/{user_id}` endpoint returns:
 
-```
-[Binance Public REST]                [OKX Public REST]
-  |                                     |
-  +-- GET /klines (BTCEUR, 5m, 50)     |  (reused from
-  +-- GET /klines (BTCUSDT, 5m, 50)    |   SentimentDataService
-  +-- GET /depth (BTCEUR, limit=20)     |   cache)
-  |                                     |
-  v                                     v
-[AlphaDataService]              [SentimentDataService]
-  (30s cache)     (5s cache)      (15min cache)
-       |               |              |
-       +-------+-------+--------------+
-               |
-               v
-    [domain/alpha_score.py]
-    compute_alpha_score(factors, weights)
-               |
-               v
-       AlphaScoreResult
-               |
-       +-------+-------+
-       |       |       |
-       v       v       v
-   [Combined  [Dry   [API
-    Score]    Run]   /alpha/score]
-```
-
-### 8.2 Combined Score v2 (With Alpha)
-
-```
-[MacroDataService]       [SentimentDataService]     [AlphaDataService]
-      |                         |                          |
-      v                         v                          v
-  DirectionInput            SizingInput              AlphaInput (optional)
-      |                         |                          |
-      +-------------------------+--------------------------+
-                                |
-                                v
-                [domain/combined_score.py]
-                compute_combined_score(dir, sizing, alpha?)
-                                |
-                    +-----------+-----------+
-                    |                       |
-                    v                       v
-            alpha=None:              alpha=present:
-            60% dir + 40% siz       40% dir + 30% siz + 30% alpha
-                    |                       |
-                    +-----------+-----------+
-                                |
-                                v
-                      CombinedScoreResult
-                                |
-                                v
-                    [API /combined/score]
-                                |
-                                v
-                 [CombinedScore.jsx / Dashboard Widget]
+```json
+{
+  "overall": "healthy | degraded | critical",
+  "checked_at": "2026-02-28T12:00:00Z",
+  "services": {
+    "fastapi": {
+      "status": "ok",
+      "detail": null
+    },
+    "database": {
+      "status": "ok | error",
+      "detail": null
+    },
+    "websocket_binance": {
+      "status": "ok | degraded | stopped",
+      "detail": "running=true, price_subscribers=1, active_tasks=2",
+      "current_prices": {"BTCEUR": "85000.00"}
+    },
+    "dry_run_loop": {
+      "status": "ok | stopped",
+      "detail": null
+    },
+    "alpha_score_cache": {
+      "status": "ok | stale | unavailable",
+      "detail": "cache_entries=3, oldest_age_seconds=42"
+    },
+    "sentiment_cache": {
+      "status": "ok | stale | unavailable",
+      "detail": "history_initialized=true, cache_entries=5"
+    },
+    "macro_cache": {
+      "status": "ok | stale | unavailable",
+      "detail": null
+    },
+    "binance_rest": {
+      "status": "ok | error",
+      "detail": "cached=true, age_seconds=18"
+    }
+  }
+}
 ```
 
-### 8.3 Dry-Run Mode Lifecycle
+**Status tiers:**
+- `ok` — working normally
+- `stale` — cache exists but exceeds TTL (data is old but service ran recently)
+- `degraded` — partial function (e.g., WebSocket connected but no price subscribers)
+- `stopped` — background task not running (dry_run loop)
+- `unavailable` — cache is empty / service never successfully fetched data
+- `error` — hard failure (DB unreachable, exception thrown)
 
-```
-[User clicks "Start Dry Run" in DryRunLog.jsx]
-            |
-            v
-    POST /api/dryrun/{user_id}/start
-            |
-            v
-    [DryRunService.start()]
-    Creates async task per symbol
-            |
-            v
-    [_tick() loop every 60s]
-        |
-        +-- 1. alpha_data_service.get_alpha_score(symbol)
-        +-- 2. combined_score_service.get_combined_score(symbol)
-        +-- 3. stream_manager.current_prices[symbol]  (live price)
-        +-- 4. Evaluate: entry? exit? hold?
-        +-- 5. Update trailing stop state (if position)
-        +-- 6. asyncio.to_thread(log_decision_to_db)  -->  [DryRunLogDB]
-        +-- 7. (optional) broadcast via WS to frontend
-        |
-        v
-    [Frontend polls GET /api/dryrun/log every 10s]
-            |
-            v
-    [DryRunLog.jsx renders decision timeline]
-```
-
-### 8.4 Backtest Flow
-
-```
-[User configures and clicks "Run Backtest" in Backtest.jsx]
-            |
-            v
-    POST /api/backtest/{user_id}/alpha/run
-            |
-            v
-    asyncio.to_thread(alpha_backtest_service.run_backtest)
-            |
-            +-- 1. Fetch 24-month klines (paginated, BinancePublicClient)
-            +-- 2. (Optional) Fetch BTC/USDT klines for lead-lag
-            +-- 3. Call domain/alpha_backtest.run_alpha_backtest()
-            |         Walk-forward at each candle:
-            |           a. Compute z-score from trailing 50-candle window
-            |           b. Compute lead-lag from BTC correlation
-            |           c. Weighted score
-            |           d. Enter if |score| > threshold, exit on reversal/trailing
-            |           e. Track equity curve point
-            +-- 4. Compute HODL benchmark
-            +-- 5. Compute Sharpe/Sortino from equity curve
-            +-- 6. Persist to AlphaBacktestRunDB (immutable JSON snapshot)
-            |
-            v
-    [API returns serialized AlphaBacktestResult]
-            |
-            v
-    [Backtest.jsx renders KPIs + equity chart + trade table]
-```
+**Overall aggregation:**
+- `healthy` — all services "ok"
+- `degraded` — any service "stale" or "degraded" or "stopped"
+- `critical` — any service "error" or "unavailable" for a critical service (DB, FastAPI)
 
 ---
 
-## 9. Integration Points (Explicit)
+## 11. Scalability Considerations
 
-### 9.1 New Components Depending on Existing Code
+This is a single-user system (one `userId = 'user_123'`). Scaling is not a current concern. However, two design choices future-proof the implementation:
 
-| New Component | Depends On | How |
-|---------------|------------|-----|
-| `domain/alpha_score.py` | Nothing | Pure module, zero imports from existing code |
-| `domain/trailing_exit.py` | `domain/orderblock.py:compute_atr()` | Import function (pure, no side effects) |
-| `domain/alpha_backtest.py` | `domain/orderblock.py:Candle` dataclass | Import dataclass |
-| `domain/combined_score.py` (mod) | New `AlphaInput` dataclass | Added to same file |
-| `services/alpha_data_service.py` | `BinancePublicClient` (singleton) | Import `get_binance_public_client()` |
-| `services/alpha_data_service.py` | `SentimentDataService` (funding rate) | Import `get_sentiment_data_service()`, access cached funding |
-| `services/combined_score_service.py` (mod) | `AlphaDataService` | Import `get_alpha_data_service()` |
-| `services/dry_run_service.py` | `AlphaDataService` | Import singleton |
-| `services/dry_run_service.py` | `CombinedScoreService` | Import singleton |
-| `services/dry_run_service.py` | `BinanceStreamManager.current_prices` | Access dict for live price |
-| `services/dry_run_service.py` | `SessionLocal` from `db/database.py` | For DB writes (pattern from `websocket_fill_handler.py`) |
-| `services/alpha_backtest_service.py` | `BinancePublicClient` | Kline fetching (paginated) |
-| `main.py` (mod) | 3 new route modules | `include_router()` calls |
-| Frontend (mod) | `SymbolLayout.jsx` | Add Bot nav group |
-| Frontend (mod) | `App.jsx` | Add 3 new Route entries |
-| Frontend (mod) | `api/client.js` | Add new API functions |
-
-### 9.2 Existing Code Modified by New Features
-
-| Existing File | Modification | Risk Level | Reason |
-|---------------|-------------|------------|--------|
-| `domain/combined_score.py` | Add `AlphaInput` dataclass + optional parameter | LOW | `None` default = zero behavior change |
-| `services/combined_score_service.py` | Add alpha fetch with try/except fallback | LOW | Fallback to existing 60/40 on any error |
-| `services/binance_public_client.py` | Add `get_depth()` method | LOW | New method, no changes to existing ones |
-| `db/models.py` | Add 2 new table classes + settings columns | LOW | Additive, no modifications to existing tables |
-| `main.py` | Register 3 new routers | LOW | Additive |
-| `SymbolLayout.jsx` | Add Bot nav group | LOW | Additive, existing groups unchanged |
-| `App.jsx` | Add 3 new routes | LOW | Additive |
-| `api/client.js` | Add new API functions | LOW | Additive |
-| `CombinedScore.jsx` | Show alpha sub-signal card | LOW | Conditional rendering, only when data present |
-| `symbol_registry.py` | Add XRPBTC back | MEDIUM | Needs testing that existing EUR-only code paths still work |
-
----
-
-## 10. Suggested Build Order (Dependency-Driven)
-
-Strict dependency chain: domain first (no deps) --> services (depend on domain) --> API (depends on services) --> frontend (depends on API). Each phase is independently testable.
-
-### Pre-Phase: XRPBTC Re-Addition
-
-**Independent of bot features. Can run in parallel with Phase 1.**
-
-- `symbol_registry.py`: Add XRPBTC back (analysis + trading, no cross-pair pairing)
-- Frontend `symbolRegistry.js`: Add XRPBTC
-- Verify sync works for XRPBTC fills
-- Verify existing EUR-pair tests still pass
-
-### Phase 1: Domain Layer (Pure Logic, Fully Testable)
-
-**Zero external dependencies. Pure Python + Decimal. Test with pytest immediately.**
-
-1. `domain/alpha_score.py`: AlphaFactorScore, AlphaScoreResult, `compute_alpha_score()`
-2. `domain/trailing_exit.py`: TrailingStopState, `init_trailing_stop()`, `update_trailing_stop()`
-3. `domain/alpha_backtest.py`: Config/Trade/Metrics dataclasses, `run_alpha_backtest()`
-4. `domain/combined_score.py` (mod): Add AlphaInput, modify `compute_combined_score()`
-5. Tests: `test_alpha_score.py`, `test_trailing_exit.py`, `test_alpha_backtest.py`, update `test_combined_score.py`
-
-### Phase 2: Data + Service Layer
-
-**Depends on Phase 1 domain modules + existing singleton services.**
-
-6. `services/binance_public_client.py` (mod): Add `get_depth()` method
-7. `services/alpha_data_service.py`: Singleton, data fetching, caching
-8. `services/combined_score_service.py` (mod): Integrate alpha score with fallback
-9. DB migration (Alembic): Add `DryRunLogDB`, `AlphaBacktestRunDB`, settings columns
-10. `services/alpha_backtest_service.py`: Orchestration + persistence
-11. `services/dry_run_service.py`: Async evaluation loop + DB logging
-12. Tests: Service-level tests with mocked data sources
-
-### Phase 3: API Layer
-
-**Depends on Phase 2 services.**
-
-13. `api/routes/alpha.py`: Alpha score endpoints
-14. `api/routes/backtest.py`: Backtest endpoints
-15. `api/routes/dryrun.py`: Dry-run lifecycle + log endpoints
-16. `main.py` (mod): Register new routers
-17. Integration tests: Full request/response cycle
-
-### Phase 4: Frontend
-
-**Depends on Phase 3 API.**
-
-18. `api/client.js` (mod): Add new API functions
-19. `SymbolLayout.jsx` (mod): Add Bot nav group
-20. `App.jsx` (mod): Add 3 new routes
-21. `AlphaScore.jsx`: Alpha Score detail page
-22. `Backtest.jsx`: Backtest results + equity curve charts
-23. `DryRunLog.jsx`: Dry-run decision log + controls
-24. `CombinedScore.jsx` (mod): Add alpha sub-signal card
-25. CSS files for new components (Bot section accent color)
-
----
-
-## 11. Anti-Patterns to Avoid
-
-### Anti-Pattern 1: I/O in Domain Layer
-**What:** Fetching data inside `domain/alpha_score.py` (e.g., importing `requests`)
-**Why bad:** Breaks the foundational architecture invariant. All 6 existing domain modules are pure.
-**Instead:** All data fetching in `alpha_data_service.py`; domain receives pre-fetched data as function arguments.
-
-### Anti-Pattern 2: Duplicating Funding Rate Fetching
-**What:** Creating a new OKX funding rate fetcher in `AlphaDataService`
-**Why bad:** Two caches for same data, double API calls to OKX, inconsistent values between Sentiment and Alpha
-**Instead:** Import `get_sentiment_data_service()`, read its cached funding rate value.
-
-### Anti-Pattern 3: File-Based Dry-Run Logging
-**What:** Writing dry-run decisions to a log file instead of DryRunLogDB
-**Why bad:** Not queryable via API, not visible in frontend without custom parsing, lost on deployment, breaks "everything through SQLite" pattern
-**Instead:** DB table with JSON column for factor details, standard API endpoint for reading.
-
-### Anti-Pattern 4: Always Using 3-Signal Combined Score Weights
-**What:** Using 40/30/30 weights even when alpha data service is down
-**Why bad:** Degraded combined score (30% of input is zero/missing)
-**Instead:** Detect alpha availability via try/except; when unavailable, fall back to existing 60/40 weights (exactly how SentimentDataService handles missing pillars via weight renormalization).
-
-### Anti-Pattern 5: WebSocket for Orderbook Depth
-**What:** Adding `{symbol}@depth20@1000ms` to `BinanceStreamManager` combined stream
-**Why bad:** Always-on bandwidth for 20%-weight factor, complexity for marginal improvement over 5s REST polling
-**Instead:** REST `GET /api/v3/depth` with 5s TTL cache in `AlphaDataService`.
-
-### Anti-Pattern 6: Monolithic 2000-Line Bot Component
-**What:** Single `BotDashboard.jsx` containing alpha score, backtest, and dry-run
-**Why bad:** Violates component-per-page pattern established across 10+ existing components
-**Instead:** Three separate pages (AlphaScore, Backtest, DryRunLog) under Bot nav group, each with its own CSS file.
-
-### Anti-Pattern 7: Shared Backtest Engine with Orderblocks
-**What:** Trying to generalize `domain/orderblock_backtest.py` to handle alpha score backtesting
-**Why bad:** Fundamentally different models -- OB is zone-approach (detect zone, wait for touch), Alpha is signal-based (score every candle, enter on threshold). No meaningful shared logic.
-**Instead:** Separate `domain/alpha_backtest.py`. The only shared entity is the `Candle` dataclass (imported from `domain/orderblock.py`).
-
-### Anti-Pattern 8: Float for Alpha Scores
-**What:** Using Python `float` for alpha score calculations
-**Why bad:** Violates project-wide Decimal invariant (CLAUDE.md: "Decimal ueberall -- niemals float fuer Geld/Preise")
-**Instead:** All scoring in `Decimal`, API transport as String, `parseFloat()` only in frontend display layer.
-
----
-
-## 12. Scalability Considerations
-
-| Concern | Current Scale | At 10x Scale | Mitigation |
-|---------|--------------|-------------|------------|
-| DryRunLog table growth | ~4.3K rows/day (3 symbols, 1/min) | ~43K rows/day | Index on `(user_id, symbol, created_at)`, 30-day retention |
-| Alpha backtest compute | ~30-60s for 24 months | Same (CPU-bound, single request) | `asyncio.to_thread()` + timeout (pattern from combined route) |
-| Depth REST calls | 1 call/5s per symbol when active | 3 calls/5s | Shared `BinancePublicClient`, TTL cache prevents duplicate calls |
-| Combined Score with alpha | +1 service call per request | Same | Alpha data cached 30s, lazy evaluation |
-| Frontend polling | DryRunLog: 10s polling | Same | TanStack Query staleTime, only when dry-run tab active |
-
----
-
-## 13. Confidence Assessment
-
-| Area | Confidence | Reason |
-|------|------------|--------|
-| Domain layer design (alpha_score, trailing, backtest) | HIGH | Follows exact patterns from 6 existing domain modules, verified against source |
-| Service layer patterns (singleton, TTL cache, lock) | HIGH | Identical to 4 existing service singletons, CachedValue class reused |
-| Combined Score integration | HIGH | Backward-compatible via `None` default, renormalization pattern proven |
-| REST vs WebSocket for depth | HIGH | 5s staleness acceptable for 20%-weight factor at 30% of combined signal |
-| DB table design | HIGH | Follows BacktestRunDB / AlertEventDB patterns exactly |
-| Build order (domain -> service -> API -> frontend) | HIGH | Strict dependency chain proven across v1.0, v1.1, v2.0 delivery |
-| Dry-run state management | MEDIUM | DB-based logging is correct, but position reconstruction from log entries needs careful edge case handling (e.g., process crash mid-position) |
-| Alpha factor weights (40/30/20/10) | LOW | Starting point only; needs backtesting to validate. Easy to adjust (single dict). |
-| Frontend component structure | MEDIUM | Component-per-page pattern is clear, but Bot as 4th nav group is new territory; visual design needs iteration |
+| Decision | Rationale |
+|----------|-----------|
+| User-scoped health route (`/api/health/{user_id}`) | Consistent with all other routes; trivially extensible to multi-user |
+| `HealthCheckService` as singleton with `_last_status` | State isolation per service name; works for N services without redesign |
+| `TelegramNotifier` with configurable `TELEGRAM_CHAT_ID` | One chat_id per deployment; multi-user would need per-user mapping (future concern) |
 
 ---
 
 ## Sources
 
-All findings based on direct codebase analysis:
-
-- Domain patterns: `backend/app/domain/macro_signal.py` (516 lines), `domain/sentiment.py`, `domain/combined_score.py` (351 lines), `domain/orderblock.py`, `domain/orderblock_backtest.py`
-- Service patterns: `services/combined_score_service.py` (158 lines), `services/macro_data_service.py`, `services/sentiment_data_service.py` (120+ lines), `services/orderblock_data_service.py`
-- WebSocket architecture: `services/websocket_manager.py` (464 lines), `services/websocket_fill_handler.py` (296 lines)
-- DB patterns: `db/models.py` (621 lines, 13 existing tables), `db/database.py`
-- API patterns: `api/routes/combined.py` (57 lines), `api/routes/websocket.py` (107 lines)
-- Frontend patterns: `App.jsx` (83 lines), `components/SymbolLayout.jsx` (83 lines), `contexts/WebSocketContext.jsx` (349 lines), `api/client.js`
-- Navigation: `components/GlobalNav.jsx` (69 lines)
-- Project context: `.planning/PROJECT.md` (v3.0 milestone definition, 150 lines)
+- FastAPI health check patterns: [fastapi-health on PyPI](https://pypi.org/project/fastapi-health/), [Index.dev health check guide](https://www.index.dev/blog/how-to-implement-health-check-in-python)
+- python-telegram-bot v22 Bot API: [Official docs](https://docs.python-telegram-bot.org/en/stable/telegram.bot.html)
+- WebSocket reconnection with jitter: [DEV Community — Exponential Backoff](https://dev.to/hexshift/robust-websocket-reconnection-strategies-in-javascript-with-exponential-backoff-40n1), [oneuptime.com reconnection logic](https://oneuptime.com/blog/post/2026-01-24-websocket-reconnection-logic/view)
+- Codebase analysis: `backend/app/main.py`, `services/websocket_manager.py`, `services/dry_run_service.py`, `services/alpha_score_data_service.py`, `services/sentiment_data_service.py`, `services/websocket_event_handler.py`, `api/routes/alerts.py`, `frontend/src/contexts/WebSocketContext.jsx`, `frontend/src/components/AlertBanner.jsx`, `frontend/src/components/SymbolLayout.jsx`, `frontend/src/App.jsx`
 
 ---
 
-*Generated: 2026-02-25*
+*Architecture research for: v3.1 Hardening + Monitoring (Health-Check, Status Dashboard, Telegram Notifications, WebSocket Recovery)*
+*Researched: 2026-02-28*
