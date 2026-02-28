@@ -64,7 +64,7 @@ See: `.planning/milestones/v3.0-ROADMAP.md` for full details
 
 **Milestone Goal:** Die App soll unbeaufsichtigt laufen koennen — Service-Gesundheit auf einen Blick, aktive Benachrichtigungen bei Ausfaellen, automatische WebSocket-Recovery.
 
-- [ ] **Phase 19: Health Check Foundation** — Structured health endpoint with 8 parallel service checks, in-memory state, 3-tier overall status
+- [x] **Phase 19: Health Check Foundation** — Structured health endpoint with 8 parallel service checks, in-memory state, 3-tier overall status (completed 2026-02-28)
 - [ ] **Phase 20: Telegram Notifications** — Out-of-band alerting on service state transitions, graceful no-op, alert routing separation
 - [ ] **Phase 21: WebSocket Recovery + Listen Key Hardening** — Post-reconnect reconciliation, freshness tracking, keepalive failure handling, frontend reconnect state
 - [ ] **Phase 22: Status Dashboard** — Admin-area service status cards, timestamps, WebSocket state, global nav indicator
@@ -142,7 +142,7 @@ Phases execute in numeric order: 19 -> 20 -> 21 -> 22
 | 5-8 | v1.1 | 9/9 | Complete | 2026-02-23 |
 | 9-12 | v2.0 | 12/12 | Complete | 2026-02-25 |
 | 13-18 | v3.0 | 17/17 | Complete | 2026-02-28 |
-| 19. Health Check Foundation | 1/2 | In Progress|  | - |
+| 19. Health Check Foundation | 2/2 | Complete   | 2026-02-28 | - |
 | 20. Telegram Notifications | v3.1 | 0/? | Not started | - |
 | 21. WebSocket Recovery | v3.1 | 0/? | Not started | - |
 | 22. Status Dashboard | v3.1 | 0/? | Not started | - |
