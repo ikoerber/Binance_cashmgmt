@@ -353,4 +353,10 @@ export const getServerIp = async () => {
   return response.data;
 };
 
+// Health API
+export const getHealth = async (userId) => {
+  const response = await apiClient.get(`/api/health/${userId}`);
+  return response.data;
+};
+
 export default apiClient;

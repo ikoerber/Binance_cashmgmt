@@ -12,6 +12,7 @@ import Dashboard from './components/Dashboard';
 import Overview from './components/Overview';
 import SymbolLayout from './components/SymbolLayout';
 import GlobalNav from './components/GlobalNav';
+import StatusDashboard from './components/StatusDashboard';
 import { WebSocketProvider } from './contexts/WebSocketContext';
 import { UserProvider } from './contexts/UserContext';
 import FillNotification from './components/FillNotification';
@@ -56,6 +57,7 @@ function AppContent() {
         </Route>
         <Route path="/settings" element={<Settings />} />
         <Route path="/backtest" element={<Backtest />} />
+        <Route path="/status" element={<StatusDashboard />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
 
