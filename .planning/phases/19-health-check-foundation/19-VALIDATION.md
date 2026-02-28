@@ -19,7 +19,7 @@ created: 2026-02-28
 |----------|-------|
 | **Framework** | pytest 7.x |
 | **Config file** | backend/tests/conftest.py |
-| **Quick run command** | `cd backend && python -m pytest tests/test_health.py -x -q` |
+| **Quick run command** | `cd backend && python -m pytest tests/test_health_check.py -x -q` |
 | **Full suite command** | `cd backend && python -m pytest tests/ -x -q` |
 | **Estimated runtime** | ~15 seconds |
 
@@ -27,7 +27,7 @@ created: 2026-02-28
 
 ## Sampling Rate
 
-- **After every task commit:** Run `cd backend && python -m pytest tests/test_health.py -x -q`
+- **After every task commit:** Run `cd backend && python -m pytest tests/test_health_check.py -x -q`
 - **After every plan wave:** Run `cd backend && python -m pytest tests/ -x -q`
 - **Before `/gsd:verify-work`:** Full suite must be green
 - **Max feedback latency:** 15 seconds
@@ -38,11 +38,11 @@ created: 2026-02-28
 
 | Task ID | Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|-----------|-------------------|-------------|--------|
-| TBD | 01 | 1 | HLTH-01 | unit | `pytest tests/test_health.py` | ❌ W0 | ⬜ pending |
-| TBD | 01 | 1 | HLTH-02 | unit | `pytest tests/test_health.py` | ❌ W0 | ⬜ pending |
-| TBD | 01 | 1 | HLTH-03 | unit | `pytest tests/test_health.py` | ❌ W0 | ⬜ pending |
-| TBD | 02 | 1 | HLTH-04 | unit | `pytest tests/test_health.py` | ❌ W0 | ⬜ pending |
-| TBD | 02 | 1 | HLTH-05 | unit | `pytest tests/test_health.py` | ❌ W0 | ⬜ pending |
+| TBD | 01 | 1 | HLTH-01 | unit | `pytest tests/test_health_check.py` | ❌ W0 | ⬜ pending |
+| TBD | 01 | 1 | HLTH-02 | unit | `pytest tests/test_health_check.py` | ❌ W0 | ⬜ pending |
+| TBD | 01 | 1 | HLTH-03 | unit | `pytest tests/test_health_check.py` | ❌ W0 | ⬜ pending |
+| TBD | 02 | 1 | HLTH-04 | unit | `pytest tests/test_health_check.py` | ❌ W0 | ⬜ pending |
+| TBD | 02 | 1 | HLTH-05 | unit | `pytest tests/test_health_check.py` | ❌ W0 | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -50,7 +50,7 @@ created: 2026-02-28
 
 ## Wave 0 Requirements
 
-- [ ] `tests/test_health.py` — stubs for HLTH-01 through HLTH-05
+- [ ] `tests/test_health_check.py` — stubs for HLTH-01 through HLTH-05
 - [ ] Health check domain fixtures in conftest or test file
 
 *Existing pytest infrastructure covers framework needs.*
