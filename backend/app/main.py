@@ -63,10 +63,19 @@ async def lifespan(app: FastAPI):
     dry_run_svc = get_dry_run_service()
     await dry_run_svc.start()
 
+    # Telegram Notifier starten (nach anderen Services, fuer sinnvolle Health-Checks)
+    from app.services.telegram_notifier import get_telegram_notifier
+
+    notifier = get_telegram_notifier()
+    await notifier.start()
+
     yield
 
     # Dry-Run Service stoppen
     await dry_run_svc.stop()
+
+    # Telegram Notifier stoppen
+    await notifier.stop()
 
     # WebSocket Manager stoppen
     await stream_manager.stop()
