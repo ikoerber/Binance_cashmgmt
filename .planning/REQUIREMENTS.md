@@ -30,10 +30,10 @@ Requirements for Hardening + Monitoring milestone. Each maps to roadmap phases.
 
 ### Status Dashboard
 
-- [ ] **DASH-01**: StatusDashboard.jsx im Admin-Bereich mit per-Service Status-Karten (gruen/amber/rot)
-- [ ] **DASH-02**: Last-Check Timestamps und Relative-Age-Anzeige pro Service
-- [ ] **DASH-03**: WebSocket Reconnect-State Anzeige (attempts, error) aus WebSocketContext
-- [ ] **DASH-04**: Global Nav Status-Dot (gruen/amber/rot) mit Link zum Dashboard
+- [x] **DASH-01**: StatusDashboard.jsx im Admin-Bereich mit per-Service Status-Karten (gruen/amber/rot)
+- [x] **DASH-02**: Last-Check Timestamps und Relative-Age-Anzeige pro Service
+- [x] **DASH-03**: WebSocket Reconnect-State Anzeige (attempts, error) aus WebSocketContext
+- [x] **DASH-04**: Global Nav Status-Dot (gruen/amber/rot) mit Link zum Dashboard
 
 ## Future Requirements
 
@@ -78,10 +78,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | WSRC-02 | Phase 21 | Complete |
 | WSRC-03 | Phase 21 | Complete |
 | WSRC-04 | Phase 21 | Complete |
-| DASH-01 | Phase 22 | Pending |
-| DASH-02 | Phase 22 | Pending |
-| DASH-03 | Phase 22 | Pending |
-| DASH-04 | Phase 22 | Pending |
+| DASH-01 | Phase 22 | Complete |
+| DASH-02 | Phase 22 | Complete |
+| DASH-03 | Phase 22 | Complete |
+| DASH-04 | Phase 22 | Complete |
 
 **Coverage:**
 - v3.1 requirements: 16 total
