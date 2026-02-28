@@ -11,6 +11,7 @@ import { useLivePrice } from '../contexts/WebSocketContext';
 import { SymbolProvider } from '../contexts/SymbolContext';
 import { getDryRunStatus } from '../api/client';
 import { KNOWN_PAIRS, getPairLabel, getQuoteAsset, getQuoteDecimals, getQuoteLabel } from '../utils/symbolRegistry';
+import { useActiveSymbols } from '../hooks/useActiveSymbols';
 
 const SymbolLayout = () => {
   const { symbol } = useParams();
@@ -28,9 +29,17 @@ const SymbolLayout = () => {
   });
   const isDryRunActive = dryRunStatus?.is_active ?? false;
 
+  // Active symbols — must be called before any early return (React Rules of Hooks)
+  const { activeSymbols } = useActiveSymbols();
+
   // Validierung: unbekanntes Symbol → redirect
   if (!KNOWN_PAIRS[symbol]) {
     return <Navigate to="/s/BTCEUR" replace />;
+  }
+
+  // Bekanntes Symbol, aber User haelt es nicht → redirect to Overview
+  if (!activeSymbols.includes(symbol)) {
+    return <Navigate to="/" replace />;
   }
 
   return (
@@ -42,12 +51,12 @@ const SymbolLayout = () => {
             <span className="subnav-group-label">Trading</span>
             <NavLink to={`/s/${symbol}/dashboard`}>Dashboard</NavLink>
             <NavLink to={`/s/${symbol}/lots`}>TradeLots</NavLink>
+            <NavLink to={`/s/${symbol}/chart`}>Chart</NavLink>
           </div>
           <div className="subnav-group">
             <span className="subnav-group-label">Analyse</span>
             <NavLink to={`/s/${symbol}/combined`}>Combined Score</NavLink>
             <NavLink to={`/s/${symbol}/orderblock`}>Orderblocks</NavLink>
-            <NavLink to="/backtest">Backtest</NavLink>
           </div>
           <div className="subnav-group">
             <span className="subnav-group-label">Bot</span>
@@ -56,12 +65,13 @@ const SymbolLayout = () => {
               {isDryRunActive && <span className="bot-nav-badge" />}
             </NavLink>
             <NavLink to={`/s/${symbol}/bot/decisions`}>Decision Log</NavLink>
+            <NavLink to={`/s/${symbol}/backtest`}>Backtest</NavLink>
           </div>
           <div className="subnav-group">
             <span className="subnav-group-label">Admin</span>
             <NavLink to={`/s/${symbol}/reconciliation`}>Reconciliation</NavLink>
-            <NavLink to="/settings">Settings</NavLink>
-            <a href="/docs" target="_blank" rel="noopener noreferrer">API Docs</a>
+            <NavLink to={`/s/${symbol}/settings`}>Settings</NavLink>
+            <NavLink to={`/s/${symbol}/status`}>Status</NavLink>
           </div>
         </div>
         <div className={`live-price ${isFlashing ? 'price-flash' : ''}`}>

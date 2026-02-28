@@ -1,0 +1,133 @@
+/* ---- Chart Page — Full Viewport Candlestick Chart ---- */
+
+.chart-page {
+  position: relative;
+  width: calc(100% + 40px); /* negate .content padding (20px each side) */
+  margin: -20px; /* pull back into .content padding */
+  height: calc(100vh - 110px); /* subnav (~50px) + footer (~40px) + content padding */
+  overflow: hidden;
+}
+
+.chart-container {
+  width: 100%;
+  height: 100%;
+}
+
+/* ---- Floating Toolbar ---- */
+
+.chart-toolbar {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 10;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  background: rgba(22, 24, 34, 0.85);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-radius: 8px;
+  padding: 6px 12px;
+  border: 1px solid var(--color-border, #2e3348);
+}
+
+.chart-toolbar-group {
+  display: flex;
+  gap: 2px;
+}
+
+.chart-toolbar-btn {
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  color: var(--color-text-muted, #64748b);
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+  white-space: nowrap;
+}
+
+.chart-toolbar-btn:hover {
+  color: var(--color-text-primary, #e2e8f0);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.chart-toolbar-btn.active {
+  color: #fff;
+  background: var(--color-accent-blue, #60a5fa);
+}
+
+.chart-toolbar-divider {
+  width: 1px;
+  height: 16px;
+  background: var(--color-border-light, #252838);
+  flex-shrink: 0;
+}
+
+/* ---- Loading / Error States ---- */
+
+.chart-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--color-text-muted, #64748b);
+  font-size: 14px;
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+}
+
+.chart-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 8px;
+  color: var(--color-text-secondary, #94a3b8);
+  font-size: 14px;
+}
+
+.chart-error p {
+  margin: 0;
+}
+
+.chart-error-detail {
+  font-size: 12px;
+  color: var(--color-text-muted, #64748b);
+}
+
+.chart-retry-btn {
+  margin-top: 8px;
+  padding: 6px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--color-accent-blue, #60a5fa);
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.chart-retry-btn:hover {
+  background: #3b82f6;
+}
+
+/* ---- Overlay Toggle Buttons ---- */
+
+.chart-toggle-btn {
+  position: relative;
+}
+
+.chart-toggle-btn.toggle-active {
+  color: var(--color-text-primary, #e2e8f0);
+  background: rgba(96, 165, 250, 0.15);
+  border: 1px solid rgba(96, 165, 250, 0.3);
+}
+
+.chart-toggle-btn:not(.toggle-active) {
+  opacity: 0.5;
+}

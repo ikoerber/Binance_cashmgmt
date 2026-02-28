@@ -6,6 +6,7 @@
  * P&L histogram, trade list, and backtest history.
  */
 import { useState, useMemo, useCallback } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar,
@@ -121,13 +122,15 @@ const PHASE_LABELS = {
 // ─── Component ───
 
 const Backtest = () => {
+  const { symbol: urlSymbol } = useParams();
+  const navigate = useNavigate();
   const { userId } = useUser();
   const queryClient = useQueryClient();
   const theme = useChartTheme();
   const { message, showMessage, dismissMessage } = useNotification();
 
   // ─── Form State ───
-  const [symbol, setSymbol] = useState('BTCEUR');
+  const [symbol, setSymbol] = useState(urlSymbol || 'BTCEUR');
   const [months, setMonths] = useState(12);
   const [initialCapital, setInitialCapital] = useState('10000');
   const [positionFraction, setPositionFraction] = useState('10');
@@ -157,10 +160,11 @@ const Backtest = () => {
   // ─── WebSocket Progress ───
   const { backtestProgress } = useWebSocket();
 
-  // Auto-set ATR multiplier on symbol change
+  // Auto-set ATR multiplier on symbol change + navigate to new URL
   const handleSymbolChange = (newSymbol) => {
     setSymbol(newSymbol);
     setAtrMultiplier(DEFAULT_ATR_MULT[newSymbol] || '2.0');
+    navigate(`/s/${newSymbol}/backtest`);
   };
 
   // ─── Queries ───

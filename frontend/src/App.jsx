@@ -5,6 +5,7 @@ import Reconciliation from './components/Reconciliation';
 import Settings from './components/Settings';
 import Backtest from './components/Backtest';
 import Orderblock from './components/Orderblock';
+import Chart from './components/Chart';
 import CombinedScore from './components/CombinedScore';
 import BotDashboard from './components/BotDashboard';
 import DecisionLog from './components/DecisionLog';
@@ -12,6 +13,7 @@ import Dashboard from './components/Dashboard';
 import Overview from './components/Overview';
 import SymbolLayout from './components/SymbolLayout';
 import GlobalNav from './components/GlobalNav';
+import StatusDashboard from './components/StatusDashboard';
 import { WebSocketProvider } from './contexts/WebSocketContext';
 import { UserProvider } from './contexts/UserContext';
 import FillNotification from './components/FillNotification';
@@ -27,6 +29,15 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+/**
+ * SymbolRedirect - Redirects old bookmark URLs to symbol-scoped routes.
+ * Uses last-visited symbol from localStorage, falls back to BTCEUR.
+ */
+function SymbolRedirect({ subPath }) {
+  const lastSymbol = localStorage.getItem('cashmgnt_last_symbol') || 'BTCEUR';
+  return <Navigate to={`/s/${lastSymbol}/${subPath}`} replace />;
+}
 
 function AppContent() {
   // Server Public IP (fuer Binance Whitelisting)
@@ -48,14 +59,20 @@ function AppContent() {
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="lots" element={<LotsTable />} />
+          <Route path="chart" element={<Chart />} />
           <Route path="combined" element={<CombinedScore />} />
           <Route path="orderblock" element={<Orderblock />} />
           <Route path="bot" element={<BotDashboard />} />
           <Route path="bot/decisions" element={<DecisionLog />} />
           <Route path="reconciliation" element={<Reconciliation />} />
+          <Route path="settings" element={<Settings />} />
+          <Route path="backtest" element={<Backtest />} />
+          <Route path="status" element={<StatusDashboard />} />
         </Route>
-        <Route path="/settings" element={<Settings />} />
-        <Route path="/backtest" element={<Backtest />} />
+        {/* Redirect old bookmark URLs to symbol-scoped routes */}
+        <Route path="/settings" element={<SymbolRedirect subPath="settings" />} />
+        <Route path="/backtest" element={<SymbolRedirect subPath="backtest" />} />
+        <Route path="/status" element={<SymbolRedirect subPath="status" />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
 

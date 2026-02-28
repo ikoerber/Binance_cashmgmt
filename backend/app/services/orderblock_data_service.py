@@ -41,6 +41,7 @@ INTERVAL_MS = {
     "1h": 3_600_000,
     "4h": 14_400_000,
     "1d": 86_400_000,
+    "1w": 604_800_000,
 }
 
 ALLOWED_INTERVALS = set(INTERVAL_MS.keys())

@@ -6,7 +6,8 @@
 - ✅ **v1.1 API Hardening** — Phases 5-8 (shipped 2026-02-23)
 - ✅ **v2.0 Frontend Redesign + EUR-Fokus** — Phases 9-12 (shipped 2026-02-25)
 - ✅ **v3.0 Multi-Factor Omni-Bot** — Phases 13-18 (shipped 2026-02-28)
-- **v3.1 Hardening + Monitoring** — Phases 19-22 (in progress)
+- ✅ **v3.1 Hardening + Monitoring** — Phases 19-22 (shipped 2026-02-28)
+- ✅ **v3.2 UX Improvements** — Phases 23-26 (shipped 2026-02-28)
 
 ## Phases
 
@@ -60,89 +61,45 @@ See: `.planning/milestones/v3.0-ROADMAP.md` for full details
 
 </details>
 
-### v3.1 Hardening + Monitoring (In Progress)
+<details>
+<summary>v3.1 Hardening + Monitoring (Phases 19-22) — SHIPPED 2026-02-28</summary>
 
-**Milestone Goal:** Die App soll unbeaufsichtigt laufen koennen — Service-Gesundheit auf einen Blick, aktive Benachrichtigungen bei Ausfaellen, automatische WebSocket-Recovery.
+- [x] Phase 19: Health Check Foundation (2/2 plans) — completed 2026-02-28
+- [x] Phase 20: Telegram Notifications (2/2 plans) — completed 2026-02-28
+- [x] Phase 21: WebSocket Recovery + Listen Key Hardening (2/2 plans) — completed 2026-02-28
+- [x] Phase 22: Status Dashboard (2/2 plans) — completed 2026-02-28
 
-- [ ] **Phase 19: Health Check Foundation** — Structured health endpoint with 8 parallel service checks, in-memory state, 3-tier overall status
-- [ ] **Phase 20: Telegram Notifications** — Out-of-band alerting on service state transitions, graceful no-op, alert routing separation
-- [ ] **Phase 21: WebSocket Recovery + Listen Key Hardening** — Post-reconnect reconciliation, freshness tracking, keepalive failure handling, frontend reconnect state
-- [ ] **Phase 22: Status Dashboard** — Admin-area service status cards, timestamps, WebSocket state, global nav indicator
+See: `.planning/milestones/v3.1-ROADMAP.md` for full details
 
-## Phase Details
+</details>
 
-### Phase 19: Health Check Foundation
-**Goal**: Operator can query a single endpoint and instantly know which of the 8 core services are healthy, degraded, or down
-**Depends on**: Nothing (dependency root for all v3.1 phases)
-**Requirements**: HLTH-01, HLTH-02, HLTH-03, HLTH-04, HLTH-05
-**Success Criteria** (what must be TRUE):
-  1. GET /api/health/{user_id} returns structured JSON with per-service status for all 8 services (Backend, DB, WebSocket, Dry-Run, Alpha Score, Sentiment, Macro, Binance REST)
-  2. Each service entry includes a status value from the set {ok, stale, degraded, stopped, unavailable, error} plus a last_checked timestamp
-  3. Response includes an overall_status field aggregated as healthy/degraded/critical based on individual service states
-  4. Health state lives entirely in memory — zero writes to production SQLite during health checks
-  5. Repeated rapid polling (multiple requests within 5 seconds) returns cached results without re-executing service checks
-**Plans**: 2 plans
+<details>
+<summary>v3.2 UX Improvements (Phases 23-26) — SHIPPED 2026-02-28</summary>
 
-Plans:
-- [ ] 19-01-PLAN.md — TDD: HealthCheckService with 8 parallel checks, in-memory TTL cache, overall status aggregation + 10 tests
-- [ ] 19-02-PLAN.md — Health route registration (GET /api/health/{user_id}) + main.py wiring
+- [x] Phase 23: Navigation Structure (1/1 plans) — completed 2026-02-28
+- [x] Phase 24: Dynamic Symbol Visibility (1/1 plans) — completed 2026-02-28
+- [x] Phase 25: Dedicated Chart Page (1/1 plans) — completed 2026-02-28
+- [x] Phase 26: Chart Overlays (2/2 plans) — completed 2026-02-28
 
-### Phase 20: Telegram Notifications
-**Goal**: Operator receives immediate Telegram messages when a service goes down and does not get spammed during sustained outages
-**Depends on**: Phase 19 (needs health state machine for transition detection)
-**Requirements**: TELE-01, TELE-02, TELE-03
-**Success Criteria** (what must be TRUE):
-  1. When a service transitions from healthy to DOWN, a Telegram message arrives within one health-check cycle naming the failed service
-  2. When TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID is not configured in .env, the app starts and runs without errors — no Telegram calls attempted
-  3. Health-related events do NOT appear in the frontend AlertBanner and do NOT create AlertEventDB rows — health alerts route exclusively through Telegram and the Status Dashboard
-**Plans**: TBD
+See: `.planning/milestones/v3.2-ROADMAP.md` for full details
 
-Plans:
-- [ ] 20-01: TBD
-- [ ] 20-02: TBD
+</details>
 
-### Phase 21: WebSocket Recovery + Listen Key Hardening
-**Goal**: WebSocket disconnects are recovered automatically without losing fills, and silent Listen Key expiry is detected before it causes data gaps
-**Depends on**: Phase 19 (reconnect metrics surface in health endpoint)
-**Requirements**: WSRC-01, WSRC-02, WSRC-03, WSRC-04
-**Success Criteria** (what must be TRUE):
-  1. After a WebSocket reconnect completes, an orders reconciliation runs automatically — fills that arrived during the disconnect gap are recovered into the correct lots
-  2. Health endpoint reports DEGRADED for the User Data Stream service when no user data message has been received for more than 90 seconds
-  3. When the keepalive ping returns None (failure), a reconnect is triggered immediately instead of waiting for the next keepalive interval
-  4. Frontend WebSocketContext exposes reconnecting state, reconnect attempt count, and error string — UI consumers can display connection status
-**Plans**: TBD
+## Backlog (Unassigned to Milestone)
 
-Plans:
-- [ ] 21-01: TBD
-- [ ] 21-02: TBD
+The following phases were drafted during v3.2 but not included in the milestone scope. They are candidates for a future milestone.
 
-### Phase 22: Status Dashboard
-**Goal**: Operator can see the health of every service at a glance from the Admin area without SSH access or checking logs
-**Depends on**: Phase 19, Phase 20, Phase 21 (consumes all prior infrastructure)
-**Requirements**: DASH-01, DASH-02, DASH-03, DASH-04
-**Success Criteria** (what must be TRUE):
-  1. StatusDashboard.jsx renders a card for each service with color-coded status (green for ok, amber for degraded/stale, red for error/unavailable/stopped)
-  2. Each service card shows the last-check timestamp and a relative age indicator (e.g. "12s ago")
-  3. WebSocket reconnect state (current attempt count and error message) is displayed on the dashboard, sourced from WebSocketContext
-  4. A status dot in the global navigation (green/amber/red) reflects overall system health and links to the Status Dashboard
-**Plans**: TBD
-
-Plans:
-- [ ] 22-01: TBD
-- [ ] 22-02: TBD
+- [ ] **Phase 27: Overview Improvements** — One card per crypto asset with BNB balance and fee deduction display (OVER-01, OVER-02, OVER-03)
+- [ ] **Phase 28: Backtest Explainer** — Walk-Forward methodology explainer and parameter descriptions on Backtest page (OVER-04, OVER-05)
 
 ## Progress
 
-**Execution Order:**
-Phases execute in numeric order: 19 -> 20 -> 21 -> 22
-
-| Phase | Milestone | Plans Complete | Status | Completed |
-|-------|-----------|----------------|--------|-----------|
+| Phase Range | Milestone | Plans Complete | Status | Completed |
+|-------------|-----------|----------------|--------|-----------|
 | 1-4 | v1.0 | 8/8 | Complete | 2026-02-22 |
 | 5-8 | v1.1 | 9/9 | Complete | 2026-02-23 |
 | 9-12 | v2.0 | 12/12 | Complete | 2026-02-25 |
 | 13-18 | v3.0 | 17/17 | Complete | 2026-02-28 |
-| 19. Health Check Foundation | v3.1 | 0/2 | Planned | - |
-| 20. Telegram Notifications | v3.1 | 0/? | Not started | - |
-| 21. WebSocket Recovery | v3.1 | 0/? | Not started | - |
-| 22. Status Dashboard | v3.1 | 0/? | Not started | - |
+| 19-22 | v3.1 | 8/8 | Complete | 2026-02-28 |
+| 23-26 | v3.2 | 5/5 | Complete | 2026-02-28 |
+| 27-28 | — | 0/3 | Backlog | — |

@@ -2,7 +2,7 @@
 
 ## What This Is
 
-BTC/EUR Cashflow-Management & Automation App fuer Binance Spot Trading. Ledger-basiertes, deterministisches, auditierbares Cashflow-Tracking und automatisiertes Trading-System. Unterstuetzt BTCEUR, ETHEUR und XRPEUR Paare mit EUR als einzigem Quote-Asset. Multi-Faktor Alpha Score Engine (Z-Score, Lead-Lag, Orderbook, Funding) mit ATR-adaptiven Trailing Stops, Walk-Forward Backtesting (24 Monate, Sharpe/Drawdown), Dry-Run Paper Trading und Bot Dashboard. Dark Mode Frontend mit 4-Bereichs-Navigation (Trading/Analyse/Bot/Admin).
+BTC/EUR Cashflow-Management & Automation App fuer Binance Spot Trading. Ledger-basiertes, deterministisches, auditierbares Cashflow-Tracking und automatisiertes Trading-System. Unterstuetzt BTCEUR, ETHEUR und XRPEUR Paare mit EUR als einzigem Quote-Asset. Multi-Faktor Alpha Score Engine (Z-Score, Lead-Lag, Orderbook, Funding) mit ATR-adaptiven Trailing Stops, Walk-Forward Backtesting (24 Monate, Sharpe/Drawdown), Dry-Run Paper Trading und Bot Dashboard. Dark Mode Frontend mit 4-Bereichs-Navigation (Trading/Analyse/Bot/Admin). Dynamische Symbol-Sichtbarkeit basierend auf Binance-Bestaenden, dedizierte Chart-Seite mit OHLCV-Candlestick-Chart (lightweight-charts) und 4 Overlay-Typen (Orderblock-Zonen, Break-Even, Sell-Orders, Trailing Stop).
 
 ## Core Value
 
@@ -56,14 +56,25 @@ Ledger-first, deterministisches, auditierbares Cashflow-Tracking und automatisie
 - ✓ Bot Dashboard (4-group nav: Trading/Analyse/Bot/Admin, signal history, regime badge) — v3.0
 - ✓ Decision Log (filterable, expandable factor details) — v3.0
 
+- ✓ Health-Check Endpoints fuer alle 8 Kern-Services (parallel, in-memory, 3-tier status) — v3.1
+- ✓ Status Dashboard im Admin-Bereich mit 8 Service-Karten, Relative-Age, WS-Reconnect-Panel — v3.1
+- ✓ Telegram Bot Notifications bei Service-Ausfall (healthy→DOWN Transitions, graceful no-op) — v3.1
+- ✓ WebSocket Recovery: subscribe.signature, post-reconnect Fill-Reconciliation, Freshness-Tracking — v3.1
+- ✓ Global Nav Status Dot (gruen/amber/rot) mit Link zum Status Dashboard — v3.1
+
+- ✓ Konsistente Sub-Navigation (Trading/Analyse/Bot/Admin) auf allen Seiten (Settings, Status, Backtest) — v3.2
+- ✓ Dynamische Symbol-Sichtbarkeit: GlobalNav und Overview gefiltert nach Binance-Bestaenden — v3.2
+- ✓ Dedizierte Chart-Seite mit OHLCV-Candlestick, Intervall-Auswahl (15m/1h/4h/1d/1w), Volume-Histogramm, 30s Live-Polling — v3.2
+- ✓ Chart Overlays: Orderblock-Zonen, Break-Even, geclusterte Sell-Orders, Trailing Stop — je einzeln toggle-bar — v3.2
+
 ### Active
 
 <!-- Current scope. Building toward these. -->
 
-- [ ] Health-Check Endpoints fuer alle 8 Kern-Services (Backend, DB, WebSocket, Dry-Run, Alpha Score, Sentiment, Macro, Binance REST)
-- [ ] Status Dashboard im Admin-Bereich mit Service-Status, Freshness, Letzter-Aktivitaet
-- [ ] Telegram Bot Notifications bei Service-Ausfall und kritischen Alerts
-- [ ] WebSocket Recovery: Automatisches Reconnect mit Exponential Backoff bei Verbindungsverlust
+No active milestone. Backlog candidates from v3.2 scope:
+- BNB balance display in Overview (balance card + fee deduction info)
+- Overview simplification (one card per crypto asset)
+- Backtest Explainer (Walk-Forward methodology, parameter descriptions)
 
 ### Out of Scope
 
@@ -77,28 +88,16 @@ Ledger-first, deterministisches, auditierbares Cashflow-Tracking und automatisie
 - Light/Dark Toggle — Dark-only in v2.0, Toggle kann spaeter ergaenzt werden
 - Responsive/Mobile Layout — Desktop-fokussiert
 
-## Current Milestone: v3.1 Hardening + Monitoring
-
-**Goal:** Die App soll unbeaufsichtigt laufen koennen — Service-Gesundheit auf einen Blick, aktive Benachrichtigungen bei Ausfaellen, automatische WebSocket-Recovery.
-
-**Target features:**
-- Health-Check System fuer alle 8 Kern-Services
-- Status Dashboard im Admin-Bereich
-- Telegram Bot Notifications
-- WebSocket Auto-Reconnect mit Backoff
-
 ## Context
 
-Shipped v1.0 mit 8.035 neuen Zeilen ueber 50 Dateien (4 Phasen, 8 Plaene, 13 Tasks).
-Shipped v1.1 mit 6.054 neuen Zeilen ueber 52 Dateien (4 Phasen, 9 Plaene, 17 Tasks).
-Shipped v2.0 mit 9.387 neuen Zeilen ueber 93 Dateien (4 Phasen, 12 Plaene, 24 Tasks).
-Shipped v3.0 mit 42.430 LOC gesamt (26.243 Python + 16.187 JS/CSS), 6 Phasen, 17 Plaene, 66 Commits (incl. Phase 18 gap closure).
-Tech Stack: Python 3 + FastAPI, SQLAlchemy 2, Alembic, React 19, TanStack Query, Recharts, lightweight-charts.
-799+ Backend-Tests, Frontend-Build sauber.
+Shipped v3.2 mit 45.089 LOC gesamt (27.064 Python + 18.025 JS/JSX/CSS), 6 Milestones (v1.0-v3.2), 59 Plaene total.
+Tech Stack: Python 3 + FastAPI, SQLAlchemy 2, Alembic, React 19, TanStack Query, Recharts, lightweight-charts, python-telegram-bot.
 
 Symbol Registry kennt 3 EUR-Pairs (BTCEUR, ETHEUR, XRPEUR) + XRPBTC (re-added in v3.0 fuer Analyse). Alpha Score Engine mit 4 Faktoren, Regime-Erkennung (Hurst), ATR-Trailing. Walk-Forward Backtesting mit Parameter-Sweep. Dry-Run Paper Trading mit struktureller Isolation (DRY-05). Combined Score integriert Alpha als optionalen 3. Signal (50/30/20).
 
-Frontend: Dark Mode (dark-only), 4-Bereichs-Navigation (Trading/Analyse/Bot/Admin), Bot Dashboard mit Alpha Score Hero, Signal History Chart, Regime Badge, Trailing Stop Anzeige mit Freeze-State. Decision Log mit filterbarer Tabelle und aufklappbaren Faktor-Details. Plain CSS mit 79+ CSS Custom Properties.
+Frontend: Dark Mode (dark-only), 4-Bereichs-Navigation (Trading/Analyse/Bot/Admin), Bot Dashboard, Status Dashboard mit 8 Service-Karten und Global Nav Status Dot. Plain CSS mit 79+ CSS Custom Properties. Dynamische Symbol-Sichtbarkeit (balance-basiert) mit WebSocket-Invalidation. Dedizierte Chart-Seite mit 4 Overlay-Typen (Zonen, Break-Even, Sell-Orders, Trailing Stop) — alle toggle-bar.
+
+Health Monitoring: 8 parallele Service-Checks (in-memory, 5s TTL), Telegram-Benachrichtigungen bei Service-Ausfaellen, WebSocket subscribe.signature mit post-reconnect Fill-Reconciliation, Listen Key Freshness Tracking.
 
 ### Known Tech Debt
 - Single-Pairing GET Endpoint liefert routing_decision_json nicht (v1.0)
@@ -154,7 +153,15 @@ Frontend: Dark Mode (dark-only), 4-Bereichs-Navigation (Trading/Analyse/Bot/Admi
 | Walk-Forward Backtesting statt In-Sample | Vermeidet Overfitting, realistische Out-of-Sample Performance | ✓ Good — 24-Monate, Sharpe/Drawdown, HODL Benchmark |
 | Wall-Clock Evaluation Loop (nicht fixed sleep) | Candle-Close Alignment, idempotent bei Server-Restart | ✓ Good — asyncio.sleep bis naechste Grenze |
 
+| localStorage Symbol-Memory fuer Redirects | Legacy-URLs (/settings) muessen auf symbol-scoped Routes umgeleitet werden | ✓ Good — cashmgnt_last_symbol Key, BTCEUR Fallback |
+| Balance-basierte Symbol-Sichtbarkeit | Nur gehaltene Assets anzeigen, reduziert Rauschen | ✓ Good — Dust Threshold 0.00000001, WebSocket-Invalidation bei Balance-Aenderung |
+| Chart Overlays als createPriceLine (nicht Rectangles) | lightweight-charts hat keine native Rectangle/Area Overlay API | ✓ Good — Gepaarte Dashed Lines fuer Zonen, Conviction-basierte Linienstaerke |
+| Sell-Order Clustering (0.5% Proximity) | Viele Orders nahe beieinander wuerden Chart ueberladen | ✓ Good — Gruppierte Lines mit Count-Badge ("3 Orders") |
 | Gap Closure via Milestone Audit | v3.0 Audit deckte 4 Frontend-Integrationsfehler auf (Feldnamen, Envelope, Orphaned Endpoint) | ✓ Good — Phase 18 schloss alle Gaps, 6/6 must-haves verifiziert |
+| Health in-memory statt SQLite | SQLite single-writer → Lock-Contention mit Trading-Writes | ✓ Good — CachedValue mit 5s TTL, zero DB writes |
+| Telegram nur fuer Health, AlertBanner fuer Business | Strukturelle Trennung: Health-Events nie in AlertEventDB | ✓ Good — Kein Rauschen im AlertBanner, Operator bekommt Push bei Ausfall |
+| subscribe.signature statt legacy userDataStream | Legacy start/ping/stop funktionierte nicht mehr zuverlaessig | ✓ Good — HMAC-SHA256 Auth, automatische Reconnect-Reconciliation |
+| Health-Check Module-Import statt Variablen-Import | Python bindet `from module import var` zum Import-Zeitpunkt (engine war None) | ✓ Good — `from app.db import database as _db` behebt Referenz-Bug |
 
 ---
-*Last updated: 2026-02-28 after v3.1 milestone start (Hardening + Monitoring)*
+*Last updated: 2026-02-28 after v3.2 milestone*

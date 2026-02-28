@@ -1,11 +1,11 @@
 ---
 gsd_state_version: 1.0
-milestone: v3.1
-milestone_name: Hardening + Monitoring
-status: ready_to_plan
-last_updated: "2026-02-28T14:00:00.000Z"
+milestone: none
+milestone_name: none
+status: between_milestones
+last_updated: "2026-02-28T20:00:00Z"
 progress:
-  total_phases: 4
+  total_phases: 0
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -18,51 +18,30 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-28)
 
 **Core value:** Ledger-first, deterministisches, auditierbares Cashflow-Tracking und automatisiertes Trading-System
-**Current focus:** v3.1 Phase 19 — Health Check Foundation
+**Current focus:** Between milestones — v3.2 shipped, next milestone TBD
 
 ## Current Position
 
-Milestone: v3.1 Hardening + Monitoring
-Phase: 19 of 22 (Health Check Foundation)
-Plan: 0 of ? in current phase
-Status: Ready to plan Phase 19
-Last activity: 2026-02-28 — Roadmap created for v3.1 (4 phases, 16 requirements mapped)
+Phase: None — all milestones complete
+Plan: N/A
+Status: v3.2 UX Improvements shipped (2026-02-28)
+Last activity: 2026-02-28 — Completed milestone v3.2
 
-Progress: [░░░░░░░░░░░░░░░░░░░░] 0%
+Progress: All 6 milestones complete (v1.0-v3.2), 59 plans total
 
 ## Performance Metrics
 
 **Velocity (all milestones):**
-- Total plans completed: 43 (8 v1.0 + 9 v1.1 + 12 v2.0 + 13 v3.0 + 1 gap closure)
-- Average duration: 3.4min
-- Total execution time: 148min
-
-**v3.1 (current):**
-
-| Phase | Plans | Total | Avg/Plan |
-|-------|-------|-------|----------|
-| - | - | - | - |
-
-*Updated after each plan completion*
+- Total plans completed: 59 (8 v1.0 + 9 v1.1 + 12 v2.0 + 17 v3.0 + 8 v3.1 + 5 v3.2)
+- Total execution time: ~218min+
 
 ## Accumulated Context
 
-v3.0 decision log archived in milestones/v3.0-phases/ SUMMARY.md files.
-v2.0 decision log archived in milestones/v2.0-phases/ SUMMARY.md files.
-v1.1 decision log archived in milestones/v1.1-phases/ SUMMARY.md files.
-v1.0 decision log archived in milestones/v1.0-phases/ SUMMARY.md files.
+All decision logs archived in respective milestone phase SUMMARY.md files.
 
-### Key Context for v3.1
+### Decisions
 
-- Current /health stub always returns {"status": "healthy"} -- must be replaced with real checks
-- SentimentDataService already has quality badges (live/cached/stale/unavailable) -- reuse as health status model
-- AlertEventDB is for reconciliation/business alerts -- health events must NOT go there
-- WebSocket reconnect already works but fills during disconnect gap are silently lost
-- BinanceStreamManager.get_stats() exists but has no freshness tracking
-- Binance Spot stream does NOT send listenKeyExpired event -- silent expiry
-- Keepalive _ws_api_request returns None on failure -- currently not handled
-- python-telegram-bot==22.6 confirmed compatible (httpx>=0.27,<0.29, project has 0.28.1)
-- SQLite single-writer model -- health writes would cause lock contention with trading writes
+None — fresh state for next milestone.
 
 ### Pending Todos
 
@@ -75,5 +54,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-28
-Stopped at: Roadmap created for v3.1 milestone, ready to plan Phase 19
+Stopped at: Completed milestone v3.2
 Resume file: None

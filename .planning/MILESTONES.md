@@ -1,5 +1,41 @@
 # Milestones
 
+## v3.2 UX Improvements (Shipped: 2026-02-28)
+
+**Phases completed:** 4 phases (23-26), 5 plans
+**Timeline:** 1 day (2026-02-28)
+**Lines:** +3,703 / -63 across 34 files
+**LOC:** 45,089 total (27,064 Python + 18,025 JS/JSX/CSS)
+**Commits:** 17
+**Requirements:** 10/10 satisfied
+
+**Key accomplishments:**
+- Consistent sub-navigation — All pages render inside SymbolLayout with 4-group sub-nav (Trading/Analyse/Bot/Admin), legacy bookmark URLs redirect via localStorage symbol memory
+- Dynamic symbol visibility — GlobalNav and Overview filtered to held assets via Binance balance API with dust threshold, non-held symbol URLs redirect to Overview, WebSocket invalidation on balance changes
+- Dedicated chart page — Full-page OHLCV candlestick chart with interval selection (15m/1h/4h/1d/1w), lookback presets (1W/1M/3M/6M), volume histogram, and 30s live polling via lightweight-charts
+- Chart overlays — Orderblock zones (conviction-based dashed lines), portfolio break-even (blue dotted), clustered sell orders (amber solid with count badge), trailing stop (purple sparse-dotted), all individually toggleable
+
+---
+
+## v3.1 Hardening + Monitoring (Shipped: 2026-02-28)
+
+**Phases completed:** 4 phases (19-22), 8 plans
+**Timeline:** 1 day (2026-02-28)
+**Lines:** +7,703 / -166 across 49 files
+**LOC:** 64,960 total (47,125 Python + 9,367 JS/JSX + 8,468 CSS)
+**Commits:** 38
+**Requirements:** 16/16 satisfied
+
+**Key accomplishments:**
+- Health Check Foundation — 8 parallel service checks (Backend, DB, WebSocket, Dry-Run, Alpha Score, Sentiment, Macro, Binance REST) with in-memory TTL cache and 3-tier overall status (healthy/degraded/critical)
+- Telegram Notifications — Out-of-band alerting on healthy→DOWN transitions, graceful no-op when unconfigured, alert routing separation (health via Telegram, business via AlertBanner)
+- WebSocket Recovery + Listen Key Hardening — subscribe.signature auth migration, post-reconnect fill reconciliation for all KNOWN_PAIRS, Listen Key freshness tracking (>90s = DEGRADED), keepalive failure → immediate reconnect
+- Frontend WebSocket State — reconnecting/attempts/error exposed in WebSocketContext, UI consumers display connection status
+- Status Dashboard — 8 color-coded service cards with relative-age timestamps and WebSocket reconnect panel in Admin area
+- Global Nav Status Dot — Pulsing red/amber/green health indicator visible on every page with link to Status Dashboard
+
+---
+
 ## v3.0 Multi-Factor Omni-Bot (Shipped: 2026-02-28)
 
 **Phases completed:** 6 phases (13-18), 17 plans

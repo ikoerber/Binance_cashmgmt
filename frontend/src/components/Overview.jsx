@@ -10,7 +10,8 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { getPortfolio } from '../api/client';
 import { useUser } from '../contexts/UserContext';
 import { useWebSocket } from '../contexts/WebSocketContext';
-import { getAllSymbols, getPairLabel, getBaseLabel, getBaseAsset, getQuoteAsset } from '../utils/symbolRegistry';
+import { getPairLabel, getBaseLabel, getBaseAsset, getQuoteAsset } from '../utils/symbolRegistry';
+import { useActiveSymbols } from '../hooks/useActiveSymbols';
 import { formatEUR, formatBase, formatNumber } from '../utils/formatters';
 import { useChartTheme } from '../hooks/useChartTheme';
 import './Overview.css';
@@ -32,7 +33,7 @@ const Overview = () => {
   const { prices } = useWebSocket();
   const navigate = useNavigate();
   const theme = useChartTheme();
-  const symbols = getAllSymbols();
+  const { activeSymbols: symbols } = useActiveSymbols();
   const COLORS = getChartColors();
 
   // Parallel portfolio queries fuer alle Symbole (useQueries statt useQuery in .map())

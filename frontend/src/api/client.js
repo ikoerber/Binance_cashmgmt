@@ -353,4 +353,16 @@ export const getServerIp = async () => {
   return response.data;
 };
 
+// Balances API
+export const getActiveSymbols = async (userId) => {
+  const response = await apiClient.get(`/api/balances/${userId}/active-symbols`);
+  return response.data;
+};
+
+// Health API
+export const getHealth = async (userId) => {
+  const response = await apiClient.get(`/api/health/${userId}`);
+  return response.data;
+};
+
 export default apiClient;

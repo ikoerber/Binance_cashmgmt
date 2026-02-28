@@ -8,19 +8,64 @@ Architektur:
 - Separater AsyncClient (nur fuer WebSocket Streams)
 - Bestehender sync Client in binance.py bleibt unveraendert
 - Singleton-Pattern: Ein Binance-Stream bedient alle Frontend-Clients
+
+Migration (Phase 21 / WSRC-01):
+- Legacy userDataStream.start/ping/stop entfernt (Binance deprecated 2026-02-20)
+- Ersetzt durch userDataStream.subscribe.signature (HMAC-SHA256 signed)
+- Post-reconnect fill reconciliation mit 60s Debounce
+- User data freshness tracking fuer Health Check (WSRC-02)
 """
 
 import asyncio
+import hashlib
+import hmac as hmac_mod
 import json
 import logging
 import os
+import time
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Dict, Optional, Set
+from urllib.parse import urlencode
+from uuid import uuid4
 
 from fastapi import WebSocket
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Pure function — subscribe.signature message builder (WSRC-01)
+# ---------------------------------------------------------------------------
+
+
+def _build_subscribe_message(api_key: str, api_secret: str) -> dict:
+    """
+    Build a userDataStream.subscribe.signature request for Binance ws-api/v3.
+
+    The params are signed with HMAC-SHA256 of alphabetically-sorted
+    URL-encoded params (apiKey before timestamp).
+
+    Returns a dict ready to be sent as JSON over the WebSocket.
+    """
+    timestamp = int(time.time() * 1000)
+    params = {"apiKey": api_key, "timestamp": timestamp}
+
+    # Alphabetically-sorted query string for signing
+    query_string = urlencode(sorted(params.items()))
+    signature = hmac_mod.new(
+        api_secret.encode("utf-8"),
+        query_string.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+
+    params["signature"] = signature
+
+    return {
+        "id": str(uuid4()),
+        "method": "userDataStream.subscribe.signature",
+        "params": params,
+    }
 
 
 class BinanceStreamManager:
@@ -28,7 +73,8 @@ class BinanceStreamManager:
     Singleton Manager fuer Binance WebSocket Streams.
 
     Phase 1: Oeffentlicher Ticker Stream (BTC/EUR Preis)
-    Phase 2: User Data Stream (Orders + Balances)
+    Phase 2: User Data Stream (Orders + Balances) — via subscribe.signature
+    Phase 21: Migrated to subscribe.signature, post-reconnect reconciliation
 
     Dry-Run message types (Phase 16):
     - dry_run_decision: New decision logged (factor scores, action, price)
@@ -47,10 +93,23 @@ class BinanceStreamManager:
         # Phase 2: User Data Stream
         self.user_data_subscribers: Dict[str, Set[WebSocket]] = {}
         self._user_stream_tasks: Dict[str, asyncio.Task] = {}
-        self._listen_keys: Dict[str, str] = {}
 
-        # Binance API Key for User Data Stream API (Phase 2)
-        self._api_key = None
+        # Binance API credentials for User Data Stream (Phase 21: both key + secret)
+        self._api_key: Optional[str] = None
+        self._api_secret: Optional[str] = None
+
+        # WSRC-01: Post-reconnect reconciliation state
+        self._reconnect_count: Dict[str, int] = {}
+        self._disconnect_at: Dict[str, Optional[datetime]] = {}
+        self._last_reconciliation_at: Optional[datetime] = None
+
+        # WSRC-03: User data freshness tracking
+        self._last_user_data_message_at: Optional[datetime] = None
+
+    @property
+    def last_user_data_message_at(self) -> Optional[datetime]:
+        """Expose freshness timestamp for health check (WSRC-02)."""
+        return self._last_user_data_message_at
 
     async def start(self):
         """Startet den Price Stream. Aufgerufen in FastAPI Lifespan."""
@@ -68,18 +127,20 @@ class BinanceStreamManager:
 
     async def start_user_data_stream(self):
         """
-        Initialisiert die Binance API Keys fuer User Data Streams (Phase 2).
-        Aufgerufen separat, da API Keys benoetigt werden.
+        Initialisiert die Binance API Keys fuer User Data Streams.
+        Phase 21: Requires both API_KEY and API_SECRET for subscribe.signature.
         """
         api_key = os.getenv("BINANCE_API_KEY")
+        api_secret = os.getenv("BINANCE_API_SECRET")
 
-        if not api_key:
+        if not api_key or not api_secret:
             logger.warning(
                 "Keine Binance API Keys konfiguriert — User Data Stream deaktiviert"
             )
             return
 
         self._api_key = api_key
+        self._api_secret = api_secret
         logger.info("Binance API Keys fuer User Data Stream bereit")
 
     async def stop(self):
@@ -207,7 +268,7 @@ class BinanceStreamManager:
         """Client vom Price-Broadcast entfernen."""
         self.price_subscribers.discard(websocket)
 
-    # ─── Phase 2: User Data Stream ───
+    # ─── Phase 2: User Data Stream (subscribe.signature) ───
 
     async def subscribe_user_data(self, user_id: str, websocket: WebSocket):
         """
@@ -243,14 +304,6 @@ class BinanceStreamManager:
                 if task:
                     task.cancel()
 
-                # Listen Key schliessen
-                listen_key = self._listen_keys.pop(user_id, None)
-                if listen_key and self._api_key:
-                    try:
-                        await self._ws_api_request("userDataStream.stop", listen_key)
-                    except Exception as e:
-                        logger.warning(f"Fehler beim Schliessen des Listen Keys: {e}")
-
     async def _user_data_stream_loop(self, user_id: str):
         """User Data Stream mit Reconnection."""
         backoff = 5
@@ -268,33 +321,52 @@ class BinanceStreamManager:
                     backoff = min(backoff * 2, max_backoff)
 
     async def _run_user_data_stream(self, user_id: str):
-        """Einzelne User Data Stream Session."""
+        """
+        Einzelne User Data Stream Session via subscribe.signature (WSRC-01).
+
+        Connects to wss://ws-api.binance.com:443/ws-api/v3, sends a signed
+        subscribe request, and processes executionReport / outboundAccountPosition
+        events. On disconnect, records disconnect_at for post-reconnect reconciliation.
+        """
         import aiohttp
 
-        if not self._api_key:
+        if not self._api_key or not self._api_secret:
             return
 
-        # Listen Key erstellen (via Websocket API)
-        listen_key = await self._ws_api_request("userDataStream.start")
-        if not listen_key:
-            raise RuntimeError("Konnte keinen Listen Key via WebSocket API abrufen")
-
-        self._listen_keys[user_id] = listen_key
-
-        # Keepalive Task starten (alle 30 Minuten)
-        keepalive_task = asyncio.create_task(self._keepalive_listen_key(user_id))
-
         testnet = os.getenv("BINANCE_TESTNET", "").lower() == "true"
-        if testnet:
-            ws_url = f"wss://testnet.binance.vision/ws/{listen_key}"
-        else:
-            ws_url = f"wss://stream.binance.com:9443/ws/{listen_key}"
+        ws_url = (
+            "wss://testnet.binance.vision/ws-api/v3"
+            if testnet
+            else "wss://ws-api.binance.com:443/ws-api/v3"
+        )
 
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.ws_connect(ws_url) as ws:
-                    logger.info(f"User Data Stream verbunden: user={user_id}")
+                    # Send subscribe.signature request
+                    subscribe_msg = _build_subscribe_message(
+                        self._api_key, self._api_secret
+                    )
+                    await ws.send_json(subscribe_msg)
+                    logger.info(
+                        "User Data Stream subscribe.signature gesendet: user=%s",
+                        user_id,
+                    )
 
+                    # Post-reconnect reconciliation (WSRC-01)
+                    reconnect_count = self._reconnect_count.get(user_id, 0)
+                    if reconnect_count > 0:
+                        disconnect_time = self._disconnect_at.get(user_id)
+                        start_time_iso = (
+                            disconnect_time.isoformat() if disconnect_time else None
+                        )
+                        await self._post_reconnect_reconciliation(
+                            user_id, start_time_iso
+                        )
+
+                    self._reconnect_count[user_id] = reconnect_count + 1
+
+                    # Process messages
                     async for msg in ws:
                         if not self._running:
                             break
@@ -302,11 +374,37 @@ class BinanceStreamManager:
                             break
                         if msg.type == aiohttp.WSMsgType.TEXT:
                             data = json.loads(msg.data)
+
+                            # Subscribe confirmation response
+                            if "result" in data:
+                                request_id = data.get("id", "?")
+                                if data.get("result") is None:
+                                    logger.info(
+                                        "User Data Stream subscribe bestaetigt: "
+                                        "user=%s, id=%s",
+                                        user_id,
+                                        request_id,
+                                    )
+                                else:
+                                    logger.warning(
+                                        "User Data Stream subscribe response: "
+                                        "user=%s, result=%s",
+                                        user_id,
+                                        data["result"],
+                                    )
+                                continue
+
                             event_type = data.get("e")
 
                             if event_type == "executionReport":
+                                self._last_user_data_message_at = datetime.now(
+                                    timezone.utc
+                                )
                                 await self._handle_execution_report(user_id, data)
                             elif event_type == "outboundAccountPosition":
+                                self._last_user_data_message_at = datetime.now(
+                                    timezone.utc
+                                )
                                 await self._handle_account_update(user_id, data)
                         elif msg.type in (
                             aiohttp.WSMsgType.CLOSED,
@@ -314,63 +412,80 @@ class BinanceStreamManager:
                         ):
                             break
         finally:
-            keepalive_task.cancel()
-            try:
-                await keepalive_task
-            except asyncio.CancelledError:
-                pass
+            # Record disconnect time for next reconnect reconciliation
+            self._disconnect_at[user_id] = datetime.now(timezone.utc)
 
-    async def _keepalive_listen_key(self, user_id: str):
-        """Haelt den Listen Key aktiv (Binance Requirement: alle 30 Minuten)."""
-        while self._running:
-            await asyncio.sleep(1800)  # 30 Minuten
-            try:
-                listen_key = self._listen_keys.get(user_id)
-                if listen_key and self._api_key:
-                    await self._ws_api_request("userDataStream.ping", listen_key)
-                    logger.debug(f"Listen Key Keepalive: user={user_id}")
-            except Exception as e:
-                logger.error(f"Listen Key Keepalive fehlgeschlagen: {e}")
+    # ─── WSRC-01: Post-reconnect fill reconciliation ───
 
-    async def _ws_api_request(
-        self, method: str, listen_key: Optional[str] = None
-    ) -> Optional[str]:
-        """Hilfsmethode fuer Binance WebSocket API (statt REST API) um Listen Keys zu verwalten."""
-        import aiohttp
-        from uuid import uuid4
+    async def _post_reconnect_reconciliation(
+        self, user_id: str, start_time_iso: Optional[str]
+    ):
+        """
+        Reconcile fills after a WebSocket reconnect.
 
-        if not self._api_key:
-            return None
-
-        testnet = os.getenv("BINANCE_TESTNET", "").lower() == "true"
-        url = (
-            "wss://testnet.binance.vision/ws-api/v3"
-            if testnet
-            else "wss://ws-api.binance.com:443/ws-api/v3"
-        )
-
-        params = {"apiKey": self._api_key}
-        if listen_key:
-            params["listenKey"] = listen_key
-
-        message = {"id": str(uuid4()), "method": method, "params": params}
+        Debounce: skips if last reconciliation was < 60 seconds ago.
+        Runs reconcile_fills in a thread (blocking DB operations).
+        """
+        now = datetime.now(timezone.utc)
+        if self._last_reconciliation_at and (
+            now - self._last_reconciliation_at
+        ).total_seconds() < 60:
+            logger.debug(
+                "Post-reconnect reconciliation skipped (debounce): user=%s", user_id
+            )
+            return
 
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.ws_connect(url) as ws:
-                    await ws.send_json(message)
-                    response_str = await ws.receive_str()
-                    data = json.loads(response_str)
+            self._last_reconciliation_at = now
+            await asyncio.to_thread(
+                self._sync_reconcile_fills, user_id, start_time_iso
+            )
+            logger.info(
+                "Post-reconnect reconciliation completed: user=%s", user_id
+            )
+        except Exception:
+            logger.exception(
+                "Post-reconnect reconciliation failed: user=%s", user_id
+            )
 
-                    if "result" in data and "listenKey" in data["result"]:
-                        return data["result"]["listenKey"]
-                    return None
-        except Exception as e:
-            logger.error(f"WebSocket API request fail for {method}: {e}")
-            return None
+    def _sync_reconcile_fills(
+        self, user_id: str, start_time: Optional[str]
+    ):
+        """
+        Synchronous wrapper for reconcile_fills — runs in thread pool.
+
+        Reconciles fills for all KNOWN_PAIRS since the disconnect time.
+        """
+        from app.db.database import SessionLocal
+        from app.services.binance import BinanceService
+        from app.services.reconciliation_service import ReconciliationService
+        from app.symbol_registry import KNOWN_PAIRS
+
+        api_key = os.getenv("BINANCE_API_KEY")
+        api_secret = os.getenv("BINANCE_API_SECRET")
+        testnet = os.getenv("BINANCE_TESTNET", "").lower() == "true"
+
+        binance_service = BinanceService(api_key, api_secret, testnet=testnet)
+        recon_service = ReconciliationService(binance_service)
+
+        db = SessionLocal()
+        try:
+            for symbol in KNOWN_PAIRS:
+                recon_service.reconcile_fills(db, user_id, symbol, start_time)
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
+        finally:
+            db.close()
+
+    # ─── Event Handlers ───
 
     async def _handle_execution_report(self, user_id: str, data: dict):
         """Verarbeitet Order-Status-Updates von Binance."""
+        # WSRC-03: Track user data freshness
+        self._last_user_data_message_at = datetime.now(timezone.utc)
+
         message = {
             "type": "order_update",
             "symbol": data.get("s"),
@@ -422,6 +537,9 @@ class BinanceStreamManager:
 
     async def _handle_account_update(self, user_id: str, data: dict):
         """Verarbeitet Balance-Updates von Binance."""
+        # WSRC-03: Track user data freshness
+        self._last_user_data_message_at = datetime.now(timezone.utc)
+
         balances = {}
         for b in data.get("B", []):
             asset = b["a"]
@@ -471,7 +589,14 @@ class BinanceStreamManager:
             "user_data_streams": len(self.user_data_subscribers),
             "active_tasks": len(self._tasks) + len(self._user_stream_tasks),
             "current_prices": dict(self.current_prices),
-            "has_async_client": self._api_key is not None,
+            "has_api_credentials": self._api_key is not None
+            and self._api_secret is not None,
+            "last_user_data_message_at": (
+                self._last_user_data_message_at.isoformat()
+                if self._last_user_data_message_at
+                else None
+            ),
+            "reconnect_counts": dict(self._reconnect_count),
         }
 
 

@@ -28,6 +28,11 @@ export const WebSocketProvider = ({ userId = 'user_123', children }) => {
   const reconnectTimeoutRef = useRef(null);
   const reconnectAttempts = useRef(0);
 
+  // WSRC-04: Reconnect state for StatusDashboard (Phase 22)
+  const [reconnecting, setReconnecting] = useState(false);
+  const [lastError, setLastError] = useState(null);
+  const [reconnectAttemptsState, setReconnectAttemptsState] = useState(0);
+
   // Phase 1: Prices (Multi-Pair Map)
   const [prices, setPrices] = useState({});
   const [priceLastUpdates, setPriceLastUpdates] = useState({});
@@ -66,7 +71,10 @@ export const WebSocketProvider = ({ userId = 'user_123', children }) => {
       } else {
         // Kein API-Key konfiguriert — direkt subscriben
         setConnected(true);
+        setReconnecting(false);
+        setLastError(null);
         reconnectAttempts.current = 0;
+        setReconnectAttemptsState(0);
         ws.send(JSON.stringify({ action: 'subscribe', channel: 'user_data' }));
       }
     };
@@ -79,7 +87,10 @@ export const WebSocketProvider = ({ userId = 'user_123', children }) => {
           case 'auth_ok':
             console.log('WebSocket authentifiziert');
             setConnected(true);
+            setReconnecting(false);
+            setLastError(null);
             reconnectAttempts.current = 0;
+            setReconnectAttemptsState(0);
             // Nach erfolgreicher Auth: User Data Channel subscriben
             wsRef.current?.send(JSON.stringify({ action: 'subscribe', channel: 'user_data' }));
             break;
@@ -112,6 +123,7 @@ export const WebSocketProvider = ({ userId = 'user_123', children }) => {
             setLastBalanceUpdate(data);
             const balSym = data.symbol || 'BTCEUR';
             queryClient.invalidateQueries({ queryKey: ['portfolio', balSym] });
+            queryClient.invalidateQueries({ queryKey: ['active-symbols'] });
             break;
           }
 
@@ -169,6 +181,7 @@ export const WebSocketProvider = ({ userId = 'user_123', children }) => {
 
     ws.onerror = (error) => {
       console.error('WebSocket Fehler:', error);
+      setLastError(error.message || 'WebSocket connection error');
     };
 
     ws.onclose = (event) => {
@@ -176,10 +189,18 @@ export const WebSocketProvider = ({ userId = 'user_123', children }) => {
       setConnected(false);
       wsRef.current = null;
 
-      // Nicht reconnecten bei Auth-Fehler
+      // Auth failure — no reconnect
       if (event.code === 4001) {
         console.error('WebSocket Auth fehlgeschlagen — kein Reconnect');
+        setLastError('Authentication failed');
+        setReconnecting(false);
         return;
+      }
+
+      // Normal disconnect — schedule reconnect
+      setReconnecting(true);
+      if (event.reason) {
+        setLastError(event.reason);
       }
 
       scheduleReconnect();
@@ -192,6 +213,7 @@ export const WebSocketProvider = ({ userId = 'user_123', children }) => {
     // Exponential Backoff: 1s → 2s → 4s → ... → 30s max
     const delay = Math.min(1000 * Math.pow(2, reconnectAttempts.current), 30000);
     reconnectAttempts.current += 1;
+    setReconnectAttemptsState(reconnectAttempts.current);
 
     console.log(`WebSocket Reconnect in ${delay / 1000}s (Versuch ${reconnectAttempts.current})`);
 
@@ -224,6 +246,9 @@ export const WebSocketProvider = ({ userId = 'user_123', children }) => {
 
   const value = {
     connected,
+    reconnecting,
+    reconnectAttempts: reconnectAttemptsState,
+    lastError,
     prices,
     priceLastUpdates,
     // Backward-compat: single price (BTCEUR)
