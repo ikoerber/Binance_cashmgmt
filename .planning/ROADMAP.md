@@ -89,4 +89,4 @@ Plans:
 | 15. Backtesting Engine | v3.0 | 4/4 | Complete | 2026-02-27 |
 | 16. Dry-Run Mode + Bot Dashboard | v3.0 | 3/3 | Complete | 2026-02-27 |
 | 17. Combined Score Integration | v3.0 | 2/2 | Complete | 2026-02-27 |
-| 18. BotDashboard Integration Fixes | 1/1 | Complete   | 2026-02-28 | — |
+| 18. BotDashboard Integration Fixes | 1/1 | Complete    | 2026-02-28 | — |
