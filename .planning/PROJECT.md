@@ -48,7 +48,7 @@ Ledger-first, deterministisches, auditierbares Cashflow-Tracking und automatisie
 - ✓ API Docs aus Navbar entfernt (Footer-Link) — v2.0
 - ✓ XRPBTC re-added to Symbol Registry + Binance Sync (analysis + trading, no cross-pair pairing) — v3.0
 - ✓ Multi-Factor Scoring Engine: Z-Score (40%), Lead-Lag (30%), Orderbook Imbalance (20%), Funding Rate (10%) → Alpha Score (-5 to +5) — v3.0
-- ✓ ATR-Adaptive Trailing Stops with data-gap freeze/resume — v3.0
+- ✓ ATR-Adaptive Trailing Stops with data-gap freeze/resume + frontend display with freeze state indicator — v3.0
 - ✓ Regime Detection (Hurst exponent, trending/mean-reverting) with adaptive Z-Score weighting — v3.0
 - ✓ Walk-Forward Backtesting (24-month, Sharpe, drawdown, HODL benchmark, parameter sweep) — v3.0
 - ✓ Dry-Run Mode (real-time signals, virtual portfolio, structural isolation from orders) — v3.0
@@ -77,20 +77,20 @@ Ledger-first, deterministisches, auditierbares Cashflow-Tracking und automatisie
 
 ## Current Milestone: Planning Next
 
-v3.0 Multi-Factor Omni-Bot shipped 2026-02-27. Next milestone TBD via `/gsd:new-milestone`.
+v3.0 Multi-Factor Omni-Bot shipped 2026-02-28 (incl. gap closure). Next milestone TBD via `/gsd:new-milestone`.
 
 ## Context
 
 Shipped v1.0 mit 8.035 neuen Zeilen ueber 50 Dateien (4 Phasen, 8 Plaene, 13 Tasks).
 Shipped v1.1 mit 6.054 neuen Zeilen ueber 52 Dateien (4 Phasen, 9 Plaene, 17 Tasks).
 Shipped v2.0 mit 9.387 neuen Zeilen ueber 93 Dateien (4 Phasen, 12 Plaene, 24 Tasks).
-Shipped v3.0 mit 42.148 LOC gesamt (26.132 Python + 16.016 JS/CSS), 5 Phasen, 16 Plaene, 63 Commits.
+Shipped v3.0 mit 42.430 LOC gesamt (26.243 Python + 16.187 JS/CSS), 6 Phasen, 17 Plaene, 66 Commits (incl. Phase 18 gap closure).
 Tech Stack: Python 3 + FastAPI, SQLAlchemy 2, Alembic, React 19, TanStack Query, Recharts, lightweight-charts.
 799+ Backend-Tests, Frontend-Build sauber.
 
 Symbol Registry kennt 3 EUR-Pairs (BTCEUR, ETHEUR, XRPEUR) + XRPBTC (re-added in v3.0 fuer Analyse). Alpha Score Engine mit 4 Faktoren, Regime-Erkennung (Hurst), ATR-Trailing. Walk-Forward Backtesting mit Parameter-Sweep. Dry-Run Paper Trading mit struktureller Isolation (DRY-05). Combined Score integriert Alpha als optionalen 3. Signal (50/30/20).
 
-Frontend: Dark Mode (dark-only), 4-Bereichs-Navigation (Trading/Analyse/Bot/Admin), Bot Dashboard mit Alpha Score Hero, Signal History Chart, Regime Badge. Decision Log mit filterbarer Tabelle und aufklappbaren Faktor-Details. Plain CSS mit 79+ CSS Custom Properties.
+Frontend: Dark Mode (dark-only), 4-Bereichs-Navigation (Trading/Analyse/Bot/Admin), Bot Dashboard mit Alpha Score Hero, Signal History Chart, Regime Badge, Trailing Stop Anzeige mit Freeze-State. Decision Log mit filterbarer Tabelle und aufklappbaren Faktor-Details. Plain CSS mit 79+ CSS Custom Properties.
 
 ### Known Tech Debt
 - backfill_cost_eur.py verwendet float() statt Decimal fuer SQL-Writes (v1.0)
@@ -144,5 +144,7 @@ Frontend: Dark Mode (dark-only), 4-Bereichs-Navigation (Trading/Analyse/Bot/Admi
 | Walk-Forward Backtesting statt In-Sample | Vermeidet Overfitting, realistische Out-of-Sample Performance | ✓ Good — 24-Monate, Sharpe/Drawdown, HODL Benchmark |
 | Wall-Clock Evaluation Loop (nicht fixed sleep) | Candle-Close Alignment, idempotent bei Server-Restart | ✓ Good — asyncio.sleep bis naechste Grenze |
 
+| Gap Closure via Milestone Audit | v3.0 Audit deckte 4 Frontend-Integrationsfehler auf (Feldnamen, Envelope, Orphaned Endpoint) | ✓ Good — Phase 18 schloss alle Gaps, 6/6 must-haves verifiziert |
+
 ---
-*Last updated: 2026-02-28 after v3.0 milestone*
+*Last updated: 2026-02-28 after v3.0 milestone completion (incl. Phase 18 gap closure)*
