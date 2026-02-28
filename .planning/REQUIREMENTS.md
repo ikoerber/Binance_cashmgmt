@@ -23,10 +23,10 @@ Requirements for Hardening + Monitoring milestone. Each maps to roadmap phases.
 
 ### WebSocket Recovery
 
-- [ ] **WSRC-01**: Post-Reconnect Reconciliation wird automatisch nach WebSocket-Reconnect getriggert
-- [ ] **WSRC-02**: Listen Key Freshness Tracking — Health DEGRADED wenn User Data Stream >90s ohne Nachricht
-- [ ] **WSRC-03**: Keepalive-Failure (None-Response) triggert sofortigen Reconnect
-- [ ] **WSRC-04**: Frontend zeigt Reconnect-State (reconnecting, attempts, error) im WebSocketContext
+- [x] **WSRC-01**: Post-Reconnect Reconciliation wird automatisch nach WebSocket-Reconnect getriggert
+- [x] **WSRC-02**: Listen Key Freshness Tracking — Health DEGRADED wenn User Data Stream >90s ohne Nachricht
+- [x] **WSRC-03**: Keepalive-Failure (None-Response) triggert sofortigen Reconnect
+- [x] **WSRC-04**: Frontend zeigt Reconnect-State (reconnecting, attempts, error) im WebSocketContext
 
 ### Status Dashboard
 
@@ -74,10 +74,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TELE-01 | Phase 20 | Pending |
 | TELE-02 | Phase 20 | Pending |
 | TELE-03 | Phase 20 | Pending |
-| WSRC-01 | Phase 21 | Pending |
-| WSRC-02 | Phase 21 | Pending |
-| WSRC-03 | Phase 21 | Pending |
-| WSRC-04 | Phase 21 | Pending |
+| WSRC-01 | Phase 21 | Complete |
+| WSRC-02 | Phase 21 | Complete |
+| WSRC-03 | Phase 21 | Complete |
+| WSRC-04 | Phase 21 | Complete |
 | DASH-01 | Phase 22 | Pending |
 | DASH-02 | Phase 22 | Pending |
 | DASH-03 | Phase 22 | Pending |

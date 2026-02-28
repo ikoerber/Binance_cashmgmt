@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v3.1
 milestone_name: Hardening + Monitoring
-status: unknown
-last_updated: "2026-02-28T08:45:38.977Z"
+status: executing
+last_updated: "2026-02-28T10:17:00.000Z"
 progress:
-  total_phases: 2
-  completed_phases: 2
-  total_plans: 4
-  completed_plans: 4
+  total_phases: 4
+  completed_phases: 3
+  total_plans: 8
+  completed_plans: 6
 ---
 
 # Project State
@@ -18,30 +18,31 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-28)
 
 **Core value:** Ledger-first, deterministisches, auditierbares Cashflow-Tracking und automatisiertes Trading-System
-**Current focus:** v3.1 Phase 19 complete — Ready for Phase 20 (Telegram Notifications)
+**Current focus:** v3.1 Phase 21 complete — WebSocket Recovery + Listen Key Hardening
 
 ## Current Position
 
 Milestone: v3.1 Hardening + Monitoring
-Phase: 19 of 22 (Health Check Foundation)
+Phase: 21 of 22 (WebSocket Recovery + Listen Key Hardening)
 Plan: 2 of 2 in current phase
-Status: Phase 19 verified and complete
-Last activity: 2026-02-28 — Phase 19 verified (all 5 HLTH requirements passed)
+Status: Phase 21 execution complete — pending verification
+Last activity: 2026-02-28 — Phase 21 plans executed (WSRC-01 through WSRC-04)
 
-Progress: [█████░░░░░░░░░░░░░░░] 25%
+Progress: [███████████████░░░░░] 75%
 
 ## Performance Metrics
 
 **Velocity (all milestones):**
-- Total plans completed: 45 (8 v1.0 + 9 v1.1 + 12 v2.0 + 13 v3.0 + 1 gap closure + 2 v3.1)
-- Average duration: 3.4min
-- Total execution time: 152min
+- Total plans completed: 47 (8 v1.0 + 9 v1.1 + 12 v2.0 + 13 v3.0 + 1 gap closure + 4 v3.1)
+- Average duration: 3.6min
+- Total execution time: 169min
 
 **v3.1 (current):**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 19 | 2/2 | 4min | 2min |
+| 21 | 2/2 | 17min | 8.5min |
 
 *Updated after each plan completion*
 
@@ -75,5 +76,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-02-28
-Stopped at: Phase 19 verified and complete — ready for Phase 20 planning
+Stopped at: Phase 21 execution complete — pending verification
 Resume file: None

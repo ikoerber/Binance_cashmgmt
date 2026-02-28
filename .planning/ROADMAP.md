@@ -66,7 +66,7 @@ See: `.planning/milestones/v3.0-ROADMAP.md` for full details
 
 - [x] **Phase 19: Health Check Foundation** — Structured health endpoint with 8 parallel service checks, in-memory state, 3-tier overall status (completed 2026-02-28)
 - [x] **Phase 20: Telegram Notifications** — Out-of-band alerting on service state transitions, graceful no-op, alert routing separation (completed 2026-02-28)
-- [ ] **Phase 21: WebSocket Recovery + Listen Key Hardening** — Post-reconnect reconciliation, freshness tracking, keepalive failure handling, frontend reconnect state
+- [x] **Phase 21: WebSocket Recovery + Listen Key Hardening** — Post-reconnect reconciliation, freshness tracking, keepalive failure handling, frontend reconnect state (completed 2026-02-28)
 - [ ] **Phase 22: Status Dashboard** — Admin-area service status cards, timestamps, WebSocket state, global nav indicator
 
 ## Phase Details
@@ -110,11 +110,11 @@ Plans:
   2. Health endpoint reports DEGRADED for the User Data Stream service when no user data message has been received for more than 90 seconds
   3. When the keepalive ping returns None (failure), a reconnect is triggered immediately instead of waiting for the next keepalive interval
   4. Frontend WebSocketContext exposes reconnecting state, reconnect attempt count, and error string — UI consumers can display connection status
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 21-01: TBD
-- [ ] 21-02: TBD
+- [ ] 21-01-PLAN.md — TDD: Migrate User Data Stream to subscribe.signature, post-reconnect reconciliation, freshness tracking, health check extension + 12 tests
+- [ ] 21-02-PLAN.md — Frontend WebSocketContext: expose reconnecting, reconnectAttempts, lastError to context consumers
 
 ### Phase 22: Status Dashboard
 **Goal**: Operator can see the health of every service at a glance from the Admin area without SSH access or checking logs
@@ -144,5 +144,5 @@ Phases execute in numeric order: 19 -> 20 -> 21 -> 22
 | 13-18 | v3.0 | 17/17 | Complete | 2026-02-28 |
 | 19. Health Check Foundation | 2/2 | Complete    | 2026-02-28 | - |
 | 20. Telegram Notifications | 2/2 | Complete    | 2026-02-28 | - |
-| 21. WebSocket Recovery | v3.1 | 0/? | Not started | - |
+| 21. WebSocket Recovery | 2/2 | Complete   | 2026-02-28 | - |
 | 22. Status Dashboard | v3.1 | 0/? | Not started | - |
