@@ -95,11 +95,11 @@ Plans:
   1. When a service transitions from healthy to DOWN, a Telegram message arrives within one health-check cycle naming the failed service
   2. When TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID is not configured in .env, the app starts and runs without errors — no Telegram calls attempted
   3. Health-related events do NOT appear in the frontend AlertBanner and do NOT create AlertEventDB rows — health alerts route exclusively through Telegram and the Status Dashboard
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 20-01: TBD
-- [ ] 20-02: TBD
+- [ ] 20-01-PLAN.md — TDD: TelegramNotifier service with transition detection, graceful no-op, 9 tests + python-telegram-bot dependency
+- [ ] 20-02-PLAN.md — Integration: health check notification hook + main.py lifespan wiring
 
 ### Phase 21: WebSocket Recovery + Listen Key Hardening
 **Goal**: WebSocket disconnects are recovered automatically without losing fills, and silent Listen Key expiry is detected before it causes data gaps
