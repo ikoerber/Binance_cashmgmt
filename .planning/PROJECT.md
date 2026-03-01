@@ -67,6 +67,10 @@ Ledger-first, deterministisches, auditierbares Cashflow-Tracking und automatisie
 - ✓ Dedizierte Chart-Seite mit OHLCV-Candlestick, Intervall-Auswahl (15m/1h/4h/1d/1w), Volume-Histogramm, 30s Live-Polling — v3.2
 - ✓ Chart Overlays: Orderblock-Zonen, Break-Even, geclusterte Sell-Orders, Trailing Stop — je einzeln toggle-bar — v3.2
 
+- ✓ Overview Compact Asset Table: Per-Symbol Cards ersetzt durch HTML-Tabelle (Asset, Balance, Wert EUR, P&L%) — v3.3
+- ✓ 4-Spalten KPI-Grid: Alle 4 Aggregate-KPI-Karten in einer Zeile — v3.3
+- ✓ Asset-Deduplizierung: Eine Zeile pro Base-Asset (BTC-quoted Pairs uebersprungen wenn EUR-Pair existiert) — v3.3
+
 ### Active
 
 <!-- Current scope. Building toward these. -->
@@ -94,7 +98,7 @@ Ledger-first, deterministisches, auditierbares Cashflow-Tracking und automatisie
 
 ## Context
 
-Shipped v3.2 mit 45.089 LOC gesamt (27.064 Python + 18.025 JS/JSX/CSS), 6 Milestones (v1.0-v3.2), 59 Plaene total.
+Shipped v3.2 mit 45.089 LOC gesamt (27.064 Python + 18.025 JS/JSX/CSS), 6 Milestones (v1.0-v3.2), 59 Plaene total. v3.3 Phase 27 abgeschlossen: Overview mit kompakter Asset-Tabelle statt Per-Symbol Cards.
 Tech Stack: Python 3 + FastAPI, SQLAlchemy 2, Alembic, React 19, TanStack Query, Recharts, lightweight-charts, python-telegram-bot.
 
 Symbol Registry kennt 3 EUR-Pairs (BTCEUR, ETHEUR, XRPEUR) + XRPBTC (re-added in v3.0 fuer Analyse). Alpha Score Engine mit 4 Faktoren, Regime-Erkennung (Hurst), ATR-Trailing. Walk-Forward Backtesting mit Parameter-Sweep. Dry-Run Paper Trading mit struktureller Isolation (DRY-05). Combined Score integriert Alpha als optionalen 3. Signal (50/30/20).
@@ -167,5 +171,8 @@ Health Monitoring: 8 parallele Service-Checks (in-memory, 5s TTL), Telegram-Bena
 | subscribe.signature statt legacy userDataStream | Legacy start/ping/stop funktionierte nicht mehr zuverlaessig | ✓ Good — HMAC-SHA256 Auth, automatische Reconnect-Reconciliation |
 | Health-Check Module-Import statt Variablen-Import | Python bindet `from module import var` zum Import-Zeitpunkt (engine war None) | ✓ Good — `from app.db import database as _db` behebt Referenz-Bug |
 
+| KPI-Grid 4 statt 3 Spalten | Alle 4 Aggregate-Cards in einer Zeile, Responsive Breakpoint 900→1100px | ✓ Good — bessere Uebersicht |
+| Asset-Tabelle statt Cards | Kompaktere Darstellung, bessere Vergleichbarkeit der Assets | ✓ Good — HTML table mit Deduplication |
+
 ---
-*Last updated: 2026-03-01 after v3.3 milestone start*
+*Last updated: 2026-03-01 after Phase 27*
