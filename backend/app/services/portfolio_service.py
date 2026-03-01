@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.domain.models import LedgerEvent, PortfolioState, EventType, EventSource, TradeSide
 from app.domain.portfolio import compute_portfolio_from_ledger, compute_daily_performance
-from app.db.models import LedgerEventDB, TradeLotDB
+from app.db.models import LedgerEventDB, TradeLotDB, EventTypeEnum
 from app.services.binance import BinanceService
 from app.symbol_registry import get_base_asset, get_quote_asset
 
@@ -164,6 +164,73 @@ def get_daily_performance(
         "unrealized_pnl_start_of_day_quote": str(daily.unrealized_pnl_start_of_day_quote),
         "unrealized_pnl_current_quote": str(daily.unrealized_pnl_current_quote),
         "unrealized_pnl_change_quote": str(daily.unrealized_pnl_change_quote),
+    }
+
+
+def get_bnb_fee_summary(
+    db: Session,
+    user_id: str,
+    binance_service: Optional[BinanceService] = None,
+) -> dict:
+    """
+    BNB Fee Summary: Aktueller BNB-Bestand + kumulative Trading-Fee-Kosten in EUR.
+
+    - BNB Balance: Direkt von Binance (free + locked)
+    - Kumulative Fee EUR: SUM(fee_quote_value) aller TRADE_FILL Events mit fee_asset='BNB'
+    - BNB/EUR Marktwert: Ueber Binance Ticker (authenticated client)
+
+    Args:
+        db: Database Session
+        user_id: User ID
+        binance_service: Optional - fuer Live BNB Balance und BNB/EUR Preis
+
+    Returns:
+        Dict mit BNB Balance, EUR-Wert, kumulativen Fee-Kosten
+    """
+    from sqlalchemy import func
+
+    # 1. BNB Balance von Binance + BNB/EUR Preis
+    bnb_balance = Decimal("0")
+    bnb_eur_price = Decimal("0")
+    source = "unavailable"
+    if binance_service:
+        try:
+            balances = binance_service.fetch_account_balance()
+            bnb_info = balances.get("BNB", {})
+            bnb_balance = bnb_info.get("total", Decimal("0"))
+            source = "binance"
+            # Also fetch BNB/EUR price for valuation
+            try:
+                ticker = binance_service.client.get_symbol_ticker(symbol="BNBEUR")
+                bnb_eur_price = Decimal(ticker["price"])
+            except Exception:
+                logger.warning("Failed to fetch BNB/EUR ticker price")
+        except Exception:
+            logger.warning("Failed to fetch BNB balance from Binance")
+
+    # 2. Kumulative BNB-Fee EUR-Werte aus Ledger
+    result = db.query(
+        func.sum(LedgerEventDB.fee_quote_value),
+        func.count(LedgerEventDB.id),
+    ).filter(
+        LedgerEventDB.user_id == user_id,
+        LedgerEventDB.type == EventTypeEnum.TRADE_FILL,
+        LedgerEventDB.fee_asset == "BNB",
+        LedgerEventDB.fee_quote_value.isnot(None),
+    ).one()
+
+    cumulative_fee_eur = result[0] or Decimal("0")
+    fee_event_count = result[1] or 0
+
+    # 3. BNB/EUR Marktwert
+    bnb_balance_eur = bnb_balance * bnb_eur_price
+
+    return {
+        "bnb_balance": str(bnb_balance),
+        "bnb_balance_eur": str(bnb_balance_eur),
+        "cumulative_fee_eur": str(cumulative_fee_eur),
+        "fee_event_count": fee_event_count,
+        "source": source,
     }
 
 
