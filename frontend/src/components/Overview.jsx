@@ -5,9 +5,9 @@
  * Parallel-Fetch der Portfolio-Daten pro Symbol, Frontend-Aggregation.
  */
 import { useNavigate } from 'react-router-dom';
-import { useQueries } from '@tanstack/react-query';
+import { useQueries, useQuery } from '@tanstack/react-query';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
-import { getPortfolio } from '../api/client';
+import { getPortfolio, getBnbFees } from '../api/client';
 import { useUser } from '../contexts/UserContext';
 import { useWebSocket } from '../contexts/WebSocketContext';
 import { getBaseLabel, getBaseAsset, getQuoteAsset } from '../utils/symbolRegistry';
@@ -48,6 +48,13 @@ const Overview = () => {
         staleTime: 30_000,
       };
     }),
+  });
+
+  // BNB Fee Summary
+  const { data: bnbData } = useQuery({
+    queryKey: ['bnb-fees', userId],
+    queryFn: () => getBnbFees(userId),
+    staleTime: 60_000,
   });
 
   const anyLoading = portfolioQueries.some(q => q.isLoading && q.fetchStatus !== 'idle');
@@ -243,6 +250,24 @@ const Overview = () => {
                     </tr>
                   );
                 })}
+                {/* BNB Fee Row */}
+                {bnbData && parseFloat(bnbData.bnb_balance) > 0 && (
+                  <tr className="overview-asset-row overview-asset-row--muted">
+                    <td className="asset-name">
+                      <span className="asset-icon">BNB</span>
+                      <span className="asset-label">BNB</span>
+                    </td>
+                    <td className="text-right">
+                      {formatNumber(parseFloat(bnbData.bnb_balance), 4)}
+                    </td>
+                    <td className="text-right">
+                      {formatEUR(parseFloat(bnbData.bnb_balance_eur))}
+                    </td>
+                    <td className="text-right overview-fee-info">
+                      Fees: {formatEUR(parseFloat(bnbData.cumulative_fee_eur))}
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>

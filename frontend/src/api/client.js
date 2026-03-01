@@ -28,6 +28,11 @@ export const getDailyPerformance = async (userId, marketPrice, symbol = 'BTCEUR'
   return response.data;
 };
 
+export const getBnbFees = async (userId) => {
+  const response = await apiClient.get(`/api/portfolio/${userId}/bnb-fees`);
+  return response.data;
+};
+
 // Lots API
 export const getLots = async (userId, status = null, limit = 100, offset = 0, fromDate = null, toDate = null, symbol = null) => {
   const response = await apiClient.get(`/api/lots/${userId}`, {
@@ -58,6 +63,13 @@ export const mergeLots = async (userId, lotIds) => {
 export const getOrdersForUser = async (userId, status = null, symbol = null) => {
   const response = await apiClient.get(`/api/orders/${userId}/list`, {
     params: { status, symbol },
+  });
+  return response.data;
+};
+
+export const getBinanceOpenOrders = async (userId, symbol = 'BTCEUR') => {
+  const response = await apiClient.get(`/api/orders/${userId}/open`, {
+    params: { symbol },
   });
   return response.data;
 };
