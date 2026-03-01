@@ -171,6 +171,35 @@
   color: var(--color-text-primary);
 }
 
+/* BNB Fee Row (muted, not clickable) */
+.overview-asset-row--muted {
+  cursor: default;
+}
+
+.overview-asset-row--muted:hover {
+  background: transparent;
+}
+
+.overview-asset-row--muted td {
+  color: var(--color-text-muted);
+}
+
+.overview-asset-row--muted .asset-icon {
+  background: var(--color-bg-page);
+  color: var(--color-text-muted);
+}
+
+.overview-asset-row--muted .asset-label {
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+
+.overview-fee-info {
+  font-size: 13px;
+  color: var(--color-text-secondary) !important;
+  font-style: italic;
+}
+
 /* Responsive */
 @media (max-width: 1100px) {
   .overview-total {
