@@ -152,5 +152,5 @@ Phases execute in numeric order: 27 → 28 → 29
 | 19-22 | v3.1 | 8/8 | Complete | 2026-02-28 |
 | 23-26 | v3.2 | 5/5 | Complete | 2026-02-28 |
 | 27. Overview Layout Restructure | 1/1 | Complete    | 2026-03-01 | - |
-| 28. BNB Fee Tracking | 1/1 | Complete   | 2026-03-01 | - |
+| 28. BNB Fee Tracking | 1/1 | Complete    | 2026-03-01 | - |
 | 29. Backtest Tooltips | v3.3 | 0/1 | Not started | - |
