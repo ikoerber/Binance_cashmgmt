@@ -138,6 +138,46 @@
 
 ---
 
+## Milestone: v3.3 — Polish & Completeness
+
+**Shipped:** 2026-03-01
+**Phases:** 2 (27-28) | **Plans:** 2 | **Commits:** 12
+**Requirements:** 5/8 satisfied (Phase 29 deferred)
+
+### What Was Built
+- Overview Layout Restructure: Per-symbol card grid replaced with compact HTML asset table (Asset, Balance, Wert EUR, P&L%), 4-column KPI grid, asset deduplication (one row per base asset)
+- BNB Fee Tracking: New GET /api/portfolio/{user_id}/bnb-fees endpoint aggregating cumulative fee_quote_value from BNB TRADE_FILL LedgerEvents, BNB row in Overview asset table with muted styling
+
+### What Worked
+- Small-scope milestone (2 phases) completed in a single day with zero gaps at verification
+- Phase 28 cleanly extended Phase 27's asset table structure — the dependency chain worked flawlessly
+- Reusing existing BinanceService singleton for BNB/EUR ticker avoided adding new dependencies
+- Muted row CSS pattern (overview-asset-row--muted) established a reusable pattern for supplementary non-tradable assets
+- Plan checker caught the correct DB column name (fee_quote_value vs fee_eur_value) before execution began
+
+### What Was Inefficient
+- SUMMARY.md one-liner extraction still returns null — 4th milestone with this issue, tool format needs fixing
+- phase-plan-index tool didn't find Phase 28 because it was in milestones/v3.3-phases/ instead of phases/ — the tool's directory resolution is inconsistent
+- milestone complete CLI under-counted phases/plans (reported 1/1 instead of 2/2) due to same directory resolution issue
+- Phase 29 was included in v3.3 scope but deferred at completion — could have been scoped to a separate milestone from the start
+
+### Patterns Established
+- **Supplementary asset row pattern**: `overview-asset-row--muted` class for non-tradable assets (BNB) — disables click, hover, applies muted colors
+- **Fee aggregation via fee_quote_value**: Pre-computed EUR-equivalent fees on LedgerEvents enable simple SUM aggregation without runtime price conversion
+- **Graceful degradation for Binance data**: Service returns source="unavailable" with zero values when Binance is unreachable, frontend conditionally renders
+
+### Key Lessons
+1. Small polish milestones (2-3 phases) are effective for incremental improvements — they ship quickly and provide clear value
+2. Phase directory resolution across .planning/phases/ and .planning/milestones/ is a recurring tooling gap — phases created during milestone execution end up in milestones dir, causing tool misalignment
+3. Deferring a phase at milestone completion is better than blocking the entire milestone for a low-priority feature
+
+### Cost Observations
+- Model mix: ~75% opus (executors), ~25% sonnet (verifiers, checkers)
+- v3.3 completed in 1 calendar day (2026-03-01)
+- Notable: 2 plans in ~5min total execution — fastest milestone to date
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
@@ -150,6 +190,7 @@
 | v3.0 | 6 | 17 | TDD for domain-heavy plans, structural isolation, regime detection, milestone audit as quality gate |
 | v3.1 | 4 | 8 | Module import gotcha pattern, timezone consistency, health as transition detector |
 | v3.2 | 4 | 5 | Frontend-only milestone, overlay patterns, clustering, research-skip for established patterns |
+| v3.3 | 2 | 2 | Supplementary asset row pattern, fee aggregation via pre-computed EUR values, graceful degradation |
 
 ### Cumulative Quality
 
@@ -161,6 +202,7 @@
 | v3.0 | 799 | Clean | 6/6 (incl. gap closure) |
 | v3.1 | 799+ | Clean | 4/4 |
 | v3.2 | 799+ | Clean | 4/4 |
+| v3.3 | 817 | Clean | 2/2 |
 
 ### Top Lessons (Verified Across Milestones)
 
@@ -170,3 +212,4 @@
 4. Milestone audit as mandatory quality gate catches cross-phase integration issues invisible to per-phase verifiers (verified v3.0 — 4 integration bugs caught)
 5. Python import-time binding of mutable globals is a recurring gotcha — use module imports for variables reassigned after init (verified v3.1 — health check engine was None)
 6. Frontend-only milestones (no new backend routes) complete significantly faster — established patterns enable research-skip (verified v3.2 — 5 plans in ~18min)
+7. Small polish milestones (2-3 phases) ship quickly and provide clear incremental value — deferring low-priority phases is better than blocking (verified v3.3 — Phase 29 deferred)
