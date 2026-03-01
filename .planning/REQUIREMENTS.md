@@ -9,9 +9,9 @@ Requirements for milestone v3.3 Polish & Completeness. Each maps to roadmap phas
 
 ### Overview
 
-- [ ] **OVW-01**: User sees a compact asset table with one row per crypto asset showing: Asset name, Balance, Market Value EUR, P&L%
-- [ ] **OVW-02**: User sees the allocation pie chart alongside the compact asset table
-- [ ] **OVW-03**: User sees the 4 aggregate KPI cards (Depotwert, Eingezahlt, EUR verfuegbar, Performance) above the asset section
+- [x] **OVW-01**: User sees a compact asset table with one row per crypto asset showing: Asset name, Balance, Market Value EUR, P&L%
+- [x] **OVW-02**: User sees the allocation pie chart alongside the compact asset table
+- [x] **OVW-03**: User sees the 4 aggregate KPI cards (Depotwert, Eingezahlt, EUR verfuegbar, Performance) above the asset section
 - [ ] **OVW-04**: User sees a BNB row in the asset table showing current Binance BNB balance
 - [ ] **OVW-05**: User sees the EUR-equivalent of cumulative BNB trading fees in the BNB row
 
@@ -42,9 +42,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| OVW-01 | Phase 27 | Pending |
-| OVW-02 | Phase 27 | Pending |
-| OVW-03 | Phase 27 | Pending |
+| OVW-01 | Phase 27 | Complete |
+| OVW-02 | Phase 27 | Complete |
+| OVW-03 | Phase 27 | Complete |
 | OVW-04 | Phase 28 | Pending |
 | OVW-05 | Phase 28 | Pending |
 | BTE-01 | Phase 29 | Pending |
