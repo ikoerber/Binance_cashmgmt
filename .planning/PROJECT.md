@@ -70,19 +70,14 @@ Ledger-first, deterministisches, auditierbares Cashflow-Tracking und automatisie
 - ✓ Overview Compact Asset Table: Per-Symbol Cards ersetzt durch HTML-Tabelle (Asset, Balance, Wert EUR, P&L%) — v3.3
 - ✓ 4-Spalten KPI-Grid: Alle 4 Aggregate-KPI-Karten in einer Zeile — v3.3
 - ✓ Asset-Deduplizierung: Eine Zeile pro Base-Asset (BTC-quoted Pairs uebersprungen wenn EUR-Pair existiert) — v3.3
+- ✓ BNB Fee Tracking: GET /api/portfolio/{user_id}/bnb-fees Endpoint, kumulative Fee-EUR-Aggregation aus LedgerEvents — v3.3
+- ✓ BNB Row in Overview: Muted, nicht-klickbare Zeile mit BNB-Balance und kumulativen Trading-Fee-Kosten — v3.3
 
 ### Active
 
 <!-- Current scope. Building toward these. -->
 
-## Current Milestone: v3.3 Polish & Completeness
-
-**Goal:** Streamline Overview into compact portfolio table with BNB fee tracking and add contextual help to Backtest page.
-
-**Target features:**
-- Overview simplification: compact table rows (Asset | Balance | Value EUR | P&L%) replacing per-symbol cards
-- BNB balance + cumulative fee history in Overview (new backend endpoint + fee aggregation from LedgerEvents)
-- Backtest inline tooltips: contextual help icons on individual form fields
+(None — planning next milestone)
 
 ### Out of Scope
 
@@ -98,7 +93,7 @@ Ledger-first, deterministisches, auditierbares Cashflow-Tracking und automatisie
 
 ## Context
 
-Shipped v3.2 mit 45.089 LOC gesamt (27.064 Python + 18.025 JS/JSX/CSS), 6 Milestones (v1.0-v3.2), 59 Plaene total. v3.3 Phase 27 abgeschlossen: Overview mit kompakter Asset-Tabelle statt Per-Symbol Cards.
+Shipped v3.3 mit 7 Milestones (v1.0-v3.3), 62 Plaene total. v3.3 lieferte kompakte Overview-Asset-Tabelle + BNB Fee Tracking Endpoint mit kumulativer Fee-Aggregation. Phase 29 (Backtest Tooltips) auf naechsten Milestone verschoben.
 Tech Stack: Python 3 + FastAPI, SQLAlchemy 2, Alembic, React 19, TanStack Query, Recharts, lightweight-charts, python-telegram-bot.
 
 Symbol Registry kennt 3 EUR-Pairs (BTCEUR, ETHEUR, XRPEUR) + XRPBTC (re-added in v3.0 fuer Analyse). Alpha Score Engine mit 4 Faktoren, Regime-Erkennung (Hurst), ATR-Trailing. Walk-Forward Backtesting mit Parameter-Sweep. Dry-Run Paper Trading mit struktureller Isolation (DRY-05). Combined Score integriert Alpha als optionalen 3. Signal (50/30/20).
@@ -173,6 +168,9 @@ Health Monitoring: 8 parallele Service-Checks (in-memory, 5s TTL), Telegram-Bena
 
 | KPI-Grid 4 statt 3 Spalten | Alle 4 Aggregate-Cards in einer Zeile, Responsive Breakpoint 900→1100px | ✓ Good — bessere Uebersicht |
 | Asset-Tabelle statt Cards | Kompaktere Darstellung, bessere Vergleichbarkeit der Assets | ✓ Good — HTML table mit Deduplication |
+| BNB/EUR Ticker via authenticated Client | Vermeidet neue Dependency (public client), nutzt bestehenden Singleton | ✓ Good — BinanceService.client.get_symbol_ticker |
+| Muted Row Pattern fuer supplementaere Assets | BNB ist kein Trading-Pair, braucht visuell unterscheidbare Zeile | ✓ Good — overview-asset-row--muted CSS, cursor: default, kein onClick |
+| P&L-Spalte fuer BNB als "Fees: X EUR" | P&L% ist fuer Fee-Payment-Asset nicht sinnvoll, stattdessen kumulative Fees | ✓ Good — italic Styling, font-size: 13px |
 
 ---
-*Last updated: 2026-03-01 after Phase 27*
+*Last updated: 2026-03-01 after v3.3 milestone*

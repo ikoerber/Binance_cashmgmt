@@ -1,14 +1,14 @@
 ---
 gsd_state_version: 1.0
-milestone: v3.3
-milestone_name: Polish & Completeness
-status: unknown
-last_updated: "2026-03-01T10:45:24.521Z"
+milestone: completed
+milestone_name: v3.3 shipped
+status: milestone_complete
+last_updated: "2026-03-01"
 progress:
-  total_phases: 1
-  completed_phases: 1
-  total_plans: 1
-  completed_plans: 1
+  total_phases: 2
+  completed_phases: 2
+  total_plans: 2
+  completed_plans: 2
 ---
 
 # Project State
@@ -18,38 +18,35 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-01)
 
 **Core value:** Ledger-first, deterministisches, auditierbares Cashflow-Tracking und automatisiertes Trading-System
-**Current focus:** v3.3 Phase 28 — BNB Fee Tracking
+**Current focus:** Planning next milestone
 
 ## Current Position
 
-Phase: 28 (2 of 3 in v3.3) — BNB Fee Tracking
-Plan: 01 of 01 complete
-Status: Phase 28 complete
-Last activity: 2026-03-01 — Phase 28 Plan 01 executed
+Milestone: v3.3 Polish & Completeness — SHIPPED 2026-03-01
+All phases complete (27-28). Phase 29 deferred.
+Last activity: 2026-03-01 — v3.3 milestone completed and archived
 
-Progress: [██████░░░░] 67%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity (all milestones):**
-- Total plans completed: 62 (8 v1.0 + 9 v1.1 + 12 v2.0 + 17 v3.0 + 8 v3.1 + 5 v3.2 + 3 v3.3)
+- Total plans completed: 62 (8 v1.0 + 9 v1.1 + 12 v2.0 + 17 v3.0 + 8 v3.1 + 5 v3.2 + 2 v3.3)
 - Total execution time: ~223min+
+- Milestones shipped: 7 (v1.0-v3.3)
 
 ## Accumulated Context
 
 All decision logs archived in respective milestone phase SUMMARY.md files.
+v3.3 decisions archived to .planning/milestones/v3.3-phases/
 
 ### Decisions
 
-- Phase 27-01: Removed getPairLabel import (unused after card grid removal), added formatPct for consistent P&L% display
-- Phase 27-01: KPI grid changed from 3 to 4 columns, responsive breakpoint raised from 900px to 1100px
-- Phase 28-01: Used authenticated BinanceService client for BNB/EUR ticker instead of public client
-- Phase 28-01: BNB row conditionally rendered only when bnb_balance > 0
-- Phase 28-01: P&L column repurposed for BNB to show cumulative fee EUR with italic prefix
+(Cleared — milestone complete. See .planning/milestones/v3.3-phases/ for v3.3 decisions.)
 
 ### Pending Todos
 
-None.
+- Phase 29 (Backtest Tooltips) deferred from v3.3 to next milestone
 
 ### Blockers/Concerns
 
@@ -58,5 +55,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-01
-Stopped at: Completed 28-01-PLAN.md
+Stopped at: v3.3 milestone complete
 Resume file: None
