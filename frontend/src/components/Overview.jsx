@@ -10,9 +10,9 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { getPortfolio } from '../api/client';
 import { useUser } from '../contexts/UserContext';
 import { useWebSocket } from '../contexts/WebSocketContext';
-import { getPairLabel, getBaseLabel, getBaseAsset, getQuoteAsset } from '../utils/symbolRegistry';
+import { getBaseLabel, getBaseAsset, getQuoteAsset } from '../utils/symbolRegistry';
 import { useActiveSymbols } from '../hooks/useActiveSymbols';
-import { formatEUR, formatBase, formatNumber } from '../utils/formatters';
+import { formatEUR, formatBase, formatNumber, formatPct } from '../utils/formatters';
 import { useChartTheme } from '../hooks/useChartTheme';
 import './Overview.css';
 
@@ -198,65 +198,53 @@ const Overview = () => {
             </div>
           )}
 
-          {/* Per-Symbol Cards */}
-          <div className="overview-symbols">
-            <h2>Per-Symbol</h2>
-            <div className="overview-symbol-grid">
-              {symbolSummaries.map((s) => (
-                <div
-                  key={s.sym}
-                  className="overview-symbol-card"
-                  onClick={() => navigate(`/s/${s.sym}`)}
-                >
-                  <div className="overview-symbol-header">
-                    <span className="overview-symbol-label">{getPairLabel(s.sym)}</span>
-                    <span className="overview-symbol-price">
-                      {s.livePrice
-                        ? getQuoteAsset(s.sym) === 'EUR'
-                          ? s.livePrice.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' \u20ac'
-                          : s.livePrice.toFixed(8) + ' BTC'
-                        : '\u2014'}
-                    </span>
-                  </div>
-                  {s.loaded ? (
-                    <div className="overview-symbol-body">
-                      <div className="overview-symbol-row">
-                        <span>{getBaseLabel(s.sym)} Bestand</span>
-                        <span>{formatBase(s.baseQty, s.sym)}</span>
-                      </div>
-                      <div className="overview-symbol-row">
-                        <span>Marktwert</span>
-                        <span>
-                          {formatEUR(getQuoteAsset(s.sym) !== 'EUR' && prices['BTCEUR']
-                            ? s.marketValue * prices['BTCEUR']
-                            : s.marketValue)}
-                          {getQuoteAsset(s.sym) !== 'EUR' && <span className="overview-symbol-sub"> ({formatNumber(s.marketValue)} BTC)</span>}
-                        </span>
-                      </div>
-                      <div className={`overview-symbol-row ${s.depotPnl >= 0 ? 'positive' : 'negative'}`}>
-                        <span>P&L</span>
-                        <span>
-                          {s.depotPnl >= 0 ? '+' : ''}
-                          {formatEUR(getQuoteAsset(s.sym) !== 'EUR' && prices['BTCEUR']
-                            ? s.depotPnl * prices['BTCEUR']
-                            : s.depotPnl)}
-                          {' '}({s.depotPnlPct >= 0 ? '+' : ''}{formatNumber(s.depotPnlPct)}%)
-                        </span>
-                      </div>
-                      <div className="overview-symbol-links">
-                        <button onClick={(e) => { e.stopPropagation(); navigate(`/s/${s.sym}/lots`); }}>Lots</button>
-                        <button onClick={(e) => { e.stopPropagation(); navigate(`/s/${s.sym}/combined`); }}>Signals</button>
-                        <button onClick={(e) => { e.stopPropagation(); navigate(`/s/${s.sym}/orderblock`); }}>Orderblocks</button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="overview-symbol-body overview-symbol-empty">
-                      {prices[s.sym] ? 'Lade...' : 'Kein Preis verfuegbar'}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
+          {/* Asset Table */}
+          <div className="overview-asset-section">
+            <h2>Assets</h2>
+            <table className="overview-asset-table">
+              <thead>
+                <tr>
+                  <th>Asset</th>
+                  <th className="text-right">Balance</th>
+                  <th className="text-right">Wert EUR</th>
+                  <th className="text-right">P&L %</th>
+                </tr>
+              </thead>
+              <tbody>
+                {symbolSummaries.map((s) => {
+                  // Deduplicate: only show EUR-quoted pair per base asset (skip XRPBTC if XRPEUR exists)
+                  const hasEurPair = symbolSummaries.some(
+                    other => other.sym !== s.sym
+                      && getBaseAsset(other.sym) === getBaseAsset(s.sym)
+                      && getQuoteAsset(other.sym) === 'EUR'
+                  );
+                  if (getQuoteAsset(s.sym) !== 'EUR' && hasEurPair) return null;
+
+                  const valueEur = toEur(s, s.marketValue);
+                  return (
+                    <tr
+                      key={s.sym}
+                      className="overview-asset-row"
+                      onClick={() => navigate(`/s/${s.sym}`)}
+                    >
+                      <td className="asset-name">
+                        <span className="asset-icon">{getBaseAsset(s.sym)}</span>
+                        <span className="asset-label">{getBaseLabel(s.sym)}</span>
+                      </td>
+                      <td className="text-right">
+                        {s.loaded ? formatBase(s.baseQty, s.sym) : '\u2014'}
+                      </td>
+                      <td className="text-right">
+                        {s.loaded ? formatEUR(valueEur) : '\u2014'}
+                      </td>
+                      <td className={`text-right ${s.loaded ? (s.depotPnl >= 0 ? 'positive' : 'negative') : ''}`}>
+                        {s.loaded ? formatPct(s.depotPnlPct) : '\u2014'}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
