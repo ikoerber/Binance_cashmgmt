@@ -91,7 +91,7 @@ See: `.planning/milestones/v3.2-ROADMAP.md` for full details
 **Milestone Goal:** Streamline Overview into compact portfolio table with BNB fee tracking and add contextual help to Backtest page.
 
 - [x] **Phase 27: Overview Layout Restructure** - Replace per-symbol card grid with compact asset table, retain KPI cards and allocation pie chart (completed 2026-03-01)
-- [ ] **Phase 28: BNB Fee Tracking** - Backend endpoint for BNB balance + cumulative fee EUR aggregation, BNB row in asset table
+- [x] **Phase 28: BNB Fee Tracking** - Backend endpoint for BNB balance + cumulative fee EUR aggregation, BNB row in asset table (completed 2026-03-01)
 - [ ] **Phase 29: Backtest Tooltips** - Contextual help icons with tooltips on all backtest configuration fields and result metrics
 
 ## Phase Details
@@ -152,5 +152,5 @@ Phases execute in numeric order: 27 → 28 → 29
 | 19-22 | v3.1 | 8/8 | Complete | 2026-02-28 |
 | 23-26 | v3.2 | 5/5 | Complete | 2026-02-28 |
 | 27. Overview Layout Restructure | 1/1 | Complete    | 2026-03-01 | - |
-| 28. BNB Fee Tracking | v3.3 | 0/1 | Not started | - |
+| 28. BNB Fee Tracking | 1/1 | Complete   | 2026-03-01 | - |
 | 29. Backtest Tooltips | v3.3 | 0/1 | Not started | - |
