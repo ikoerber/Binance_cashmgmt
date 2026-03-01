@@ -42,20 +42,20 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| OVW-01 | — | Pending |
-| OVW-02 | — | Pending |
-| OVW-03 | — | Pending |
-| OVW-04 | — | Pending |
-| OVW-05 | — | Pending |
-| BTE-01 | — | Pending |
-| BTE-02 | — | Pending |
-| BTE-03 | — | Pending |
+| OVW-01 | Phase 27 | Pending |
+| OVW-02 | Phase 27 | Pending |
+| OVW-03 | Phase 27 | Pending |
+| OVW-04 | Phase 28 | Pending |
+| OVW-05 | Phase 28 | Pending |
+| BTE-01 | Phase 29 | Pending |
+| BTE-02 | Phase 29 | Pending |
+| BTE-03 | Phase 29 | Pending |
 
 **Coverage:**
 - v3.3 requirements: 8 total
-- Mapped to phases: 0
-- Unmapped: 8 ⚠️
+- Mapped to phases: 8
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-01*
-*Last updated: 2026-03-01 after initial definition*
+*Last updated: 2026-03-01 after roadmap creation*

@@ -8,6 +8,7 @@
 - ✅ **v3.0 Multi-Factor Omni-Bot** — Phases 13-18 (shipped 2026-02-28)
 - ✅ **v3.1 Hardening + Monitoring** — Phases 19-22 (shipped 2026-02-28)
 - ✅ **v3.2 UX Improvements** — Phases 23-26 (shipped 2026-02-28)
+- 🚧 **v3.3 Polish & Completeness** — Phases 27-29 (in progress)
 
 ## Phases
 
@@ -85,14 +86,62 @@ See: `.planning/milestones/v3.2-ROADMAP.md` for full details
 
 </details>
 
-## Backlog (Unassigned to Milestone)
+### v3.3 Polish & Completeness (In Progress)
 
-The following phases were drafted during v3.2 but not included in the milestone scope. They are candidates for a future milestone.
+**Milestone Goal:** Streamline Overview into compact portfolio table with BNB fee tracking and add contextual help to Backtest page.
 
-- [ ] **Phase 27: Overview Improvements** — One card per crypto asset with BNB balance and fee deduction display (OVER-01, OVER-02, OVER-03)
-- [ ] **Phase 28: Backtest Explainer** — Walk-Forward methodology explainer and parameter descriptions on Backtest page (OVER-04, OVER-05)
+- [ ] **Phase 27: Overview Layout Restructure** - Replace per-symbol card grid with compact asset table, retain KPI cards and allocation pie chart
+- [ ] **Phase 28: BNB Fee Tracking** - Backend endpoint for BNB balance + cumulative fee EUR aggregation, BNB row in asset table
+- [ ] **Phase 29: Backtest Tooltips** - Contextual help icons with tooltips on all backtest configuration fields and result metrics
+
+## Phase Details
+
+### Phase 27: Overview Layout Restructure
+**Goal**: User sees a streamlined Overview with a compact asset table instead of per-symbol cards, while retaining the aggregate KPI cards and allocation pie chart
+**Depends on**: Nothing (first phase in v3.3, no new backend data needed)
+**Requirements**: OVW-01, OVW-02, OVW-03
+**Success Criteria** (what must be TRUE):
+  1. Overview page displays a single table with one row per crypto asset (columns: Asset, Balance, Value EUR, P&L%)
+  2. The allocation pie chart is visible alongside the asset table
+  3. The 4 aggregate KPI cards (Depotwert, Eingezahlt, EUR verfuegbar, Performance) appear above the asset section
+  4. Clicking an asset row navigates to that symbol's dashboard (existing behavior preserved)
+**Plans**: TBD
+
+Plans:
+- [ ] 27-01: Overview table + layout restructure
+
+### Phase 28: BNB Fee Tracking
+**Goal**: User sees BNB balance and cumulative trading fee costs in the Overview asset table, backed by a new backend endpoint
+**Depends on**: Phase 27 (asset table must exist for BNB row)
+**Requirements**: OVW-04, OVW-05
+**Success Criteria** (what must be TRUE):
+  1. A new backend endpoint returns the current Binance BNB balance for the user
+  2. The same endpoint returns the cumulative EUR-equivalent of all BNB trading fees (aggregated from LedgerEvents with fee_eur_value)
+  3. The Overview asset table shows a BNB row with the current BNB balance
+  4. The BNB row displays the cumulative fee EUR value (total BNB fees paid, converted to EUR)
+**Plans**: TBD
+
+Plans:
+- [ ] 28-01: BNB balance + fee aggregation backend endpoint and frontend integration
+
+### Phase 29: Backtest Tooltips
+**Goal**: User gets contextual help on every backtest configuration field and result metric without leaving the page
+**Depends on**: Nothing (independent of Overview work)
+**Requirements**: BTE-01, BTE-02, BTE-03
+**Success Criteria** (what must be TRUE):
+  1. Each of the 8 backtest configuration fields has a help icon that shows a tooltip explaining what the field controls
+  2. Each of the 4 parameter sweep fields has a help icon with a tooltip explaining the sweep parameter
+  3. Each result metric card (Sharpe, Drawdown, Win Rate, etc.) has a help icon with a tooltip explaining the metric
+  4. Tooltips are readable, concise, and styled consistently with the dark mode theme
+**Plans**: TBD
+
+Plans:
+- [ ] 29-01: Backtest tooltip implementation
 
 ## Progress
+
+**Execution Order:**
+Phases execute in numeric order: 27 → 28 → 29
 
 | Phase Range | Milestone | Plans Complete | Status | Completed |
 |-------------|-----------|----------------|--------|-----------|
@@ -102,4 +151,6 @@ The following phases were drafted during v3.2 but not included in the milestone 
 | 13-18 | v3.0 | 17/17 | Complete | 2026-02-28 |
 | 19-22 | v3.1 | 8/8 | Complete | 2026-02-28 |
 | 23-26 | v3.2 | 5/5 | Complete | 2026-02-28 |
-| 27-28 | — | 0/3 | Backlog | — |
+| 27. Overview Layout Restructure | v3.3 | 0/1 | Not started | - |
+| 28. BNB Fee Tracking | v3.3 | 0/1 | Not started | - |
+| 29. Backtest Tooltips | v3.3 | 0/1 | Not started | - |
