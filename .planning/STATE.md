@@ -1,14 +1,14 @@
 ---
 gsd_state_version: 1.0
-milestone: v3.3
-milestone_name: "Polish & Completeness"
-status: ready_to_plan
-last_updated: "2026-03-01T00:00:00Z"
+milestone: completed
+milestone_name: v3.3 shipped
+status: milestone_complete
+last_updated: "2026-03-01"
 progress:
-  total_phases: 3
-  completed_phases: 0
-  total_plans: 3
-  completed_plans: 0
+  total_phases: 2
+  completed_phases: 2
+  total_plans: 2
+  completed_plans: 2
 ---
 
 # Project State
@@ -18,34 +18,35 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-01)
 
 **Core value:** Ledger-first, deterministisches, auditierbares Cashflow-Tracking und automatisiertes Trading-System
-**Current focus:** v3.3 Phase 27 — Overview Layout Restructure
+**Current focus:** Planning next milestone
 
 ## Current Position
 
-Phase: 27 (1 of 3 in v3.3) — Overview Layout Restructure
-Plan: 0 of 1 in current phase
-Status: Ready to plan
-Last activity: 2026-03-01 — Roadmap created for v3.3
+Milestone: v3.3 Polish & Completeness — SHIPPED 2026-03-01
+All phases complete (27-28). Phase 29 deferred.
+Last activity: 2026-03-01 — v3.3 milestone completed and archived
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity (all milestones):**
-- Total plans completed: 59 (8 v1.0 + 9 v1.1 + 12 v2.0 + 17 v3.0 + 8 v3.1 + 5 v3.2)
-- Total execution time: ~218min+
+- Total plans completed: 62 (8 v1.0 + 9 v1.1 + 12 v2.0 + 17 v3.0 + 8 v3.1 + 5 v3.2 + 2 v3.3)
+- Total execution time: ~223min+
+- Milestones shipped: 7 (v1.0-v3.3)
 
 ## Accumulated Context
 
 All decision logs archived in respective milestone phase SUMMARY.md files.
+v3.3 decisions archived to .planning/milestones/v3.3-phases/
 
 ### Decisions
 
-None — fresh state for v3.3.
+(Cleared — milestone complete. See .planning/milestones/v3.3-phases/ for v3.3 decisions.)
 
 ### Pending Todos
 
-None.
+- Phase 29 (Backtest Tooltips) deferred from v3.3 to next milestone
 
 ### Blockers/Concerns
 
@@ -54,5 +55,5 @@ None.
 ## Session Continuity
 
 Last session: 2026-03-01
-Stopped at: Roadmap created, ready to plan Phase 27
+Stopped at: v3.3 milestone complete
 Resume file: None

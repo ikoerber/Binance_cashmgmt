@@ -1,5 +1,25 @@
 # Milestones
 
+## v3.3 Polish & Completeness (Shipped: 2026-03-01)
+
+**Phases completed:** 2 phases (27-28), 2 plans, 5 tasks
+**Timeline:** 1 day (2026-03-01)
+**Lines:** +1,367 / -165 across 16 files
+**Commits:** 12
+**Requirements:** 5/8 satisfied (Phase 29 deferred to next milestone)
+
+**Key accomplishments:**
+- Overview compact asset table — Per-symbol card grid replaced with HTML table (Asset, Balance, Wert EUR, P&L%), asset deduplication (one row per base asset), 4-column KPI grid
+- BNB fee tracking endpoint — New GET /api/portfolio/{user_id}/bnb-fees aggregates cumulative EUR-equivalent of BNB trading fees from LedgerEvents (fee_quote_value) with live Binance balance fetch
+- BNB row in Overview — Muted, non-clickable supplementary row showing current BNB balance and cumulative fee costs, conditionally rendered when balance > 0
+
+**Known Gaps:**
+- BTE-01: Backtest configuration field tooltips (deferred — Phase 29)
+- BTE-02: Parameter sweep field tooltips (deferred — Phase 29)
+- BTE-03: Result metric tooltips (deferred — Phase 29)
+
+---
+
 ## v3.2 UX Improvements (Shipped: 2026-02-28)
 
 **Phases completed:** 4 phases (23-26), 5 plans

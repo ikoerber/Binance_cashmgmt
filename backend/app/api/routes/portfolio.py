@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
-from app.services.portfolio_service import get_portfolio_state, get_daily_performance
+from app.services.portfolio_service import get_portfolio_state, get_daily_performance, get_bnb_fee_summary
 from app.services.binance import BinanceService
 from app.api.dependencies import get_binance_service_optional
 from app.symbol_registry import is_known_symbol, KNOWN_PAIRS
@@ -74,4 +74,23 @@ def get_daily_performance_endpoint(
         return get_daily_performance(db, user_id, market_price_decimal, symbol=symbol)
     except Exception as e:
         logger.exception("Daily performance endpoint failed for user=%s", user_id)
+        raise HTTPException(status_code=500, detail="Interner Serverfehler")
+
+
+@router.get("/{user_id}/bnb-fees")
+def get_bnb_fees(
+    user_id: str,
+    db: Session = Depends(get_db),
+    binance: BinanceService = Depends(get_binance_service_optional),
+):
+    """
+    BNB Fee Summary: Aktueller BNB-Bestand + kumulative Trading-Fee-Kosten in EUR.
+
+    Returns:
+        BNB Balance, EUR-Wert, kumulative Fee-Kosten, Anzahl Fee-Events
+    """
+    try:
+        return get_bnb_fee_summary(db, user_id, binance)
+    except Exception:
+        logger.exception("BNB fees endpoint failed for user=%s", user_id)
         raise HTTPException(status_code=500, detail="Interner Serverfehler")
