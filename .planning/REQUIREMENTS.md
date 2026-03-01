@@ -1,0 +1,61 @@
+# Requirements: BTC/EUR Cashflow-Management
+
+**Defined:** 2026-03-01
+**Core Value:** Ledger-first, deterministisches, auditierbares Cashflow-Tracking und automatisiertes Trading-System
+
+## v3.3 Requirements
+
+Requirements for milestone v3.3 Polish & Completeness. Each maps to roadmap phases.
+
+### Overview
+
+- [ ] **OVW-01**: User sees a compact asset table with one row per crypto asset showing: Asset name, Balance, Market Value EUR, P&L%
+- [ ] **OVW-02**: User sees the allocation pie chart alongside the compact asset table
+- [ ] **OVW-03**: User sees the 4 aggregate KPI cards (Depotwert, Eingezahlt, EUR verfuegbar, Performance) above the asset section
+- [ ] **OVW-04**: User sees a BNB row in the asset table showing current Binance BNB balance
+- [ ] **OVW-05**: User sees the EUR-equivalent of cumulative BNB trading fees in the BNB row
+
+### Backtest Explainer
+
+- [ ] **BTE-01**: User sees a help icon with tooltip on each of the 8 backtest configuration fields
+- [ ] **BTE-02**: User sees a help icon with tooltip on each of the 4 parameter sweep fields
+- [ ] **BTE-03**: User sees a help icon with tooltip on each result metric card (Sharpe, Drawdown, Win Rate, etc.)
+
+## Future Requirements
+
+None — v3.3 is a focused polish milestone.
+
+## Out of Scope
+
+| Feature | Reason |
+|---------|--------|
+| Auto-Order Automation / Live Execution | Separate milestone after Omni-Bot validated |
+| German Tax Veto (365d hold) | Deferred until Live Execution milestone |
+| Comprehensive Frontend Test Suite | Vitest infra exists (41 tests), full suite is separate milestone |
+| Light/Dark Toggle | Dark-only in v2.0, toggle can be added later |
+| Responsive/Mobile Layout | Desktop-focused |
+| BNB cumulative quantity spent (raw BNB) | EUR-equivalent is more useful for cashflow tracking |
+
+## Traceability
+
+Which phases cover which requirements. Updated during roadmap creation.
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| OVW-01 | — | Pending |
+| OVW-02 | — | Pending |
+| OVW-03 | — | Pending |
+| OVW-04 | — | Pending |
+| OVW-05 | — | Pending |
+| BTE-01 | — | Pending |
+| BTE-02 | — | Pending |
+| BTE-03 | — | Pending |
+
+**Coverage:**
+- v3.3 requirements: 8 total
+- Mapped to phases: 0
+- Unmapped: 8 ⚠️
+
+---
+*Requirements defined: 2026-03-01*
+*Last updated: 2026-03-01 after initial definition*
