@@ -1,9 +1,9 @@
 ---
 gsd_state_version: 1.0
-milestone: none
-milestone_name: none
-status: between_milestones
-last_updated: "2026-02-28T20:00:00Z"
+milestone: v3.3
+milestone_name: "Polish & Completeness"
+status: defining_requirements
+last_updated: "2026-03-01T00:00:00Z"
 progress:
   total_phases: 0
   completed_phases: 0
@@ -15,19 +15,17 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-02-28)
+See: .planning/PROJECT.md (updated 2026-03-01)
 
 **Core value:** Ledger-first, deterministisches, auditierbares Cashflow-Tracking und automatisiertes Trading-System
-**Current focus:** Between milestones — v3.2 shipped, next milestone TBD
+**Current focus:** v3.3 Polish & Completeness — Overview simplification, BNB fees, Backtest tooltips
 
 ## Current Position
 
-Phase: None — all milestones complete
-Plan: N/A
-Status: v3.2 UX Improvements shipped (2026-02-28)
-Last activity: 2026-02-28 — Completed milestone v3.2
-
-Progress: All 6 milestones complete (v1.0-v3.2), 59 plans total
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-03-01 — Milestone v3.3 started
 
 ## Performance Metrics
 
@@ -41,7 +39,7 @@ All decision logs archived in respective milestone phase SUMMARY.md files.
 
 ### Decisions
 
-None — fresh state for next milestone.
+None — fresh state for v3.3.
 
 ### Pending Todos
 
@@ -53,6 +51,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-02-28
-Stopped at: Completed milestone v3.2
+Last session: 2026-03-01
+Stopped at: Defining requirements for v3.3
 Resume file: None

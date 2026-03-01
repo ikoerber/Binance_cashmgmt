@@ -71,10 +71,14 @@ Ledger-first, deterministisches, auditierbares Cashflow-Tracking und automatisie
 
 <!-- Current scope. Building toward these. -->
 
-No active milestone. Backlog candidates from v3.2 scope:
-- BNB balance display in Overview (balance card + fee deduction info)
-- Overview simplification (one card per crypto asset)
-- Backtest Explainer (Walk-Forward methodology, parameter descriptions)
+## Current Milestone: v3.3 Polish & Completeness
+
+**Goal:** Streamline Overview into compact portfolio table with BNB fee tracking and add contextual help to Backtest page.
+
+**Target features:**
+- Overview simplification: compact table rows (Asset | Balance | Value EUR | P&L%) replacing per-symbol cards
+- BNB balance + cumulative fee history in Overview (new backend endpoint + fee aggregation from LedgerEvents)
+- Backtest inline tooltips: contextual help icons on individual form fields
 
 ### Out of Scope
 
@@ -164,4 +168,4 @@ Health Monitoring: 8 parallele Service-Checks (in-memory, 5s TTL), Telegram-Bena
 | Health-Check Module-Import statt Variablen-Import | Python bindet `from module import var` zum Import-Zeitpunkt (engine war None) | ✓ Good — `from app.db import database as _db` behebt Referenz-Bug |
 
 ---
-*Last updated: 2026-02-28 after v3.2 milestone*
+*Last updated: 2026-03-01 after v3.3 milestone start*
